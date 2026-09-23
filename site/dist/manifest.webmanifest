@@ -1,0 +1,19 @@
+{
+  "name": "CHAE EUN.ZIP",
+  "short_name": "CHAE EUN.ZIP",
+  "description": "채은 지식 저장소 — 회사 생활 중 필요한 메모를 빠르게 찾아보세요",
+  "lang": "ko-KR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff8fb",
+  "theme_color": "#f6b7ca",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
