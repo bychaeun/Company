@@ -1,0 +1,8 @@
+{
+  "name": "chae-eun-zip",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": { "start": "node --env-file-if-exists=.env server/index.mjs", "test": "node --test tests/*.test.mjs" }
+}
+

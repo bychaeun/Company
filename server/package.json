@@ -1,0 +1,7 @@
+{
+  "name": "chae-eun-zip-server",
+  "private": true,
+  "type": "module",
+  "dependencies": { "jose": "^6.1.0" }
+}
+

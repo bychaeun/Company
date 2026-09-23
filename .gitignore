@@ -1,0 +1,12 @@
+.env
+.env.*
+service-account*.json
+google-credentials*.json
+node_modules/
+outputs/
+.build/
+data/local-notes.json
+.private/
+*.sqlite*
+.pnpm-store/
+
