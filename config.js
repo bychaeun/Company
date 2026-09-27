@@ -1,6 +1,5 @@
-// 실제 자료는 승인 상태를 확인하는 서버 API에서만 제공합니다.
 window.COMPANY_CONFIG = {
-  DATA_URL: "/api/notes",
+  API_URL: 'https://script.google.com/macros/s/AKfycbzkvVWBRw7bgEBzPM_YDzdxiU-3P-jtwp7Ei1w2X9kUBJX2LMaXl75tR0Y9vHDaSpVO/exec',
   SYNC_INTERVAL_MINUTES: 30
 };
 

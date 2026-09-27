@@ -170,3 +170,4 @@ function zipImage_(fileId) {
 
 // Run once in the editor to create the access-management tab and authorize Sheets/Drive.
 function setupChaeZip() { zipUserSheet_(); DriveApp.getRootFolder().getId(); console.log('접근관리 준비 완료'); }
+

@@ -43,7 +43,7 @@
       <p class="eyebrow">CHAE EUN.ZIP</p>
       <h1 id="auth-title">채은 지식 저장소</h1>
       <p id="auth-message">로그인 상태를 확인하고 있어요.</p>
-      <a class="google-login" id="google-login" href="/auth/google" hidden><span aria-hidden="true">G</span> Google로 로그인</a>
+      <div id="google-login"><button class="google-login" type="button" disabled>Google로 로그인 · 연결 준비 중</button></div>
       <button class="install-button" id="check-approval" type="button" hidden>승인 상태 다시 확인</button>
       <p class="auth-caption">처음 방문하면 승인 대기로 등록돼요.<br />채은님이 허락한 계정만 메모를 볼 수 있어요.</p>
     </section>
@@ -57,7 +57,7 @@
         <nav id="category-nav"></nav>
         <div class="sidebar-note">
           <strong>승인된 계정만 보는 메모</strong>
-          <span>시트의 대분류·소분류를 자유롭게 추가하세요. 서버 실행 중 30분마다 새 자료를 읽어요.</span>
+          <span>시트의 대분류·소분류를 자유롭게 추가하세요. 앱을 열어 둔 동안 30분마다 새 자료를 읽어요.</span>
         </div>
       </aside>
 
@@ -141,6 +141,7 @@
 
     <noscript>이 사이트의 검색 기능을 사용하려면 JavaScript를 활성화해 주세요.</noscript>
     <script src="config.js"></script>
+    <script src="api.js"></script>
     <script src="auth.js"></script>
     <script src="app.js"></script>
   </body>

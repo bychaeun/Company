@@ -124,10 +124,8 @@
   function normalizeImageUrl(url) {
     const value = url.trim();
     if (!value) return "";
-    if (/^\/api\/images\/[-\w]+$/.test(value)) return value;
-    const driveMatch = value.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([-\w]+)/);
-    if (driveMatch) return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1200`;
-    return /^https?:\/\//i.test(value) ? value : "";
+    if (/^[-\w]{10,200}$/.test(value)) return value;
+    return "";
   }
 
   function escapeHTML(value) {
@@ -190,7 +188,7 @@
             ${record.subtitle ? `<p class="card-subtitle">${escapeHTML(record.subtitle)}</p>` : ""}
             <p class="card-preview">${escapeHTML(record.content)}</p>
           </div>
-          ${image ? `<img class="card-image" src="${escapeHTML(image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true" />` : ""}
+          ${image ? `<img class="card-image" data-private-image="${escapeHTML(image)}" alt="메모 참고 이미지" loading="lazy" />` : ""}
         </button>
         <button class="card-save" type="button" data-save-id="${record.id}" aria-label="${escapeHTML(record.title)} 이미지로 저장">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
@@ -198,6 +196,7 @@
         </button>
       </article>`;
     }).join("");
+    hydrateImages(el.list);
   }
 
   function render() {
@@ -215,7 +214,7 @@
       <h2>${escapeHTML(record.title)}</h2>
       ${record.subtitle ? `<p class="dialog-subtitle">${escapeHTML(record.subtitle)}</p>` : ""}
       <div class="dialog-copy">${escapeHTML(record.content)}</div>
-      ${record.images.length ? `<div class="dialog-images">${record.images.map((url, index) => `<img src="${escapeHTML(url)}" alt="${escapeHTML(record.title)} 참고 이미지 ${index + 1}" loading="lazy" referrerpolicy="no-referrer" />`).join("")}</div>` : ""}
+      ${record.images.length ? `<div class="dialog-images">${record.images.map((url, index) => `<img data-private-image="${escapeHTML(url)}" alt="${escapeHTML(record.title)} 참고 이미지 ${index + 1}" loading="lazy" />`).join("")}</div>` : ""}
       ${record.updatedAt ? `<p class="dialog-updated">마지막 수정 ${escapeHTML(record.updatedAt)}</p>` : ""}
       <button class="dialog-save" type="button" data-dialog-save>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
@@ -223,6 +222,7 @@
       </button>
     </article>`;
     el.dialog.showModal();
+    hydrateImages(el.dialogContent);
   }
 
   function showToast(message) {
@@ -254,7 +254,8 @@
     return lines;
   }
 
-  function loadCanvasImage(url) {
+  async function loadCanvasImage(fileId) {
+    const url = await window.ZIP_API.image(fileId);
     return new Promise((resolve) => {
       const image = new Image();
       image.crossOrigin = "anonymous";
@@ -263,6 +264,16 @@
       image.src = url;
     });
   }
+
+  const imageObserver = new IntersectionObserver(entries => {
+    entries.filter(entry => entry.isIntersecting).forEach(entry => {
+      imageObserver.unobserve(entry.target);
+      window.ZIP_API.image(entry.target.dataset.privateImage).then(url => {
+        if (url && entry.target.isConnected && window.CHAE_AUTH.user?.status === 'approved') entry.target.src = url;
+      }).catch(() => { entry.target.alt = '이미지를 불러오지 못했어요'; });
+    });
+  }, {rootMargin:'100px'});
+  function hydrateImages(container) { container.querySelectorAll('[data-private-image]').forEach(img=>imageObserver.observe(img)); }
 
   function roundedRect(context, x, y, width, height, radius) {
     context.beginPath();
@@ -275,6 +286,7 @@
     showToast("메모 이미지를 만들고 있어요…");
     try {
       const loadedImages = (await Promise.all(record.images.map(loadCanvasImage))).filter(Boolean);
+      if (window.CHAE_AUTH.user?.status !== 'approved') return;
       const width = 1200;
       const padding = 86;
       const contentWidth = width - padding * 2;
@@ -375,14 +387,10 @@
     el.refresh.disabled = true;
     try {
       if (!window.CHAE_AUTH?.user || window.CHAE_AUTH.user.status !== 'approved') return;
-      const url = '/api/notes';
-      const separator = url.includes("?") ? "&" : "?";
-      const response = await fetch(`${url}${separator}_=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) { await window.CHAE_AUTH.check(); throw new Error(`HTTP ${response.status}`); }
-      const text = await response.text();
+      const payload = await window.ZIP_API.request('notes');
       if (window.CHAE_AUTH?.user?.status !== 'approved') return;
-      const payload = JSON.parse(text);
       const nextRecords = payload ? jsonToRecords(payload) : csvToRecords(text);
+      window.ZIP_API.clearImages();
       state.records = nextRecords;
       render();
       const time = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date());
@@ -391,8 +399,8 @@
         ? `시트 반영 ${new Date(payload.syncedAt).toLocaleString("ko-KR")}`
         : `${time} 저장된 자료 로드`;
       el.banner.hidden = payload?.syncMode === "scheduled";
-      el.refresh.title = "저장된 자료 다시 읽기 (시트 직접 동기화 아님)";
-      el.refresh.setAttribute("aria-label", "저장된 자료 다시 읽기");
+      el.refresh.title = "Google 시트에서 최신 자료 가져오기";
+      el.refresh.setAttribute("aria-label", "지금 시트 동기화");
     } catch (error) {
       console.error("Sheet sync failed:", error);
       el.syncDot.className = "sync-dot error";
@@ -489,9 +497,19 @@
 
   window.addEventListener('access-change', event => {
     if (event.detail?.status === 'approved') { if (!state.records.length) loadData(false); }
-    else { state.records = []; state.currentRecordId = null; el.dialogContent.replaceChildren(); render(); }
+    else { imageObserver.disconnect(); state.records = []; state.currentRecordId = null; el.dialogContent.replaceChildren(); render(); }
   });
   window.addEventListener('notes-refresh', () => loadData(true));
+  if (document.modelContext?.registerTool) {
+    Promise.resolve(document.modelContext.registerTool({name:'search_notes',description:'승인된 사용자의 화면에서 메모를 검색합니다.',inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async input=>{
+      if (!input || typeof input.query !== 'string' || input.query.length > 300) throw new Error('검색어를 300자 이하로 입력하세요.');
+      if (window.CHAE_AUTH.user?.status !== 'approved') throw new Error('로그인 및 승인이 필요합니다.');
+      await window.CHAE_AUTH.check();
+      if (window.CHAE_AUTH.user?.status !== 'approved') throw new Error('접근이 제한되었습니다.');
+      state.query=input.query;el.search.value=input.query;renderCards();
+      return {count:visibleRecords().length};
+    }})).catch(()=>{});
+  }
   window.setInterval(() => loadData(false), syncMinutes * 60 * 1000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch((error) => console.error("Service worker:", error));
 })();

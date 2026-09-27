@@ -1,10 +1,11 @@
-const CACHE_NAME = "chae-auth-v1";
+const CACHE_NAME = "chae-appsscript-v1";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./auth.js",
+  "./api.js",
   "./config.js",
   "./manifest.webmanifest",
   "./favicon.svg",
