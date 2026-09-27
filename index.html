@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="CHAE EUN.ZIP — 회사 생활 중 필요한 메모를 모아두는 채은 지식 저장소" />
     <meta name="theme-color" content="#f6b7ca" />
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=3" />
-    <link rel="manifest" href="manifest.webmanifest?v=3" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=4" />
+    <link rel="manifest" href="manifest.webmanifest?v=4" />
     <title>CHAE EUN.ZIP — 채은 지식 저장소</title>
-    <link rel="stylesheet" href="styles.css?v=3" />
+    <link rel="stylesheet" href="styles.css?v=4" />
   </head>
   <body class="auth-checking">
     <a class="skip-link" href="#knowledge-list">내용으로 바로가기</a>
@@ -21,9 +21,19 @@
           <small>채은 지식 저장소</small>
         </span>
       </a>
-      <div class="topbar-actions">
-        <button class="install-button" id="admin-button" type="button" hidden>접근 승인 관리</button>
-        <button class="install-button" id="logout-button" type="button" hidden>로그아웃</button>
+      <img class="topbar-mascot" src="assets/pudding-mascot-wave.png" alt="" aria-hidden="true" />
+      <button class="topbar-menu-button" id="topbar-menu-button" type="button" aria-label="상단 메뉴 열기" aria-expanded="false" aria-controls="topbar-actions">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <div class="topbar-actions" id="topbar-actions">
+        <button class="install-button" id="admin-button" type="button" aria-label="접근 승인 관리" title="접근 승인 관리" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.8c0-2.3-1.8-4.2-4.1-4.2H7.1C4.8 14 3 15.9 3 18.2V20m6.5-9.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM17 8l1.5 1.5L22 6" /></svg>
+          <span>접근 승인 관리</span>
+        </button>
+        <button class="install-button" id="logout-button" type="button" aria-label="로그아웃" title="로그아웃" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5m4-4 4-4-4-4m4 4H9" /></svg>
+          <span>로그아웃</span>
+        </button>
         <button class="install-button" id="install-button" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
           <span>웹앱 설치</span>
@@ -71,10 +81,10 @@
             <p class="eyebrow">WORK NOTES</p>
             <h1 id="page-title">필요한 업무 정보,<br />바로 찾아보세요.</h1>
             <p class="intro-note">오늘의 메모도 차곡차곡, 말랑하게 모아둘게요.</p>
-          </div>
-          <div class="result-summary" aria-live="polite">
-            <strong id="result-count">0</strong>
-            <span>개의 메모</span>
+            <div class="result-summary" aria-live="polite">
+              <strong id="result-count">0</strong>
+              <span>개의 메모</span>
+            </div>
           </div>
           <img class="pudding-mascot" src="assets/pudding-mascot.png" alt="딸기 푸딩 모양의 CHAE EUN.ZIP 메모 도우미" />
         </section>
@@ -90,9 +100,12 @@
             <input id="search-input" type="search" autocomplete="off" placeholder="제목, 내용으로 검색" />
             <kbd>Ctrl K</kbd>
           </div>
-          <select id="subcategory-select" aria-label="소분류 선택">
-            <option value="">모든 소분류</option>
-          </select>
+          <div class="select-box">
+            <select id="subcategory-select" aria-label="소분류 선택">
+              <option value="">모든 소분류</option>
+            </select>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+          </div>
         </section>
 
         <div id="connection-banner" class="connection-banner" hidden>
@@ -165,12 +178,10 @@
     </dialog>
 
     <noscript>이 사이트의 검색 기능을 사용하려면 JavaScript를 활성화해 주세요.</noscript>
-    <script src="config.js?v=3"></script>
-    <script src="api.js?v=3"></script>
-    <script src="auth.js?v=3"></script>
-    <script src="checklist.js?v=3"></script>
-    <script src="app.js?v=3"></script>
+    <script src="config.js?v=4"></script>
+    <script src="api.js?v=4"></script>
+    <script src="auth.js?v=4"></script>
+    <script src="checklist.js?v=4"></script>
+    <script src="app.js?v=4"></script>
   </body>
 </html>
-
-

@@ -1,4 +1,4 @@
-const CACHE_NAME = "chae-appsscript-v3";
+const CACHE_NAME = "chae-appsscript-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,7 +11,8 @@ const APP_SHELL = [
   "./manifest.webmanifest",
   "./favicon.svg",
   "./privacy.html",
-  "./assets/pudding-mascot.png"
+  "./assets/pudding-mascot.png",
+  "./assets/pudding-mascot-wave.png"
 ];
 
 self.addEventListener("install", (event) => {
@@ -32,5 +33,3 @@ self.addEventListener("fetch", (event) => {
   // Private note data is never stored in the offline cache.
   event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
-
-

@@ -370,7 +370,32 @@
     render();
   });
 
-  document.querySelector("#open-sidebar").addEventListener("click", () => document.body.classList.add("sidebar-open"));
+  const topbarMenuButton = document.querySelector("#topbar-menu-button");
+  const closeTopbarMenu = () => {
+    document.body.classList.remove("topbar-menu-open");
+    topbarMenuButton.setAttribute("aria-expanded", "false");
+    topbarMenuButton.setAttribute("aria-label", "상단 메뉴 열기");
+  };
+  topbarMenuButton.addEventListener("click", () => {
+    const open = !document.body.classList.contains("topbar-menu-open");
+    document.body.classList.toggle("topbar-menu-open", open);
+    topbarMenuButton.setAttribute("aria-expanded", String(open));
+    topbarMenuButton.setAttribute("aria-label", open ? "상단 메뉴 닫기" : "상단 메뉴 열기");
+  });
+  document.querySelector("#topbar-actions").addEventListener("click", (event) => {
+    if (event.target.closest("button")) closeTopbarMenu();
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".topbar")) closeTopbarMenu();
+  });
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 680) closeTopbarMenu();
+  });
+
+  document.querySelector("#open-sidebar").addEventListener("click", () => {
+    closeTopbarMenu();
+    document.body.classList.add("sidebar-open");
+  });
   document.querySelector("#close-sidebar").addEventListener("click", () => document.body.classList.remove("sidebar-open"));
   document.querySelector("#sidebar-backdrop").addEventListener("click", () => document.body.classList.remove("sidebar-open"));
   document.querySelector("#dialog-close").addEventListener("click", () => el.dialog.close());
@@ -432,5 +457,3 @@
   window.setInterval(() => loadData(false), syncMinutes * 60 * 1000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch((error) => console.error("Service worker:", error));
 })();
-
-
