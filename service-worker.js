@@ -12,7 +12,7 @@ const APP_SHELL = [
   "./favicon.svg",
   "./privacy.html",
   "./assets/pudding-mascot.png",
-  "./assets/pudding-mascot-wave.png"
+  "./assets/pudding-mascot-wave.png?v=5"
 ];
 
 self.addEventListener("install", (event) => {
