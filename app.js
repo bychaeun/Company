@@ -3,12 +3,14 @@
 
   const config = window.COMPANY_CONFIG || {};
   const syncMinutes = Number(config.SYNC_INTERVAL_MINUTES) || 30;
+  const pageSize = 20;
 
   const state = {
     records: [],
     query: "",
     category: "",
     subcategory: "",
+    page: 1,
     currentRecordId: null
   };
 
@@ -18,6 +20,7 @@
     count: document.querySelector("#result-count"),
     search: document.querySelector("#search-input"),
     subcategory: document.querySelector("#subcategory-select"),
+    pagination: document.querySelector("#pagination"),
     categories: document.querySelector("#category-nav"),
     syncDot: document.querySelector("#sync-dot"),
     syncLabel: document.querySelector("#sync-label"),
@@ -102,10 +105,13 @@
 
   function renderCards() {
     const records = visibleRecords();
+    const pageCount = Math.max(1, Math.ceil(records.length / pageSize));
+    state.page = Math.min(Math.max(1, state.page), pageCount);
+    const pageRecords = records.slice((state.page - 1) * pageSize, state.page * pageSize);
     el.count.textContent = records.length.toLocaleString("ko-KR");
     el.empty.hidden = records.length > 0;
     el.list.hidden = records.length === 0;
-    el.list.innerHTML = records.map((record) => {
+    el.list.innerHTML = pageRecords.map((record) => {
       const image = record.images[0];
       return `<article class="knowledge-card ${image ? "has-image" : ""}">
         <button class="card-button" type="button" data-id="${record.id}" aria-label="${escapeHTML(record.title)} 자세히 보기">
@@ -122,6 +128,12 @@
         </button>
       </article>`;
     }).join("");
+    el.pagination.hidden = records.length <= pageSize;
+    el.pagination.innerHTML = records.length <= pageSize ? "" : `
+      <button class="page-arrow" type="button" data-page="${state.page - 1}" ${state.page === 1 ? "disabled" : ""} aria-label="이전 페이지">‹</button>
+      <span class="page-pudding" aria-hidden="true">🍮</span>
+      ${Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => `<button type="button" data-page="${page}" class="page-number ${page === state.page ? "active" : ""}" ${page === state.page ? 'aria-current="page"' : ""}>${page}</button>`).join("")}
+      <button class="page-arrow" type="button" data-page="${state.page + 1}" ${state.page === pageCount ? "disabled" : ""} aria-label="다음 페이지">›</button>`;
     hydrateImages(el.list);
   }
 
@@ -333,11 +345,13 @@
 
   el.search.addEventListener("input", (event) => {
     state.query = event.target.value;
+    state.page = 1;
     renderCards();
   });
 
   el.subcategory.addEventListener("change", (event) => {
     state.subcategory = event.target.value;
+    state.page = 1;
     renderCards();
   });
 
@@ -346,6 +360,7 @@
     if (!button) return;
     state.category = button.dataset.category;
     state.subcategory = "";
+    state.page = 1;
     render();
     window.dispatchEvent(new Event("show-notes"));
     document.body.classList.remove("sidebar-open");
@@ -362,10 +377,19 @@
     if (button) openDetail(button.dataset.id);
   });
 
+  el.pagination.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-page]");
+    if (!button || button.disabled) return;
+    state.page = Number(button.dataset.page) || 1;
+    renderCards();
+    document.querySelector("#notes-view").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
   document.querySelector("#clear-filters").addEventListener("click", () => {
     state.query = "";
     state.category = "";
     state.subcategory = "";
+    state.page = 1;
     el.search.value = "";
     render();
   });
