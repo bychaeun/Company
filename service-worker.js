@@ -1,4 +1,4 @@
-const CACHE_NAME = "chae-appsscript-v5";
+const CACHE_NAME = "chae-appsscript-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,7 +12,7 @@ const APP_SHELL = [
   "./favicon.svg",
   "./privacy.html",
   "./assets/pudding-mascot.png",
-  "./assets/pudding-mascot-wave.png?v=5"
+  "./assets/pudding-mascot-wave.png?v=6"
 ];
 
 self.addEventListener("install", (event) => {
