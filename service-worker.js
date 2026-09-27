@@ -1,4 +1,4 @@
-const CACHE_NAME = "chae-appsscript-v1";
+const CACHE_NAME = "chae-appsscript-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -30,4 +30,5 @@ self.addEventListener("fetch", (event) => {
   // Private note data is never stored in the offline cache.
   event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
+
 
