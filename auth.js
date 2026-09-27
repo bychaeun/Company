@@ -3,15 +3,17 @@
   const $=id=>document.getElementById(id), api=window.ZIP_API;
   let currentUser=null, checking=null, loginReady=false, configured=false;
   function update(user,message='') {
+    document.body.classList.remove('auth-checking');
     currentUser=user;
     const approved=user?.status==='approved';
     $('private-app').hidden=!approved; $('auth-panel').hidden=approved;
     $('logout-button').hidden=!user; $('admin-button').hidden=user?.role!=='admin';
+    $('checklist-nav-button').hidden=user?.role!=='admin';
     $('google-login').hidden=!!user; $('check-approval').hidden=!user;
     document.querySelector('.sync-state').hidden=!approved;
     $('auth-title').textContent=!user?'채은 지식 저장소':user.status==='rejected'?'접근이 제한된 계정이에요':'채은님의 승인을 기다리고 있어요';
     $('auth-message').textContent=message||(user?`${user.email} · 채은님이 승인하면 메모를 볼 수 있어요.`:'Google 계정으로 로그인하고 메모를 만나보세요.');
-    if(!approved){$('detail-dialog').close();$('admin-dialog').close();api.clearImages();}
+    if(!approved){$('detail-dialog').close();$('admin-dialog').close();api.clearImages();window.dispatchEvent(new Event('show-notes'));}
     window.dispatchEvent(new CustomEvent('access-change',{detail:user}));
   }
   async function renderLogin() {
@@ -81,4 +83,5 @@
     }catch(error){update(null,error.message||'Google 연결을 확인할 수 없어요.');}
   })();
 })();
+
 

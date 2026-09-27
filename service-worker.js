@@ -1,14 +1,16 @@
-const CACHE_NAME = "chae-appsscript-v2";
+const CACHE_NAME = "chae-appsscript-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./auth.js",
+  "./checklist.js",
   "./api.js",
   "./config.js",
   "./manifest.webmanifest",
   "./favicon.svg",
+  "./privacy.html",
   "./assets/pudding-mascot.png"
 ];
 

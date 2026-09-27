@@ -1,6 +1,7 @@
 // Script properties: GOOGLE_CLIENT_ID, ADMIN_EMAILS, SPREADSHEET_ID (optional for bound scripts).
 // Never enable anonymous note access. All private actions require a verified session.
 var ZIP_USER_HEADERS = ['Google ID','이메일','이름','승인상태','최초 로그인','최근 로그인'];
+var ZIP_CHECKLIST_HEADERS = ['완료','할 일','날짜','시간','메모','캘린더 이벤트 ID'];
 
 function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
@@ -38,6 +39,9 @@ function doPost(e) {
     if (user.role !== 'admin') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자만 사용할 수 있습니다.'});
     if (action === 'users') return zipJson_({ok:true,users:zipUsers_().map(function(row){return {sub:row[0],email:row[1],name:row[2],status:row[3],created:row[4],lastLogin:row[5],admin:zipAdmin_(row[0])};})});
     if (action === 'setStatus') return zipJson_(zipSetStatus_(body.sub,body.status));
+    if (action === 'checklist') return zipJson_({ok:true,items:zipChecklist_()});
+    if (action === 'addChecklist') return zipJson_(zipAddChecklist_(body));
+    if (action === 'toggleChecklist') return zipJson_(zipToggleChecklist_(body.row,body.done));
     throw new Error('지원하지 않는 요청입니다.');
   } catch (error) {
     // No token, private note, raw upstream error or configuration secrets in public responses.
@@ -150,15 +154,23 @@ function zipDriveId_(value) {
   var match = text.match(/^https:\/\/drive\.google\.com\/file\/d\/([-\w]{10,200})(?:\/|$)/) || text.match(/^https:\/\/drive\.google\.com\/(?:open|uc|thumbnail)\?id=([-\w]{10,200})(?:&|$)/);
   return match ? match[1] : '';
 }
+function zipNoteSheets_() {
+  var sheets = zipSheet_().getSheets().filter(function(sh){
+    var name = sh.getName();
+    return name !== '접근관리' && name !== '체크리스트' && name.indexOf('메모_백업') !== 0;
+  });
+  var categorySheets = sheets.filter(function(sh){return sh.getName() !== '메모';});
+  return categorySheets.length ? categorySheets : sheets;
+}
 function zipNotes_() {
-  var sh=zipSheet_().getSheetByName('메모');
-  if(!sh)throw new Error('Missing notes');
-  var rows=sh.getDataRange().getDisplayValues(), headers=rows.shift()||[];
-  if(!['대분류','소분류','제목','부제목','내용','이미지','수정일'].every(function(h){return headers.indexOf(h)>=0;}))throw new Error('Invalid note headers');
-  return rows.map(function(r){
-    var get=function(h){return r[headers.indexOf(h)]||'';};
-    return {category:get('대분류')||'기타',subcategory:get('소분류'),title:get('제목'),subtitle:get('부제목'),content:get('내용'),updatedAt:get('수정일'),images:get('이미지').split(/[|\n;]/).map(zipDriveId_).filter(Boolean)};
-  }).filter(function(r){return r.title||r.content;});
+  return zipNoteSheets_().reduce(function(all,sh){
+    var rows=sh.getDataRange().getDisplayValues(), headers=rows.shift()||[];
+    if(!['소분류','제목','내용','이미지','수정일'].every(function(h){return headers.indexOf(h)>=0;}))return all;
+    return all.concat(rows.map(function(r){
+      var get=function(h){return r[headers.indexOf(h)]||'';};
+      return {category:headers.indexOf('대분류')>=0?(get('대분류')||'기타'):sh.getName(),subcategory:get('소분류'),title:get('제목'),content:get('내용'),updatedAt:get('수정일'),images:get('이미지').split(/[|\n;]/).map(zipDriveId_).filter(Boolean)};
+    }).filter(function(r){return r.title||r.content;}));
+  },[]);
 }
 function zipImage_(fileId) {
   if(!/^[-\w]{10,200}$/.test(String(fileId)))throw new Error('Invalid image');
@@ -168,6 +180,63 @@ function zipImage_(fileId) {
   return {ok:true,mime:type,base64:Utilities.base64Encode(file.getBlob().getBytes())};
 }
 
+function zipChecklistSheet_() {
+  var ss=zipSheet_(), sh=ss.getSheetByName('체크리스트');
+  if(!sh){
+    sh=ss.insertSheet('체크리스트');
+    sh.getRange(1,1,1,ZIP_CHECKLIST_HEADERS.length).setValues([ZIP_CHECKLIST_HEADERS]);
+    sh.setFrozenRows(1);
+  }
+  var headers=sh.getRange(1,1,1,ZIP_CHECKLIST_HEADERS.length).getDisplayValues()[0];
+  if(!ZIP_CHECKLIST_HEADERS.every(function(h,i){return headers[i]===h;}))throw new Error('Invalid checklist headers');
+  sh.getRange(2,1,Math.max(1,sh.getMaxRows()-1),1).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+  sh.getRange(2,3,Math.max(1,sh.getMaxRows()-1),1).setNumberFormat('yyyy-mm-dd');
+  return sh;
+}
+function zipChecklist_() {
+  var sh=zipChecklistSheet_();
+  if(sh.getLastRow()<2)return [];
+  var values=sh.getRange(2,1,sh.getLastRow()-1,6).getValues();
+  var display=sh.getRange(2,1,sh.getLastRow()-1,6).getDisplayValues();
+  return values.map(function(row,i){return {row:i+2,done:row[0]===true,task:String(display[i][1]||''),date:String(display[i][2]||''),time:String(display[i][3]||''),note:String(display[i][4]||''),calendar:!!display[i][5]};})
+    .filter(function(item){return item.task;})
+    .sort(function(a,b){return (a.done-b.done)||((a.date+' '+a.time).localeCompare(b.date+' '+b.time));});
+}
+function zipChecklistInput_(body) {
+  var task=String(body.task||'').trim(), date=String(body.date||'').trim(), time=String(body.time||'').trim(), note=String(body.note||'').trim();
+  if(!task||task.length>160||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)||time&&!/^[0-9]{2}:[0-9]{2}$/.test(time)||note.length>1000)throw new Error('Invalid checklist item');
+  var when=Utilities.parseDate(date+' '+(time||'09:00'),Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm');
+  if(isNaN(when.getTime()))throw new Error('Invalid checklist date');
+  return {task:task,date:date,time:time,note:note,when:when};
+}
+function zipAddChecklist_(body) {
+  var item=zipChecklistInput_(body), lock=LockService.getScriptLock(); lock.waitLock(10000);
+  try{
+    var calendar=CalendarApp.getDefaultCalendar();
+    var event=item.time?calendar.createEvent('☐ '+item.task,item.when,new Date(item.when.getTime()+60*60*1000)):calendar.createAllDayEvent('☐ '+item.task,item.when);
+    event.setDescription(['CHAE EUN.ZIP 체크리스트',item.note].filter(Boolean).join('\n\n'));
+    var sh=zipChecklistSheet_();
+    sh.appendRow([false,zipSafeCell_(item.task),item.when,item.time,zipSafeCell_(item.note),event.getId()]);
+    sh.getRange(sh.getLastRow(),3).setNumberFormat('yyyy-mm-dd');
+    return {ok:true,item:{row:sh.getLastRow(),done:false,task:item.task,date:item.date,time:item.time,note:item.note,calendar:true}};
+  }finally{lock.releaseLock();}
+}
+function zipToggleChecklist_(row,done) {
+  row=Number(row);
+  if(!Number.isInteger(row)||row<2||typeof done!=='boolean')throw new Error('Invalid checklist update');
+  var lock=LockService.getScriptLock(); lock.waitLock(10000);
+  try{
+    var sh=zipChecklistSheet_();
+    if(row>sh.getLastRow())throw new Error('Unknown checklist item');
+    var values=sh.getRange(row,1,1,6).getDisplayValues()[0], task=values[1], eventId=values[5];
+    if(!task)throw new Error('Unknown checklist item');
+    sh.getRange(row,1).setValue(done);
+    if(eventId){var event=CalendarApp.getEventById(eventId);if(event)event.setTitle((done?'✓ ':'☐ ')+task);}
+    return {ok:true};
+  }finally{lock.releaseLock();}
+}
+
 // Run once in the editor to create the access-management tab and authorize Sheets/Drive.
-function setupChaeZip() { zipUserSheet_(); DriveApp.getRootFolder().getId(); console.log('접근관리 준비 완료'); }
+function setupChaeZip() { zipUserSheet_(); zipChecklistSheet_(); DriveApp.getRootFolder().getId(); CalendarApp.getDefaultCalendar().getId(); console.log('접근관리·체크리스트·캘린더 준비 완료'); }
+
 

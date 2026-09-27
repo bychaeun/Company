@@ -3,9 +3,6 @@
 
   const config = window.COMPANY_CONFIG || {};
   const syncMinutes = Number(config.SYNC_INTERVAL_MINUTES) || 30;
-  const sampleUrl = "sample-data.csv";
-  const dataUrl = String(config.DATA_URL || "").trim();
-  const sourceUrl = String(config.SHEET_CSV_URL || "").trim();
 
   const state = {
     records: [],
@@ -33,71 +30,6 @@
     toast: document.querySelector("#toast")
   };
 
-  function parseCSV(text) {
-    const rows = [];
-    let row = [];
-    let cell = "";
-    let quoted = false;
-
-    for (let i = 0; i < text.length; i += 1) {
-      const char = text[i];
-      const next = text[i + 1];
-      if (char === '"' && quoted && next === '"') {
-        cell += '"';
-        i += 1;
-      } else if (char === '"') {
-        quoted = !quoted;
-      } else if (char === "," && !quoted) {
-        row.push(cell);
-        cell = "";
-      } else if ((char === "\n" || char === "\r") && !quoted) {
-        if (char === "\r" && next === "\n") i += 1;
-        row.push(cell);
-        if (row.some((value) => value.trim() !== "")) rows.push(row);
-        row = [];
-        cell = "";
-      } else {
-        cell += char;
-      }
-    }
-    row.push(cell);
-    if (row.some((value) => value.trim() !== "")) rows.push(row);
-    return rows;
-  }
-
-  const aliases = {
-    category: ["대분류", "카테고리", "category"],
-    subcategory: ["소분류", "세부분류", "subcategory"],
-    title: ["제목", "title"],
-    subtitle: ["부제목", "업체명", "subtitle"],
-    content: ["내용", "본문", "content"],
-    images: ["이미지", "이미지url", "image", "images"],
-    updatedAt: ["수정일", "업데이트", "updated_at", "updatedat"]
-  };
-
-  function normalizeHeader(value) {
-    return value.toLowerCase().replace(/[\s_-]/g, "");
-  }
-
-  function csvToRecords(csv) {
-    const rows = parseCSV(csv.replace(/^\uFEFF/, ""));
-    if (rows.length < 2) return [];
-    const headers = rows[0].map(normalizeHeader);
-    const indexOf = (field) => headers.findIndex((header) => aliases[field].map(normalizeHeader).includes(header));
-    const indexes = Object.fromEntries(Object.keys(aliases).map((key) => [key, indexOf(key)]));
-
-    return rows.slice(1).map((row, index) => ({
-      id: index,
-      category: valueAt(row, indexes.category) || "기타",
-      subcategory: valueAt(row, indexes.subcategory),
-      title: valueAt(row, indexes.title) || "제목 없음",
-      subtitle: valueAt(row, indexes.subtitle),
-      content: valueAt(row, indexes.content),
-      images: splitImages(valueAt(row, indexes.images)),
-      updatedAt: valueAt(row, indexes.updatedAt)
-    })).filter((record) => record.title !== "제목 없음" || record.content);
-  }
-
   function jsonToRecords(data) {
     const rows = Array.isArray(data) ? data : data.records;
     if (!Array.isArray(rows)) return [];
@@ -106,15 +38,10 @@
       category: String(record.category || record["대분류"] || "기타").trim(),
       subcategory: String(record.subcategory || record["소분류"] || "").trim(),
       title: String(record.title || record["제목"] || "제목 없음").trim(),
-      subtitle: String(record.subtitle || record["부제목"] || "").trim(),
       content: String(record.content || record["내용"] || "").trim(),
       images: Array.isArray(record.images) ? record.images.map(normalizeImageUrl).filter(Boolean) : splitImages(String(record.images || record["이미지"] || "")),
       updatedAt: String(record.updatedAt || record["수정일"] || "").trim()
     })).filter((record) => record.title !== "제목 없음" || record.content);
-  }
-
-  function valueAt(row, index) {
-    return index >= 0 ? String(row[index] || "").trim() : "";
   }
 
   function splitImages(value) {
@@ -135,7 +62,7 @@
   }
 
   function searchable(record) {
-    return [record.category, record.subcategory, record.title, record.subtitle, record.content]
+    return [record.category, record.subcategory, record.title, record.content]
       .join(" ")
       .toLocaleLowerCase("ko");
   }
@@ -185,7 +112,6 @@
           <div>
             <div class="card-category"><span>${escapeHTML(record.category)}</span>${record.subcategory ? `<span>${escapeHTML(record.subcategory)}</span>` : ""}</div>
             <h2 class="card-title">${escapeHTML(record.title)}</h2>
-            ${record.subtitle ? `<p class="card-subtitle">${escapeHTML(record.subtitle)}</p>` : ""}
             <p class="card-preview">${escapeHTML(record.content)}</p>
           </div>
           ${image ? `<img class="card-image" data-private-image="${escapeHTML(image)}" alt="메모 참고 이미지" loading="lazy" />` : ""}
@@ -212,7 +138,6 @@
     el.dialogContent.innerHTML = `<article class="dialog-body">
       <p class="dialog-category">${escapeHTML(record.category)}${record.subcategory ? ` · ${escapeHTML(record.subcategory)}` : ""}</p>
       <h2>${escapeHTML(record.title)}</h2>
-      ${record.subtitle ? `<p class="dialog-subtitle">${escapeHTML(record.subtitle)}</p>` : ""}
       <div class="dialog-copy">${escapeHTML(record.content)}</div>
       ${record.images.length ? `<div class="dialog-images">${record.images.map((url, index) => `<img data-private-image="${escapeHTML(url)}" alt="${escapeHTML(record.title)} 참고 이미지 ${index + 1}" loading="lazy" />`).join("")}</div>` : ""}
       ${record.updatedAt ? `<p class="dialog-updated">마지막 수정 ${escapeHTML(record.updatedAt)}</p>` : ""}
@@ -301,7 +226,7 @@
         return { image, width: image.width * ratio, height: image.height * ratio };
       });
       const imageHeight = imageSizes.reduce((sum, size) => sum + size.height + 24, 0);
-      const height = Math.max(720, 190 + titleLines.length * 72 + (record.subtitle ? 58 : 0) + contentLines.length * 48 + imageHeight + 180);
+      const height = Math.max(720, 190 + titleLines.length * 72 + contentLines.length * 48 + imageHeight + 180);
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -336,13 +261,6 @@
       context.fillStyle = "#352f3f";
       context.font = "800 58px Pretendard, Arial, sans-serif";
       titleLines.forEach((line) => { context.fillText(line, padding, y); y += 72; });
-      if (record.subtitle) {
-        y += 2;
-        context.fillStyle = "#75697f";
-        context.font = "700 31px Pretendard, Arial, sans-serif";
-        context.fillText(record.subtitle, padding, y);
-        y += 58;
-      }
       y += 14;
       context.strokeStyle = "#eaddea";
       context.lineWidth = 2;
@@ -389,7 +307,7 @@
       if (!window.CHAE_AUTH?.user || window.CHAE_AUTH.user.status !== 'approved') return;
       const payload = await window.ZIP_API.request('notes');
       if (window.CHAE_AUTH?.user?.status !== 'approved') return;
-      const nextRecords = payload ? jsonToRecords(payload) : csvToRecords(text);
+      const nextRecords = jsonToRecords(payload);
       window.ZIP_API.clearImages();
       state.records = nextRecords;
       render();
@@ -429,6 +347,7 @@
     state.category = button.dataset.category;
     state.subcategory = "";
     render();
+    window.dispatchEvent(new Event("show-notes"));
     document.body.classList.remove("sidebar-open");
   });
 
@@ -513,4 +432,5 @@
   window.setInterval(() => loadData(false), syncMinutes * 60 * 1000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch((error) => console.error("Service worker:", error));
 })();
+
 
