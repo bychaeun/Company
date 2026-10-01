@@ -15,7 +15,7 @@
   function escapeHTML(value) {
     const node = document.createElement("div");
     node.textContent = String(value || "");
-    return node.innerHTML;
+    return node.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function today() {
@@ -45,11 +45,12 @@
       return;
     }
     list.innerHTML = items.map((item) => `
-      <label class="checklist-item ${item.done ? "done" : ""}">
+      <div class="checklist-item ${item.done ? "done" : ""}">
         <input type="checkbox" data-checklist-row="${Number(item.row)}" ${item.done ? "checked" : ""} />
         <span><strong>${escapeHTML(item.task)}</strong><span>${escapeHTML(item.note || "Google 캘린더에 등록됨")}</span></span>
         <time datetime="${escapeHTML(item.date)}">${escapeHTML(item.date)}${item.time ? ` · ${escapeHTML(item.time)}` : ""}</time>
-      </label>`).join("");
+        <button type="button" data-delete-row="${Number(item.row)}" aria-label="${escapeHTML(item.task)} 삭제">삭제</button>
+      </div>`).join("");
   }
 
   async function load() {
@@ -109,5 +110,13 @@
   });
 
   dateInput.value = today();
+  list.addEventListener('click', async event => {
+    const button=event.target.closest('[data-delete-row]');
+    if(!button || window.CHAE_AUTH.user?.role!=='admin')return;
+    if(!window.confirm('체크리스트에서 삭제할까요? 연결된 Google 캘린더 일정은 유지됩니다.'))return;
+    button.disabled=true;
+    try {await api.request('deleteChecklist',{row:Number(button.dataset.deleteRow)});await load();}
+    catch(error){message.textContent=error.message;button.disabled=false;}
+  });
+  setInterval(()=>{if(!document.hidden && !checklistView.hidden && window.CHAE_AUTH.user?.role==='admin')load();},60000);
 })();
-

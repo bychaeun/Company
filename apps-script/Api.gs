@@ -42,6 +42,7 @@ function doPost(e) {
     if (action === 'checklist') return zipJson_({ok:true,items:zipChecklist_()});
     if (action === 'addChecklist') return zipJson_(zipAddChecklist_(body));
     if (action === 'toggleChecklist') return zipJson_(zipToggleChecklist_(body.row,body.done));
+    if (action === 'deleteChecklist') return zipJson_(zipDeleteChecklist_(body.row));
     throw new Error('지원하지 않는 요청입니다.');
   } catch (error) {
     // No token, private note, raw upstream error or configuration secrets in public responses.
@@ -189,6 +190,9 @@ function zipChecklistSheet_() {
   }
   var headers=sh.getRange(1,1,1,ZIP_CHECKLIST_HEADERS.length).getDisplayValues()[0];
   if(!ZIP_CHECKLIST_HEADERS.every(function(h,i){return headers[i]===h;}))throw new Error('Invalid checklist headers');
+  var extra=sh.getRange(1,7,1,2).getDisplayValues()[0];
+  if(extra[0] && extra[0]!=='완료일시' || extra[1] && extra[1]!=='삭제일시')throw new Error('Unexpected checklist columns');
+  if(!extra[0] || !extra[1])sh.getRange(1,7,1,2).setValues([['완료일시','삭제일시']]);
   sh.getRange(2,1,Math.max(1,sh.getMaxRows()-1),1).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
   sh.getRange(2,3,Math.max(1,sh.getMaxRows()-1),1).setNumberFormat('yyyy-mm-dd');
   return sh;
@@ -196,10 +200,10 @@ function zipChecklistSheet_() {
 function zipChecklist_() {
   var sh=zipChecklistSheet_();
   if(sh.getLastRow()<2)return [];
-  var values=sh.getRange(2,1,sh.getLastRow()-1,6).getValues();
+  var values=sh.getRange(2,1,sh.getLastRow()-1,8).getValues();
   var display=sh.getRange(2,1,sh.getLastRow()-1,6).getDisplayValues();
   return values.map(function(row,i){return {row:i+2,done:row[0]===true,task:String(display[i][1]||''),date:String(display[i][2]||''),time:String(display[i][3]||''),note:String(display[i][4]||''),calendar:!!display[i][5]};})
-    .filter(function(item){return item.task;})
+    .filter(function(item){var source=values[item.row-2];return item.task && !source[7] && !zipChecklistExpired_(item.done,source[6],Date.now());})
     .sort(function(a,b){return (a.done-b.done)||((a.date+' '+a.time).localeCompare(b.date+' '+b.time));});
 }
 function zipChecklistInput_(body) {
@@ -230,13 +234,32 @@ function zipToggleChecklist_(row,done) {
     if(row>sh.getLastRow())throw new Error('Unknown checklist item');
     var values=sh.getRange(row,1,1,6).getDisplayValues()[0], task=values[1], eventId=values[5];
     if(!task)throw new Error('Unknown checklist item');
+    if(sh.getRange(row,8).getValue())throw new Error('Deleted checklist item');
+    var wasDone=sh.getRange(row,1).getValue()===true;
     sh.getRange(row,1).setValue(done);
+    if(!done)sh.getRange(row,7).clearContent();
+    else if(!wasDone || !sh.getRange(row,7).getValue())sh.getRange(row,7).setValue(new Date());
     if(eventId){var event=CalendarApp.getEventById(eventId);if(event)event.setTitle((done?'✓ ':'☐ ')+task);}
+    return {ok:true};
+  }finally{lock.releaseLock();}
+}
+
+function zipChecklistExpired_(done,completedAt,now) {
+  if(!done || !completedAt)return false;
+  var stamp=new Date(completedAt).getTime();
+  return isFinite(stamp) && now-stamp>=7*24*60*60*1000;
+}
+function zipDeleteChecklist_(row) {
+  row=Number(row);
+  if(!Number.isInteger(row)||row<2)throw new Error('Invalid checklist row');
+  var lock=LockService.getScriptLock();lock.waitLock(10000);
+  try {
+    var sh=zipChecklistSheet_();
+    if(row>sh.getLastRow() || !sh.getRange(row,2).getValue())throw new Error('Unknown checklist item');
+    if(!sh.getRange(row,8).getValue())sh.getRange(row,8).setValue(new Date());
     return {ok:true};
   }finally{lock.releaseLock();}
 }
 
 // Run once in the editor to create the access-management tab and authorize Sheets/Drive.
 function setupChaeZip() { zipUserSheet_(); zipChecklistSheet_(); DriveApp.getRootFolder().getId(); CalendarApp.getDefaultCalendar().getId(); console.log('접근관리·체크리스트·캘린더 준비 완료'); }
-
-
