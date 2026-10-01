@@ -11,6 +11,8 @@
   const message = $("checklist-message");
   const dateInput = $("checklist-date");
   let items = [];
+  let loading = null;
+  let saving = false;
 
   function escapeHTML(value) {
     const node = document.createElement("div");
@@ -46,14 +48,21 @@
     }
     list.innerHTML = items.map((item) => `
       <div class="checklist-item ${item.done ? "done" : ""}">
-        <input type="checkbox" data-checklist-row="${Number(item.row)}" ${item.done ? "checked" : ""} />
-        <span><strong>${escapeHTML(item.task)}</strong><span>${escapeHTML(item.note || "Google 캘린더에 등록됨")}</span></span>
+        <label class="checklist-toggle">
+          <input type="checkbox" data-checklist-row="${Number(item.row)}" ${item.done ? "checked" : ""} />
+          <span><strong>${escapeHTML(item.task)}</strong><span>${escapeHTML(item.note || "Google 캘린더에 등록됨")}</span></span>
+        </label>
         <time datetime="${escapeHTML(item.date)}">${escapeHTML(item.date)}${item.time ? ` · ${escapeHTML(item.time)}` : ""}</time>
         <button type="button" data-delete-row="${Number(item.row)}" aria-label="${escapeHTML(item.task)} 삭제">삭제</button>
       </div>`).join("");
   }
 
-  async function load() {
+  function load() {
+    if (loading) return loading;
+    loading = fetchItems().finally(() => { loading = null; });
+    return loading;
+  }
+  async function fetchItems() {
     message.textContent = "체크리스트와 캘린더 상태를 확인하고 있어요.";
     try {
       const data = await api.request("checklist");
@@ -97,26 +106,38 @@
   list.addEventListener("change", async (event) => {
     const checkbox = event.target.closest("[data-checklist-row]");
     if (!checkbox) return;
-    checkbox.disabled = true;
+    if (saving || loading) { checkbox.checked = !checkbox.checked; return; }
+    saving = true;
+    const previous = !checkbox.checked;
+    const row = checkbox.closest('.checklist-item');
+    row.classList.toggle('done', checkbox.checked);
+    list.querySelectorAll('input, button').forEach(control => { control.disabled = true; });
+    row.setAttribute('aria-busy', 'true');
     message.textContent = "완료 상태를 캘린더에 반영하고 있어요.";
     try {
       await api.request("toggleChecklist", { row: Number(checkbox.dataset.checklistRow), done: checkbox.checked });
       await load();
     } catch (error) {
-      checkbox.checked = !checkbox.checked;
-      checkbox.disabled = false;
+      checkbox.checked = previous;
+      row.classList.toggle('done', previous);
       message.textContent = error.message;
+    } finally {
+      saving = false;
+      row.removeAttribute('aria-busy');
+      list.querySelectorAll('input, button').forEach(control => { control.disabled = false; });
     }
   });
 
   dateInput.value = today();
   list.addEventListener('click', async event => {
     const button=event.target.closest('[data-delete-row]');
-    if(!button || window.CHAE_AUTH.user?.role!=='admin')return;
+    if(!button || saving || loading || window.CHAE_AUTH.user?.role!=='admin')return;
     if(!window.confirm('체크리스트에서 삭제할까요? 연결된 Google 캘린더 일정은 유지됩니다.'))return;
-    button.disabled=true;
+    saving=true;
+    list.querySelectorAll('input, button').forEach(control => { control.disabled = true; });
     try {await api.request('deleteChecklist',{row:Number(button.dataset.deleteRow)});await load();}
-    catch(error){message.textContent=error.message;button.disabled=false;}
+    catch(error){message.textContent=error.message;}
+    finally{saving=false;list.querySelectorAll('input, button').forEach(control => { control.disabled = false; });}
   });
-  setInterval(()=>{if(!document.hidden && !checklistView.hidden && window.CHAE_AUTH.user?.role==='admin')load();},60000);
+  setInterval(()=>{if(!saving && !document.hidden && !checklistView.hidden && window.CHAE_AUTH.user?.role==='admin')load();},60000);
 })();
