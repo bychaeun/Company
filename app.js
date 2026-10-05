@@ -39,6 +39,7 @@
     noteCategoryNew: document.querySelector("#note-category-new"),
     noteSubcategory: document.querySelector("#note-subcategory"),
     noteSubcategoryNew: document.querySelector("#note-subcategory-new"),
+    noteAddress: document.querySelector("#note-address"),
     noteImages: document.querySelector("#note-images"),
     noteImageIds: document.querySelector("#note-image-ids"),
     noteImagePreview: document.querySelector("#note-image-preview"),
@@ -55,6 +56,7 @@
       category: String(record.category || record["대분류"] || "기타").trim(),
       subcategory: String(record.subcategory || record["소분류"] || "").trim(),
       title: String(record.title || record["제목"] || "제목 없음").trim(),
+      address: String(record.address || record["주소"] || "").trim(),
       content: String(record.content || record["내용"] || "").trim(),
       images: Array.isArray(record.images) ? record.images.map(normalizeImageUrl).filter(Boolean) : splitImages(String(record.images || record["이미지"] || "")),
       imageText: String(record.imageText || record["이미지"] || "").trim(),
@@ -80,7 +82,7 @@
   }
 
   function searchable(record) {
-    return [record.category, record.subcategory, record.title, record.content]
+    return [record.category, record.subcategory, record.title, record.address, record.content]
       .join(" ")
       .toLocaleLowerCase("ko");
   }
@@ -134,12 +136,13 @@
           <div>
             <div class="card-category"><span>${escapeHTML(record.category)}</span>${record.subcategory ? `<span>${escapeHTML(record.subcategory)}</span>` : ""}</div>
             <h2 class="card-title">${escapeHTML(record.title)}</h2>
+            ${record.address ? `<p class="card-address"><span aria-hidden="true">⌖</span>${escapeHTML(record.address)}</p>` : ""}
             <p class="card-preview">${escapeHTML(record.content)}</p>
           </div>
           ${image ? `<img class="card-image" data-private-image="${escapeHTML(image)}" alt="메모 참고 이미지" loading="lazy" />` : ""}
         </button>
+        ${canEdit && record.noteId ? `<button class="card-edit-icon" type="button" data-edit-id="${record.id}" aria-label="${escapeHTML(record.title)} 수정" title="메모 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4" /></svg></button>` : ""}
         <div class="card-actions">
-          ${canEdit && record.noteId ? `<button class="card-edit" type="button" data-edit-id="${record.id}" aria-label="${escapeHTML(record.title)} 수정">수정</button>` : ""}
           <button class="card-save" type="button" data-save-id="${record.id}" aria-label="${escapeHTML(record.title)} 이미지로 저장">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
             이미지 저장
@@ -169,6 +172,7 @@
     el.dialogContent.innerHTML = `<article class="dialog-body">
       <p class="dialog-category">${escapeHTML(record.category)}${record.subcategory ? ` · ${escapeHTML(record.subcategory)}` : ""}</p>
       <h2>${escapeHTML(record.title)}</h2>
+      ${record.address ? `<p class="dialog-address"><span aria-hidden="true">⌖</span><span>${escapeHTML(record.address)}</span></p>` : ""}
       <div class="dialog-copy">${escapeHTML(record.content)}</div>
       ${record.images.length ? `<div class="dialog-images">${record.images.map((url, index) => `<img data-private-image="${escapeHTML(url)}" alt="${escapeHTML(record.title)} 참고 이미지 ${index + 1}" loading="lazy" />`).join("")}</div>` : ""}
       ${record.updatedAt ? `<p class="dialog-updated">마지막 수정 ${escapeHTML(record.updatedAt)}</p>` : ""}
@@ -176,8 +180,8 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
         이 메모를 이미지로 저장
       </button>
-      ${window.CHAE_AUTH?.user?.role === "admin" && record.noteId ? `<button class="dialog-edit" type="button" data-dialog-edit>메모 수정</button>` : ""}
     </article>`;
+    document.querySelector("#dialog-edit-button").hidden = !(window.CHAE_AUTH?.user?.role === "admin" && record.noteId);
     el.dialog.showModal();
     hydrateImages(el.dialogContent);
   }
@@ -217,6 +221,7 @@
     document.querySelector("#note-editor-title").textContent = record ? "메모 수정" : "새 메모 작성";
     document.querySelector("#note-editor-id").value = record?.noteId || "";
     document.querySelector("#note-title").value = record?.title || "";
+    el.noteAddress.value = record?.address || "";
     document.querySelector("#note-content").value = record?.content || "";
     el.noteImageIds.value = record?.imageText || "";
     el.noteImages.value = "";
@@ -260,6 +265,7 @@
       category: editorValue(el.noteCategory, el.noteCategoryNew),
       subcategory: editorValue(el.noteSubcategory, el.noteSubcategoryNew),
       title: document.querySelector("#note-title").value.trim(),
+      address: el.noteAddress.value.trim(),
       content: document.querySelector("#note-content").value.trim(),
       imageText: el.noteImageIds.value.trim()
     };
@@ -375,12 +381,13 @@
       const titleLines = wrapCanvasText(measure, record.title, contentWidth);
       measure.font = "400 31px Pretendard, Arial, sans-serif";
       const contentLines = wrapCanvasText(measure, record.content, contentWidth);
+      const addressLines = record.address ? wrapCanvasText(measure, `주소  ${record.address}`, contentWidth) : [];
       const imageSizes = loadedImages.map((image) => {
         const ratio = Math.min(contentWidth / image.width, 620 / image.height, 1);
         return { image, width: image.width * ratio, height: image.height * ratio };
       });
       const imageHeight = imageSizes.reduce((sum, size) => sum + size.height + 24, 0);
-      const height = Math.max(720, 190 + titleLines.length * 72 + contentLines.length * 48 + imageHeight + 180);
+      const height = Math.max(720, 190 + titleLines.length * 72 + addressLines.length * 44 + contentLines.length * 48 + imageHeight + 180);
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -416,6 +423,12 @@
       context.font = "800 58px Pretendard, Arial, sans-serif";
       titleLines.forEach((line) => { context.fillText(line, padding, y); y += 72; });
       y += 14;
+      if (addressLines.length) {
+        context.fillStyle = "#a45f7c";
+        context.font = "700 27px Pretendard, Arial, sans-serif";
+        addressLines.forEach((line) => { context.fillText(line, padding, y); y += 44; });
+        y += 8;
+      }
       context.strokeStyle = "#eaddea";
       context.lineWidth = 2;
       context.beginPath(); context.moveTo(padding, y); context.lineTo(width - padding, y); context.stroke();
@@ -467,10 +480,12 @@
       render();
       const time = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date());
       el.syncDot.className = "sync-dot ready";
-      el.syncLabel.textContent = payload?.syncedAt
+      el.syncLabel.textContent = window.ZIP_LOCAL_PREVIEW
+        ? '로컬 미리보기 · 실제 저장 안 됨'
+        : payload?.syncedAt
         ? `시트 반영 ${new Date(payload.syncedAt).toLocaleString("ko-KR")}`
         : `${time} 저장된 자료 로드`;
-      el.banner.hidden = payload?.syncMode === "scheduled";
+      el.banner.hidden = payload?.syncMode === "scheduled" || payload?.syncMode === "preview";
       el.refresh.title = "Google 시트에서 최신 자료 가져오기";
       el.refresh.setAttribute("aria-label", "지금 시트 동기화");
     } catch (error) {
@@ -670,5 +685,4 @@
   window.setInterval(() => loadData(false), syncMinutes * 60 * 1000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch((error) => console.error("Service worker:", error));
 })();
-
 

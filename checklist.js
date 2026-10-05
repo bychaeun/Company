@@ -11,10 +11,17 @@
   const message = $("checklist-message");
   const dateInput = $("checklist-date");
   const notesButton = $("checklist-notes-button");
-  const categoriesButton = $("checklist-categories-button");
+  const addNoteButton = $("add-note-button");
+  const formToggle = $("checklist-form-toggle");
+  const formCancel = $("checklist-form-cancel");
+  const calendarGrid = $("calendar-grid");
+  const calendarTitle = $("calendar-month-title");
+  const selectedTitle = $("checklist-selected-title");
   let items = [];
   let loading = null;
   let saving = false;
+  let selectedDate = today();
+  let visibleMonth = selectedDate.slice(0, 7);
 
   function escapeHTML(value) {
     const node = document.createElement("div");
@@ -28,10 +35,21 @@
     return local.toISOString().slice(0, 10);
   }
 
+  function dateKey(date) {
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+  }
+
+  function formatSelectedDate(value) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Intl.DateTimeFormat('ko-KR', {month:'long',day:'numeric',weekday:'short'}).format(new Date(year, month - 1, day));
+  }
+
   function showNotes() {
     notesView.hidden = false;
     checklistView.hidden = true;
     navButton.classList.remove("active");
+    addNoteButton.hidden = window.CHAE_AUTH.user?.role !== "admin";
   }
 
   async function showChecklist() {
@@ -39,16 +57,37 @@
     notesView.hidden = true;
     checklistView.hidden = false;
     navButton.classList.add("active");
+    addNoteButton.hidden = true;
+    form.hidden = true;
     document.body.classList.remove("sidebar-open");
     await load();
   }
 
-  function render() {
-    if (!items.length) {
-      list.innerHTML = '<div class="checklist-empty">등록된 할 일이 없습니다. 첫 일정을 추가해 보세요.</div>';
+  function renderCalendar() {
+    const [year, month] = visibleMonth.split('-').map(Number);
+    const first = new Date(year, month - 1, 1);
+    const start = first.getDay();
+    calendarTitle.textContent = `${year}년 ${month}월`;
+    calendarGrid.innerHTML = Array.from({length:42}, (_, index) => {
+      const date = new Date(year, month - 1, index - start + 1);
+      const key = dateKey(date);
+      const dayItems = items.filter(item => item.date === key);
+      const labels = dayItems.slice(0, 2).map(item => `<span class="calendar-task ${item.done ? 'done' : ''}">${escapeHTML(item.time || '종일')} ${escapeHTML(item.task)}</span>`).join('');
+      const more = dayItems.length > 2 ? `<span class="calendar-more">+${dayItems.length - 2}개</span>` : '';
+      return `<button class="calendar-day ${date.getMonth() !== month - 1 ? 'outside' : ''} ${key === today() ? 'today' : ''} ${key === selectedDate ? 'selected' : ''}" type="button" role="gridcell" data-calendar-date="${key}" aria-selected="${key === selectedDate}">
+        <span class="calendar-day-number">${date.getDate()}</span>${labels}${more}
+      </button>`;
+    }).join('');
+  }
+
+  function renderAgenda() {
+    const dayItems = items.filter(item => item.date === selectedDate);
+    selectedTitle.textContent = `${formatSelectedDate(selectedDate)} 일정`;
+    if (!dayItems.length) {
+      list.innerHTML = '<div class="checklist-empty">이 날짜에는 등록된 일정이 없어요. 위에서 새 할 일을 추가해 보세요.</div>';
       return;
     }
-    list.innerHTML = items.map((item) => `
+    list.innerHTML = dayItems.map((item) => `
       <div class="checklist-item ${item.done ? "done" : ""}">
         <label class="checklist-toggle">
           <input type="checkbox" data-checklist-row="${Number(item.row)}" ${item.done ? "checked" : ""} />
@@ -57,6 +96,11 @@
         <time datetime="${escapeHTML(item.date)}">${escapeHTML(item.date)}${item.time ? ` · ${escapeHTML(item.time)}` : ""}</time>
         <button type="button" data-delete-row="${Number(item.row)}" aria-label="${escapeHTML(item.task)} 삭제">삭제</button>
       </div>`).join("");
+  }
+
+  function render() {
+    renderCalendar();
+    renderAgenda();
   }
 
   function load() {
@@ -79,9 +123,30 @@
 
   navButton.addEventListener("click", showChecklist);
   notesButton.addEventListener("click", showNotes);
-  categoriesButton.addEventListener("click", () => {
-    showNotes();
-    document.body.classList.add("sidebar-open");
+  formToggle.addEventListener('click', () => {
+    form.hidden = false;
+    dateInput.value = selectedDate;
+    $("checklist-task").focus();
+    form.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+  formCancel.addEventListener('click', () => { form.hidden = true; });
+  calendarGrid.addEventListener('click', event => {
+    const button = event.target.closest('[data-calendar-date]');
+    if(!button)return;
+    selectedDate = button.dataset.calendarDate;
+    visibleMonth = selectedDate.slice(0, 7);
+    dateInput.value = selectedDate;
+    render();
+  });
+  $("calendar-prev").addEventListener('click', () => {
+    const [year, month] = visibleMonth.split('-').map(Number);
+    visibleMonth = dateKey(new Date(year, month - 2, 1)).slice(0, 7);
+    renderCalendar();
+  });
+  $("calendar-next").addEventListener('click', () => {
+    const [year, month] = visibleMonth.split('-').map(Number);
+    visibleMonth = dateKey(new Date(year, month, 1)).slice(0, 7);
+    renderCalendar();
   });
   window.addEventListener("show-notes", showNotes);
   window.addEventListener("access-change", (event) => {
@@ -95,6 +160,8 @@
     submit.disabled = true;
     message.textContent = "Google 캘린더에 할 일을 추가하고 있어요.";
     try {
+      selectedDate = dateInput.value;
+      visibleMonth = selectedDate.slice(0, 7);
       await api.request("addChecklist", {
         task: $("checklist-task").value.trim(),
         date: dateInput.value,
@@ -102,7 +169,8 @@
         note: $("checklist-note").value.trim()
       });
       form.reset();
-      dateInput.value = today();
+      dateInput.value = selectedDate;
+      form.hidden = true;
       await load();
     } catch (error) {
       message.textContent = error.message;
@@ -136,7 +204,13 @@
     }
   });
 
-  dateInput.value = today();
+  dateInput.value = selectedDate;
+  dateInput.addEventListener('change', () => {
+    if(!dateInput.value)return;
+    selectedDate = dateInput.value;
+    visibleMonth = selectedDate.slice(0, 7);
+    render();
+  });
   list.addEventListener('click', async event => {
     const button=event.target.closest('[data-delete-row]');
     if(!button || saving || loading || window.CHAE_AUTH.user?.role!=='admin')return;
@@ -149,4 +223,3 @@
   });
   setInterval(()=>{if(!saving && !document.hidden && !checklistView.hidden && window.CHAE_AUTH.user?.role==='admin')load();},60000);
 })();
-

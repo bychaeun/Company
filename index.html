@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="CHAE EUN.ZIP — 회사 생활 중 필요한 메모를 모아두는 채은 지식 저장소" />
     <meta name="theme-color" content="#f6b7ca" />
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=8" />
-    <link rel="manifest" href="manifest.webmanifest?v=8" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=12" />
+    <link rel="manifest" href="manifest.webmanifest?v=12" />
+    <link rel="preconnect" href="https://accounts.google.com" />
+    <link rel="preconnect" href="https://script.google.com" />
     <title>CHAE EUN.ZIP — 채은 지식 저장소</title>
-    <link rel="stylesheet" href="styles.css?v=8" />
+    <link rel="stylesheet" href="styles.css?v=12" />
   </head>
   <body class="auth-checking">
     <a class="skip-link" href="#knowledge-list">내용으로 바로가기</a>
@@ -130,7 +132,6 @@
         <section id="checklist-view" class="checklist-view" hidden aria-labelledby="checklist-title">
           <nav class="checklist-view-nav" aria-label="화면 이동">
             <button id="checklist-notes-button" class="checklist-view-nav-button" type="button">← 메모로 돌아가기</button>
-            <button id="checklist-categories-button" class="checklist-view-nav-button" type="button">☰ 분류 선택</button>
           </nav>
           <div class="checklist-heading">
             <div>
@@ -140,14 +141,28 @@
             </div>
             <img class="checklist-mascot" src="assets/pudding-mascot-wave.png?v=6" alt="윙크하며 손 흔드는 푸딩 체크리스트 도우미" />
           </div>
-          <form id="checklist-form" class="checklist-form">
+          <section class="checklist-calendar" aria-labelledby="calendar-month-title">
+            <header class="calendar-toolbar">
+              <button id="calendar-prev" type="button" aria-label="이전 달"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button>
+              <h2 id="calendar-month-title"></h2>
+              <button id="calendar-next" type="button" aria-label="다음 달"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
+            </header>
+            <div class="calendar-weekdays" aria-hidden="true"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+            <div id="calendar-grid" class="calendar-grid" role="grid" aria-label="일정 달력"></div>
+          </section>
+          <button id="checklist-form-toggle" class="checklist-form-toggle" type="button">＋ 선택한 날짜에 일정 추가</button>
+          <form id="checklist-form" class="checklist-form" hidden>
             <label>할 일<input id="checklist-task" name="task" maxlength="160" required placeholder="할 일을 입력하세요" /></label>
             <label>날짜<input id="checklist-date" name="date" type="date" required /></label>
             <label>시간<input id="checklist-time" name="time" type="time" /></label>
             <label class="checklist-note-field">메모<textarea id="checklist-note" name="note" maxlength="1000" rows="3" placeholder="선택 사항"></textarea></label>
-            <button class="install-button checklist-add" type="submit">캘린더에 추가</button>
+            <div class="checklist-form-actions">
+              <button id="checklist-form-cancel" class="checklist-form-cancel" type="button">닫기</button>
+              <button class="install-button checklist-add" type="submit">캘린더에 추가</button>
+            </div>
           </form>
           <p id="checklist-message" class="checklist-message" role="status"></p>
+          <h2 id="checklist-selected-title" class="checklist-selected-title"></h2>
           <div id="checklist-list" class="checklist-list" aria-label="체크리스트 항목"></div>
         </section>
       </main>
@@ -161,6 +176,9 @@
 
     <dialog id="detail-dialog" class="detail-dialog">
       <button class="dialog-close" id="dialog-close" type="button" aria-label="닫기">×</button>
+      <button class="dialog-edit-icon" id="dialog-edit-button" type="button" data-dialog-edit aria-label="메모 수정" title="메모 수정" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4" /></svg>
+      </button>
       <div id="dialog-content"></div>
     </dialog>
 
@@ -182,6 +200,9 @@
         </div>
         <label>제목
           <input id="note-title" name="title" maxlength="200" required placeholder="메모 제목" />
+        </label>
+        <label>주소 <span class="field-optional">선택 사항</span>
+          <input id="note-address" name="address" maxlength="300" placeholder="예: 서울 서초구 3층" autocomplete="street-address" />
         </label>
         <label>내용
           <textarea id="note-content" name="content" maxlength="8000" rows="9" placeholder="업무 내용을 자유롭게 기록하세요"></textarea>
@@ -206,9 +227,11 @@
         <div class="install-pudding" aria-hidden="true">🍮</div>
         <h2>CHAE EUN.ZIP을 앱처럼 사용하세요</h2>
         <p>브라우저 메뉴에서 <strong>앱 설치</strong> 또는 <strong>홈 화면에 추가</strong>를 선택하면 바탕화면에서 바로 열 수 있어요.</p>
+        <a class="android-download" href="https://github.com/bychaeun/Company/releases/latest/download/CHAE-EUN-ZIP.apk">Android APK 내려받기</a>
         <ul>
           <li>Chrome·Edge: 주소창 오른쪽의 설치 아이콘</li>
           <li>iPhone·iPad: 공유 버튼 → 홈 화면에 추가</li>
+          <li>Android APK: 내려받은 파일을 열고 ‘이 출처 허용’ 후 설치</li>
         </ul>
       </div>
     </dialog>
@@ -224,12 +247,11 @@
     </dialog>
 
     <noscript>이 사이트의 검색 기능을 사용하려면 JavaScript를 활성화해 주세요.</noscript>
-    <script src="config.js?v=8"></script>
-    <script src="api.js?v=8"></script>
-    <script src="auth.js?v=8"></script>
-    <script src="checklist.js?v=8"></script>
-    <script src="app.js?v=8"></script>
+    <script src="config.js?v=12"></script>
+    <script src="api.js?v=12"></script>
+    <script src="auth.js?v=12"></script>
+    <script src="checklist.js?v=12"></script>
+    <script src="app.js?v=12"></script>
   </body>
 </html>
-
 

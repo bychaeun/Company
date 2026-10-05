@@ -71,6 +71,14 @@
   // A fresh nonce is required after a long idle period before attempting another login.
   setInterval(()=>{if(!currentUser&&loginReady&&!document.hidden)renderLogin().catch(()=>{});},240000);
   window.CHAE_AUTH={check,get user(){return currentUser;}};
+  if(window.ZIP_LOCAL_PREVIEW){
+    document.body.classList.add('local-preview');
+    update({sub:'local-preview',email:'로컬 파일 미리보기',name:'채은',role:'admin',status:'approved'});
+    document.querySelector('#logout-button').hidden=true;
+    document.querySelector('#admin-button').hidden=true;
+    document.querySelector('#sync-label').textContent='로컬 미리보기 · 시트에 저장되지 않음';
+    return;
+  }
   (async()=>{
     try{
       const cfg=await api.config();

@@ -1,4 +1,4 @@
-const CACHE_NAME = "chae-appsscript-v8";
+const CACHE_NAME = "chae-appsscript-v12";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -28,10 +28,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
-  const shellUrls = APP_SHELL.map(path => new URL(path, self.registration.scope).href);
-  if (!shellUrls.includes(url.href)) return;
+  if (url.origin !== self.location.origin) return;
+  const shellPaths = APP_SHELL.map(path => new URL(path, self.registration.scope).pathname);
+  if (!shellPaths.includes(url.pathname)) return;
   // Private note data is never stored in the offline cache.
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+  event.respondWith(fetch(event.request).catch(() => caches.match(event.request, { ignoreSearch: true })));
 });
-
 
