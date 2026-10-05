@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="CHAE EUN.ZIP — 회사 생활 중 필요한 메모를 모아두는 채은 지식 저장소" />
     <meta name="theme-color" content="#f6b7ca" />
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=7" />
-    <link rel="manifest" href="manifest.webmanifest?v=7" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=8" />
+    <link rel="manifest" href="manifest.webmanifest?v=8" />
     <title>CHAE EUN.ZIP — 채은 지식 저장소</title>
-    <link rel="stylesheet" href="styles.css?v=7" />
+    <link rel="stylesheet" href="styles.css?v=8" />
   </head>
   <body class="auth-checking">
     <a class="skip-link" href="#knowledge-list">내용으로 바로가기</a>
@@ -128,6 +128,10 @@
         </div>
 
         <section id="checklist-view" class="checklist-view" hidden aria-labelledby="checklist-title">
+          <nav class="checklist-view-nav" aria-label="화면 이동">
+            <button id="checklist-notes-button" class="checklist-view-nav-button" type="button">← 메모로 돌아가기</button>
+            <button id="checklist-categories-button" class="checklist-view-nav-button" type="button">☰ 분류 선택</button>
+          </nav>
           <div class="checklist-heading">
             <div>
               <p class="eyebrow">CALENDAR CHECKLIST</p>
@@ -168,11 +172,12 @@
         <input id="note-editor-id" type="hidden" />
         <div class="note-editor-grid">
           <label>대분류
-            <input id="note-category" name="category" list="note-category-options" maxlength="100" required placeholder="예: 효산 LPL 기본" />
-            <datalist id="note-category-options"></datalist>
+            <select id="note-category" name="category" required></select>
+            <input id="note-category-new" maxlength="100" hidden placeholder="새 대분류 이름" />
           </label>
           <label>소분류
-            <input id="note-subcategory" name="subcategory" maxlength="100" placeholder="선택 사항" />
+            <select id="note-subcategory" name="subcategory"></select>
+            <input id="note-subcategory-new" maxlength="100" hidden placeholder="새 소분류 이름" />
           </label>
         </div>
         <label>제목
@@ -181,9 +186,12 @@
         <label>내용
           <textarea id="note-content" name="content" maxlength="8000" rows="9" placeholder="업무 내용을 자유롭게 기록하세요"></textarea>
         </label>
-        <label>이미지 Drive 링크
-          <input id="note-images" name="imageText" maxlength="2000" placeholder="선택 사항 · 여러 개는 줄바꿈 또는 | 로 구분" />
+        <label>사진 첨부
+          <input id="note-images" name="images" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+          <input id="note-image-ids" name="imageText" type="hidden" />
+          <span class="note-upload-help">사진첩에서 최대 4장까지 선택하세요. 큰 사진은 자동으로 가볍게 줄여 올려요.</span>
         </label>
+        <div id="note-image-preview" class="note-image-preview" aria-live="polite"></div>
         <p id="note-editor-message" class="note-editor-message" role="status"></p>
         <div class="note-editor-actions">
           <button id="note-delete-button" class="note-delete-button" type="button" hidden>메모 삭제</button>
@@ -216,10 +224,12 @@
     </dialog>
 
     <noscript>이 사이트의 검색 기능을 사용하려면 JavaScript를 활성화해 주세요.</noscript>
-    <script src="config.js?v=7"></script>
-    <script src="api.js?v=7"></script>
-    <script src="auth.js?v=7"></script>
-    <script src="checklist.js?v=7"></script>
-    <script src="app.js?v=7"></script>
+    <script src="config.js?v=8"></script>
+    <script src="api.js?v=8"></script>
+    <script src="auth.js?v=8"></script>
+    <script src="checklist.js?v=8"></script>
+    <script src="app.js?v=8"></script>
   </body>
 </html>
+
+

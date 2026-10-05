@@ -10,6 +10,8 @@
   const list = $("checklist-list");
   const message = $("checklist-message");
   const dateInput = $("checklist-date");
+  const notesButton = $("checklist-notes-button");
+  const categoriesButton = $("checklist-categories-button");
   let items = [];
   let loading = null;
   let saving = false;
@@ -62,6 +64,7 @@
     loading = fetchItems().finally(() => { loading = null; });
     return loading;
   }
+
   async function fetchItems() {
     message.textContent = "체크리스트와 캘린더 상태를 확인하고 있어요.";
     try {
@@ -75,6 +78,11 @@
   }
 
   navButton.addEventListener("click", showChecklist);
+  notesButton.addEventListener("click", showNotes);
+  categoriesButton.addEventListener("click", () => {
+    showNotes();
+    document.body.classList.add("sidebar-open");
+  });
   window.addEventListener("show-notes", showNotes);
   window.addEventListener("access-change", (event) => {
     if (event.detail?.role !== "admin") showNotes();
@@ -141,3 +149,4 @@
   });
   setInterval(()=>{if(!saving && !document.hidden && !checklistView.hidden && window.CHAE_AUTH.user?.role==='admin')load();},60000);
 })();
+

@@ -35,8 +35,16 @@
     noteEditorForm: document.querySelector("#note-editor-form"),
     noteEditorMessage: document.querySelector("#note-editor-message"),
     noteDelete: document.querySelector("#note-delete-button"),
+    noteCategory: document.querySelector("#note-category"),
+    noteCategoryNew: document.querySelector("#note-category-new"),
+    noteSubcategory: document.querySelector("#note-subcategory"),
+    noteSubcategoryNew: document.querySelector("#note-subcategory-new"),
+    noteImages: document.querySelector("#note-images"),
+    noteImageIds: document.querySelector("#note-image-ids"),
+    noteImagePreview: document.querySelector("#note-image-preview"),
     toast: document.querySelector("#toast")
   };
+  let pendingImages = [];
 
   function jsonToRecords(data) {
     const rows = Array.isArray(data) ? data : data.records;
@@ -174,21 +182,72 @@
     hydrateImages(el.dialogContent);
   }
 
+  function editorValue(select, input) {
+    return select.value === "__new__" ? input.value.trim() : select.value.trim();
+  }
+
+  function renderEditorSubcategories(category, selected = "") {
+    const values = Array.from(new Set(state.records.filter((item) => item.category === category).map((item) => item.subcategory).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"));
+    if (selected && !values.includes(selected)) values.unshift(selected);
+    el.noteSubcategory.innerHTML = `<option value="">소분류 없음</option>${values.map((value) => `<option value="${escapeHTML(value)}">${escapeHTML(value)}</option>`).join("")}<option value="__new__">＋ 새 소분류 추가</option>`;
+    el.noteSubcategory.value = selected || "";
+    el.noteSubcategoryNew.hidden = true;
+    el.noteSubcategoryNew.value = "";
+  }
+
+  function renderImagePreview() {
+    const saved = el.noteImageIds.value.split(/[|\n;]/).map((value) => value.trim()).filter(Boolean);
+    const rows = [
+      ...saved.map((id, index) => `<span>기존 사진 ${index + 1}<button type="button" data-remove-saved="${index}" aria-label="기존 사진 ${index + 1} 제외">×</button></span>`),
+      ...pendingImages.map((file, index) => `<span>${escapeHTML(file.name)}<button type="button" data-remove-pending="${index}" aria-label="${escapeHTML(file.name)} 제외">×</button></span>`)
+    ];
+    el.noteImagePreview.innerHTML = rows.join("");
+  }
+
   function openNoteEditor(record = null) {
     if (window.CHAE_AUTH?.user?.role !== "admin") return;
     const categories = Array.from(new Set(state.records.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"));
-    document.querySelector("#note-category-options").innerHTML = categories.map((value) => `<option value="${escapeHTML(value)}"></option>`).join("");
+    const selectedCategory = record?.category || state.category || categories[0] || "";
+    if (selectedCategory && !categories.includes(selectedCategory)) categories.unshift(selectedCategory);
+    el.noteCategory.innerHTML = `${categories.map((value) => `<option value="${escapeHTML(value)}">${escapeHTML(value)}</option>`).join("")}<option value="__new__">＋ 새 대분류 추가</option>`;
+    el.noteCategory.value = selectedCategory || "__new__";
+    el.noteCategoryNew.hidden = el.noteCategory.value !== "__new__";
+    el.noteCategoryNew.value = "";
+    renderEditorSubcategories(selectedCategory, record?.subcategory || "");
     document.querySelector("#note-editor-title").textContent = record ? "메모 수정" : "새 메모 작성";
     document.querySelector("#note-editor-id").value = record?.noteId || "";
-    document.querySelector("#note-category").value = record?.category || state.category || categories[0] || "";
-    document.querySelector("#note-subcategory").value = record?.subcategory || "";
     document.querySelector("#note-title").value = record?.title || "";
     document.querySelector("#note-content").value = record?.content || "";
-    document.querySelector("#note-images").value = record?.imageText || "";
+    el.noteImageIds.value = record?.imageText || "";
+    el.noteImages.value = "";
+    pendingImages = [];
+    renderImagePreview();
     el.noteDelete.hidden = !record;
     el.noteEditorMessage.textContent = "저장하면 Google 시트와 앱에 바로 반영돼요.";
     el.noteEditor.showModal();
     document.querySelector(record ? "#note-title" : "#note-category").focus();
+  }
+
+  async function imagePayload(file) {
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 20 * 1024 * 1024) throw new Error("PNG·JPG·WebP 사진은 장당 20MB까지 첨부할 수 있어요.");
+    const url = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      const scale = Math.min(1, 1600 / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext("2d", { alpha: false });
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", .84));
+      if (!blob) throw new Error("사진을 처리하지 못했어요.");
+      const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+      return { name: file.name.replace(/\.[^.]+$/, "") + ".jpg", mime: "image/jpeg", base64: String(dataUrl).split(",")[1] };
+    } finally { URL.revokeObjectURL(url); }
   }
 
   async function saveNote(event) {
@@ -198,15 +257,23 @@
     const noteId = document.querySelector("#note-editor-id").value;
     const payload = {
       noteId,
-      category: document.querySelector("#note-category").value.trim(),
-      subcategory: document.querySelector("#note-subcategory").value.trim(),
+      category: editorValue(el.noteCategory, el.noteCategoryNew),
+      subcategory: editorValue(el.noteSubcategory, el.noteSubcategoryNew),
       title: document.querySelector("#note-title").value.trim(),
       content: document.querySelector("#note-content").value.trim(),
-      imageText: document.querySelector("#note-images").value.trim()
+      imageText: el.noteImageIds.value.trim()
     };
     submit.disabled = true;
     el.noteEditorMessage.textContent = "Google 시트에 저장하고 있어요.";
     try {
+      const uploaded = [];
+      for (let index = 0; index < pendingImages.length; index += 1) {
+        el.noteEditorMessage.textContent = `사진 ${index + 1}/${pendingImages.length}을 올리고 있어요.`;
+        const result = await window.ZIP_API.request("uploadNoteImage", await imagePayload(pendingImages[index]));
+        uploaded.push(result.fileId);
+      }
+      payload.imageText = [payload.imageText, ...uploaded].filter(Boolean).join("|");
+      el.noteEditorMessage.textContent = "Google 시트에 저장하고 있어요.";
       await window.ZIP_API.request(noteId ? "updateNote" : "createNote", payload);
       el.noteEditor.close();
       state.page = 1;
@@ -518,6 +585,35 @@
     if (event.target === el.dialog) el.dialog.close();
   });
   el.addNote.addEventListener("click", () => openNoteEditor());
+  el.noteCategory.addEventListener("change", () => {
+    const isNew = el.noteCategory.value === "__new__";
+    el.noteCategoryNew.hidden = !isNew;
+    if (isNew) el.noteCategoryNew.focus();
+    renderEditorSubcategories(isNew ? "" : el.noteCategory.value);
+  });
+  el.noteSubcategory.addEventListener("change", () => {
+    const isNew = el.noteSubcategory.value === "__new__";
+    el.noteSubcategoryNew.hidden = !isNew;
+    if (isNew) el.noteSubcategoryNew.focus();
+  });
+  el.noteImages.addEventListener("change", () => {
+    const savedCount = el.noteImageIds.value.split(/[|\n;]/).map((value) => value.trim()).filter(Boolean).length;
+    const available = Math.max(0, 4 - savedCount);
+    pendingImages = Array.from(el.noteImages.files || []).slice(0, available);
+    if ((el.noteImages.files?.length || 0) > available) el.noteEditorMessage.textContent = `사진은 기존 사진을 포함해 최대 4장까지 첨부할 수 있어요.`;
+    renderImagePreview();
+  });
+  el.noteImagePreview.addEventListener("click", (event) => {
+    const savedButton = event.target.closest("[data-remove-saved]");
+    const pendingButton = event.target.closest("[data-remove-pending]");
+    if (savedButton) {
+      const saved = el.noteImageIds.value.split(/[|\n;]/).map((value) => value.trim()).filter(Boolean);
+      saved.splice(Number(savedButton.dataset.removeSaved), 1);
+      el.noteImageIds.value = saved.join("|");
+    }
+    if (pendingButton) pendingImages.splice(Number(pendingButton.dataset.removePending), 1);
+    renderImagePreview();
+  });
   el.noteEditorForm.addEventListener("submit", saveNote);
   el.noteDelete.addEventListener("click", deleteNote);
   document.querySelector("#note-editor-close").addEventListener("click", () => el.noteEditor.close());
@@ -574,3 +670,5 @@
   window.setInterval(() => loadData(false), syncMinutes * 60 * 1000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch((error) => console.error("Service worker:", error));
 })();
+
+

@@ -16,7 +16,7 @@ function doGet(e) {
 function doPost(e) {
   try {
     var raw = e && e.postData && e.postData.contents || '{}';
-    if (raw.length > 16000) throw new Error('요청이 너무 큽니다.');
+    if (raw.length > 8 * 1024 * 1024) throw new Error('요청이 너무 큽니다.');
     var body = JSON.parse(raw), action = body.action;
     if (action === 'challenge') {
       var nonce = Utilities.getUuid() + Utilities.getUuid();
@@ -43,6 +43,7 @@ function doPost(e) {
     if (action === 'createNote') return zipJson_(zipCreateNote_(body));
     if (action === 'updateNote') return zipJson_(zipUpdateNote_(body));
     if (action === 'deleteNote') return zipJson_(zipDeleteNote_(body.noteId));
+    if (action === 'uploadNoteImage') return zipJson_(zipUploadNoteImage_(body));
     if (action === 'checklist') return zipJson_({ok:true,items:zipChecklist_()});
     if (action === 'addChecklist') return zipJson_(zipAddChecklist_(body));
     if (action === 'toggleChecklist') return zipJson_(zipToggleChecklist_(body.row,body.done));
@@ -235,6 +236,21 @@ function zipUpdateNote_(body) {
 function zipDeleteNote_(noteId) {
   var lock=LockService.getScriptLock(); lock.waitLock(10000);
   try{var found=zipFindNote_(noteId); found.sheet.deleteRow(found.row); SpreadsheetApp.flush(); return {ok:true};}finally{lock.releaseLock();}
+}
+function zipImageFolder_() {
+  var properties=PropertiesService.getScriptProperties(), id=properties.getProperty('IMAGE_FOLDER_ID');
+  if(id){try{return DriveApp.getFolderById(id);}catch(error){properties.deleteProperty('IMAGE_FOLDER_ID');}}
+  var folder=DriveApp.createFolder('CHAE EUN.ZIP 메모 이미지');
+  properties.setProperty('IMAGE_FOLDER_ID',folder.getId());
+  return folder;
+}
+function zipUploadNoteImage_(body) {
+  var mime=String(body.mime||''), base64=String(body.base64||''), name=String(body.name||'메모 사진.jpg').replace(/[\\/:*?"<>|]/g,'_').slice(0,120);
+  if(!/^image\/(jpeg|png|webp)$/.test(mime)||!base64||base64.length>6*1024*1024||!/^[A-Za-z0-9+/=]+$/.test(base64))throw new Error('Invalid note image upload');
+  var bytes=Utilities.base64Decode(base64);
+  if(bytes.length>4*1024*1024)throw new Error('Image too large');
+  var file=zipImageFolder_().createFile(Utilities.newBlob(bytes,mime,name));
+  return {ok:true,fileId:file.getId()};
 }
 function zipImage_(fileId) {
   if(!/^[-\w]{10,200}$/.test(String(fileId)))throw new Error('Invalid image');
