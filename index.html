@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="CHAE EUN.ZIP — 회사 생활 중 필요한 메모를 모아두는 채은 지식 저장소" />
     <meta name="theme-color" content="#f6b7ca" />
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=6" />
-    <link rel="manifest" href="manifest.webmanifest?v=6" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=7" />
+    <link rel="manifest" href="manifest.webmanifest?v=7" />
     <title>CHAE EUN.ZIP — 채은 지식 저장소</title>
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body class="auth-checking">
     <a class="skip-link" href="#knowledge-list">내용으로 바로가기</a>
@@ -151,9 +151,45 @@
 
     <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
 
+    <button id="add-note-button" class="note-fab" type="button" hidden>
+      <span aria-hidden="true">＋</span> 새 메모
+    </button>
+
     <dialog id="detail-dialog" class="detail-dialog">
       <button class="dialog-close" id="dialog-close" type="button" aria-label="닫기">×</button>
       <div id="dialog-content"></div>
+    </dialog>
+
+    <dialog id="note-editor-dialog" class="detail-dialog note-editor-dialog">
+      <button class="dialog-close" id="note-editor-close" type="button" aria-label="메모 편집 닫기">×</button>
+      <form id="note-editor-form" class="note-editor-form">
+        <p class="eyebrow">WRITE A NOTE</p>
+        <h2 id="note-editor-title">새 메모 작성</h2>
+        <input id="note-editor-id" type="hidden" />
+        <div class="note-editor-grid">
+          <label>대분류
+            <input id="note-category" name="category" list="note-category-options" maxlength="100" required placeholder="예: 효산 LPL 기본" />
+            <datalist id="note-category-options"></datalist>
+          </label>
+          <label>소분류
+            <input id="note-subcategory" name="subcategory" maxlength="100" placeholder="선택 사항" />
+          </label>
+        </div>
+        <label>제목
+          <input id="note-title" name="title" maxlength="200" required placeholder="메모 제목" />
+        </label>
+        <label>내용
+          <textarea id="note-content" name="content" maxlength="8000" rows="9" placeholder="업무 내용을 자유롭게 기록하세요"></textarea>
+        </label>
+        <label>이미지 Drive 링크
+          <input id="note-images" name="imageText" maxlength="2000" placeholder="선택 사항 · 여러 개는 줄바꿈 또는 | 로 구분" />
+        </label>
+        <p id="note-editor-message" class="note-editor-message" role="status"></p>
+        <div class="note-editor-actions">
+          <button id="note-delete-button" class="note-delete-button" type="button" hidden>메모 삭제</button>
+          <button class="install-button note-save-button" type="submit">시트에 저장</button>
+        </div>
+      </form>
     </dialog>
 
     <dialog id="install-dialog" class="install-dialog">
@@ -180,10 +216,10 @@
     </dialog>
 
     <noscript>이 사이트의 검색 기능을 사용하려면 JavaScript를 활성화해 주세요.</noscript>
-    <script src="config.js?v=6"></script>
-    <script src="api.js?v=6"></script>
-    <script src="auth.js?v=6"></script>
-    <script src="checklist.js?v=6"></script>
-    <script src="app.js?v=6"></script>
+    <script src="config.js?v=7"></script>
+    <script src="api.js?v=7"></script>
+    <script src="auth.js?v=7"></script>
+    <script src="checklist.js?v=7"></script>
+    <script src="app.js?v=7"></script>
   </body>
 </html>

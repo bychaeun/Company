@@ -2,6 +2,7 @@
 // Never enable anonymous note access. All private actions require a verified session.
 var ZIP_USER_HEADERS = ['Google ID','이메일','이름','승인상태','최초 로그인','최근 로그인'];
 var ZIP_CHECKLIST_HEADERS = ['완료','할 일','날짜','시간','메모','캘린더 이벤트 ID'];
+var ZIP_NOTE_HEADERS = ['소분류','제목','내용','이미지','수정일'];
 
 function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
@@ -39,6 +40,9 @@ function doPost(e) {
     if (user.role !== 'admin') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자만 사용할 수 있습니다.'});
     if (action === 'users') return zipJson_({ok:true,users:zipUsers_().map(function(row){return {sub:row[0],email:row[1],name:row[2],status:row[3],created:row[4],lastLogin:row[5],admin:zipAdmin_(row[0])};})});
     if (action === 'setStatus') return zipJson_(zipSetStatus_(body.sub,body.status));
+    if (action === 'createNote') return zipJson_(zipCreateNote_(body));
+    if (action === 'updateNote') return zipJson_(zipUpdateNote_(body));
+    if (action === 'deleteNote') return zipJson_(zipDeleteNote_(body.noteId));
     if (action === 'checklist') return zipJson_({ok:true,items:zipChecklist_()});
     if (action === 'addChecklist') return zipJson_(zipAddChecklist_(body));
     if (action === 'toggleChecklist') return zipJson_(zipToggleChecklist_(body.row,body.done));
@@ -167,11 +171,70 @@ function zipNotes_() {
   return zipNoteSheets_().reduce(function(all,sh){
     var rows=sh.getDataRange().getDisplayValues(), headers=rows.shift()||[];
     if(!['소분류','제목','내용','이미지','수정일'].every(function(h){return headers.indexOf(h)>=0;}))return all;
-    return all.concat(rows.map(function(r){
+    return all.concat(rows.map(function(r,index){
       var get=function(h){return r[headers.indexOf(h)]||'';};
-      return {category:headers.indexOf('대분류')>=0?(get('대분류')||'기타'):sh.getName(),subcategory:get('소분류'),title:get('제목'),content:get('내용'),updatedAt:get('수정일'),images:get('이미지').split(/[|\n;]/).map(zipDriveId_).filter(Boolean)};
+      return {noteId:sh.getSheetId()+':'+(index+2),category:headers.indexOf('대분류')>=0?(get('대분류')||'기타'):sh.getName(),subcategory:get('소분류'),title:get('제목'),content:get('내용'),updatedAt:get('수정일'),imageText:get('이미지'),images:get('이미지').split(/[|\n;]/).map(zipDriveId_).filter(Boolean)};
     }).filter(function(r){return r.title||r.content;}));
   },[]);
+}
+
+function zipNoteInput_(body) {
+  var category=String(body.category||'').trim(), subcategory=String(body.subcategory||'').trim(), title=String(body.title||'').trim(), content=String(body.content||'').trim(), imageText=String(body.imageText||'').trim();
+  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw new Error('Invalid note category');
+  if(!title||title.length>200||subcategory.length>100||content.length>8000||imageText.length>2000)throw new Error('Invalid note');
+  imageText.split(/[|\n;]/).map(function(v){return v.trim();}).filter(Boolean).forEach(function(v){if(!zipDriveId_(v)&&!/^[-\w]{10,200}$/.test(v))throw new Error('Invalid note image');});
+  return {category:category,subcategory:subcategory,title:title,content:content,imageText:imageText};
+}
+function zipNoteSheet_(category) {
+  var ss=zipSheet_(), sh=ss.getSheetByName(category);
+  if(!sh){
+    sh=ss.insertSheet(category);
+    sh.getRange(1,1,1,ZIP_NOTE_HEADERS.length).setValues([ZIP_NOTE_HEADERS]);
+    sh.setFrozenRows(1);
+    sh.getRange(1,1,1,ZIP_NOTE_HEADERS.length).setFontWeight('bold').setBackground('#fce8f1');
+    sh.setColumnWidths(1,1,150); sh.setColumnWidths(2,1,220); sh.setColumnWidths(3,1,460); sh.setColumnWidths(4,1,240); sh.setColumnWidths(5,1,110);
+  }
+  var headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  if(!ZIP_NOTE_HEADERS.every(function(h){return headers.indexOf(h)>=0;}))throw new Error('Invalid note headers');
+  return sh;
+}
+function zipFindNote_(noteId) {
+  var match=String(noteId||'').match(/^(\d+):(\d+)$/);
+  if(!match)throw new Error('Invalid note id');
+  var sheetId=Number(match[1]), row=Number(match[2]), sh=zipNoteSheets_().find(function(s){return s.getSheetId()===sheetId;});
+  if(!sh||row<2||row>sh.getLastRow())throw new Error('Unknown note');
+  var headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  var values=sh.getRange(row,1,1,headers.length).getDisplayValues()[0];
+  if(!values[headers.indexOf('제목')]&&!values[headers.indexOf('내용')])throw new Error('Unknown note');
+  return {sheet:sh,row:row};
+}
+function zipWriteNote_(sh,row,input) {
+  var headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  var values=row<=sh.getLastRow()?sh.getRange(row,1,1,headers.length).getValues()[0]:new Array(headers.length).fill('');
+  values[headers.indexOf('소분류')]=zipSafeCell_(input.subcategory);
+  values[headers.indexOf('제목')]=zipSafeCell_(input.title);
+  values[headers.indexOf('내용')]=zipSafeCell_(input.content);
+  values[headers.indexOf('이미지')]=zipSafeCell_(input.imageText);
+  values[headers.indexOf('수정일')]=new Date();
+  sh.getRange(row,1,1,headers.length).setValues([values]);
+  sh.getRange(row,headers.indexOf('수정일')+1).setNumberFormat('yyyy-mm-dd');
+}
+function zipCreateNote_(body) {
+  var input=zipNoteInput_(body), lock=LockService.getScriptLock(); lock.waitLock(10000);
+  try{var sh=zipNoteSheet_(input.category), row=sh.getLastRow()+1; zipWriteNote_(sh,row,input); SpreadsheetApp.flush(); return {ok:true,noteId:sh.getSheetId()+':'+row};}finally{lock.releaseLock();}
+}
+function zipUpdateNote_(body) {
+  var input=zipNoteInput_(body), lock=LockService.getScriptLock(); lock.waitLock(10000);
+  try{
+    var found=zipFindNote_(body.noteId);
+    if(found.sheet.getName()===input.category)zipWriteNote_(found.sheet,found.row,input);
+    else{var target=zipNoteSheet_(input.category), row=target.getLastRow()+1; zipWriteNote_(target,row,input); found.sheet.deleteRow(found.row);}
+    SpreadsheetApp.flush(); return {ok:true};
+  }finally{lock.releaseLock();}
+}
+function zipDeleteNote_(noteId) {
+  var lock=LockService.getScriptLock(); lock.waitLock(10000);
+  try{var found=zipFindNote_(noteId); found.sheet.deleteRow(found.row); SpreadsheetApp.flush(); return {ok:true};}finally{lock.releaseLock();}
 }
 function zipImage_(fileId) {
   if(!/^[-\w]{10,200}$/.test(String(fileId)))throw new Error('Invalid image');
@@ -249,6 +312,7 @@ function zipChecklistExpired_(done,completedAt,now) {
   var stamp=new Date(completedAt).getTime();
   return isFinite(stamp) && now-stamp>=7*24*60*60*1000;
 }
+
 function zipDeleteChecklist_(row) {
   row=Number(row);
   if(!Number.isInteger(row)||row<2)throw new Error('Invalid checklist row');
@@ -263,3 +327,5 @@ function zipDeleteChecklist_(row) {
 
 // Run once in the editor to create the access-management tab and authorize Sheets/Drive.
 function setupChaeZip() { zipUserSheet_(); zipChecklistSheet_(); DriveApp.getRootFolder().getId(); CalendarApp.getDefaultCalendar().getId(); console.log('접근관리·체크리스트·캘린더 준비 완료'); }
+
+

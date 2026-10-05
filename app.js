@@ -30,6 +30,11 @@
     dialogContent: document.querySelector("#dialog-content"),
     install: document.querySelector("#install-button"),
     installDialog: document.querySelector("#install-dialog"),
+    addNote: document.querySelector("#add-note-button"),
+    noteEditor: document.querySelector("#note-editor-dialog"),
+    noteEditorForm: document.querySelector("#note-editor-form"),
+    noteEditorMessage: document.querySelector("#note-editor-message"),
+    noteDelete: document.querySelector("#note-delete-button"),
     toast: document.querySelector("#toast")
   };
 
@@ -38,11 +43,13 @@
     if (!Array.isArray(rows)) return [];
     return rows.map((record, index) => ({
       id: index,
+      noteId: String(record.noteId || ""),
       category: String(record.category || record["대분류"] || "기타").trim(),
       subcategory: String(record.subcategory || record["소분류"] || "").trim(),
       title: String(record.title || record["제목"] || "제목 없음").trim(),
       content: String(record.content || record["내용"] || "").trim(),
       images: Array.isArray(record.images) ? record.images.map(normalizeImageUrl).filter(Boolean) : splitImages(String(record.images || record["이미지"] || "")),
+      imageText: String(record.imageText || record["이미지"] || "").trim(),
       updatedAt: String(record.updatedAt || record["수정일"] || "").trim()
     })).filter((record) => record.title !== "제목 없음" || record.content);
   }
@@ -105,6 +112,7 @@
 
   function renderCards() {
     const records = visibleRecords();
+    const canEdit = window.CHAE_AUTH?.user?.role === "admin";
     const pageCount = Math.max(1, Math.ceil(records.length / pageSize));
     state.page = Math.min(Math.max(1, state.page), pageCount);
     const pageRecords = records.slice((state.page - 1) * pageSize, state.page * pageSize);
@@ -122,10 +130,13 @@
           </div>
           ${image ? `<img class="card-image" data-private-image="${escapeHTML(image)}" alt="메모 참고 이미지" loading="lazy" />` : ""}
         </button>
-        <button class="card-save" type="button" data-save-id="${record.id}" aria-label="${escapeHTML(record.title)} 이미지로 저장">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
-          이미지 저장
-        </button>
+        <div class="card-actions">
+          ${canEdit && record.noteId ? `<button class="card-edit" type="button" data-edit-id="${record.id}" aria-label="${escapeHTML(record.title)} 수정">수정</button>` : ""}
+          <button class="card-save" type="button" data-save-id="${record.id}" aria-label="${escapeHTML(record.title)} 이미지로 저장">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
+            이미지 저장
+          </button>
+        </div>
       </article>`;
     }).join("");
     el.pagination.hidden = records.length <= pageSize;
@@ -157,9 +168,73 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
         이 메모를 이미지로 저장
       </button>
+      ${window.CHAE_AUTH?.user?.role === "admin" && record.noteId ? `<button class="dialog-edit" type="button" data-dialog-edit>메모 수정</button>` : ""}
     </article>`;
     el.dialog.showModal();
     hydrateImages(el.dialogContent);
+  }
+
+  function openNoteEditor(record = null) {
+    if (window.CHAE_AUTH?.user?.role !== "admin") return;
+    const categories = Array.from(new Set(state.records.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"));
+    document.querySelector("#note-category-options").innerHTML = categories.map((value) => `<option value="${escapeHTML(value)}"></option>`).join("");
+    document.querySelector("#note-editor-title").textContent = record ? "메모 수정" : "새 메모 작성";
+    document.querySelector("#note-editor-id").value = record?.noteId || "";
+    document.querySelector("#note-category").value = record?.category || state.category || categories[0] || "";
+    document.querySelector("#note-subcategory").value = record?.subcategory || "";
+    document.querySelector("#note-title").value = record?.title || "";
+    document.querySelector("#note-content").value = record?.content || "";
+    document.querySelector("#note-images").value = record?.imageText || "";
+    el.noteDelete.hidden = !record;
+    el.noteEditorMessage.textContent = "저장하면 Google 시트와 앱에 바로 반영돼요.";
+    el.noteEditor.showModal();
+    document.querySelector(record ? "#note-title" : "#note-category").focus();
+  }
+
+  async function saveNote(event) {
+    event.preventDefault();
+    if (window.CHAE_AUTH?.user?.role !== "admin") return;
+    const submit = el.noteEditorForm.querySelector('button[type="submit"]');
+    const noteId = document.querySelector("#note-editor-id").value;
+    const payload = {
+      noteId,
+      category: document.querySelector("#note-category").value.trim(),
+      subcategory: document.querySelector("#note-subcategory").value.trim(),
+      title: document.querySelector("#note-title").value.trim(),
+      content: document.querySelector("#note-content").value.trim(),
+      imageText: document.querySelector("#note-images").value.trim()
+    };
+    submit.disabled = true;
+    el.noteEditorMessage.textContent = "Google 시트에 저장하고 있어요.";
+    try {
+      await window.ZIP_API.request(noteId ? "updateNote" : "createNote", payload);
+      el.noteEditor.close();
+      state.page = 1;
+      await loadData(true);
+      showToast(noteId ? "메모와 시트를 수정했어요" : "새 메모를 시트에 저장했어요");
+    } catch (error) {
+      el.noteEditorMessage.textContent = error.message;
+    } finally {
+      submit.disabled = false;
+    }
+  }
+
+  async function deleteNote() {
+    const noteId = document.querySelector("#note-editor-id").value;
+    if (!noteId || window.CHAE_AUTH?.user?.role !== "admin") return;
+    if (!window.confirm("이 메모를 Google 시트에서도 삭제할까요? 삭제한 내용은 되돌릴 수 없어요.")) return;
+    el.noteDelete.disabled = true;
+    el.noteEditorMessage.textContent = "Google 시트에서 메모를 삭제하고 있어요.";
+    try {
+      await window.ZIP_API.request("deleteNote", { noteId });
+      el.noteEditor.close();
+      await loadData(true);
+      showToast("메모를 삭제했어요");
+    } catch (error) {
+      el.noteEditorMessage.textContent = error.message;
+    } finally {
+      el.noteDelete.disabled = false;
+    }
   }
 
   function showToast(message) {
@@ -367,6 +442,12 @@
   });
 
   el.list.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-edit-id]");
+    if (editButton) {
+      event.stopPropagation();
+      openNoteEditor(state.records.find((item) => item.id === Number(editButton.dataset.editId)));
+      return;
+    }
     const saveButton = event.target.closest("[data-save-id]");
     if (saveButton) {
       event.stopPropagation();
@@ -424,12 +505,23 @@
   document.querySelector("#sidebar-backdrop").addEventListener("click", () => document.body.classList.remove("sidebar-open"));
   document.querySelector("#dialog-close").addEventListener("click", () => el.dialog.close());
   el.dialog.addEventListener("click", (event) => {
+    if (event.target.closest("[data-dialog-edit]")) {
+      const record = state.records.find((item) => item.id === state.currentRecordId);
+      el.dialog.close();
+      openNoteEditor(record);
+      return;
+    }
     if (event.target.closest("[data-dialog-save]")) {
       saveRecordAsImage(state.records.find((item) => item.id === state.currentRecordId));
       return;
     }
     if (event.target === el.dialog) el.dialog.close();
   });
+  el.addNote.addEventListener("click", () => openNoteEditor());
+  el.noteEditorForm.addEventListener("submit", saveNote);
+  el.noteDelete.addEventListener("click", deleteNote);
+  document.querySelector("#note-editor-close").addEventListener("click", () => el.noteEditor.close());
+  el.noteEditor.addEventListener("click", (event) => { if (event.target === el.noteEditor) el.noteEditor.close(); });
   el.refresh.addEventListener("click", () => loadData(true));
 
   let deferredInstallPrompt = null;
@@ -464,8 +556,9 @@
   });
 
   window.addEventListener('access-change', event => {
+    el.addNote.hidden = event.detail?.role !== 'admin';
     if (event.detail?.status === 'approved') { if (!state.records.length) loadData(false); }
-    else { imageObserver.disconnect(); state.records = []; state.currentRecordId = null; el.dialogContent.replaceChildren(); render(); }
+    else { imageObserver.disconnect(); state.records = []; state.currentRecordId = null; el.dialogContent.replaceChildren(); el.noteEditor.close(); render(); }
   });
   window.addEventListener('notes-refresh', () => loadData(true));
   if (document.modelContext?.registerTool) {
