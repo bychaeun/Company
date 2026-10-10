@@ -38,21 +38,27 @@
   let token = sessionStorage.getItem('chae-session') || '';
   const imageCache = new Map();
   let generation = 0;
+  let sessionVersion = 0;
   async function request(action, payload = {}, anonymous = false) {
+    const version = sessionVersion;
     const response = await fetch(endpoint, { method:'POST', redirect:'follow', cache:'no-store', credentials:'omit',
       headers:{'content-type':'text/plain;charset=utf-8'}, signal:AbortSignal.timeout(40000),
       body:JSON.stringify({ ...payload, action, sessionToken:anonymous ? undefined : token }) });
     if (!response.ok) throw new Error('Google 연결을 확인할 수 없어요.');
     const data = await response.json();
     if (!data.ok) {
-      if (data.code === 'AUTH_REQUIRED') { setToken(''); window.dispatchEvent(new Event('access-expired')); }
-      if (data.code === 'FORBIDDEN') window.dispatchEvent(new Event('access-expired'));
-      throw new Error(data.error || '요청에 실패했어요.');
+      if (!anonymous && version === sessionVersion) {
+        if (data.code === 'AUTH_REQUIRED') { setToken(''); window.dispatchEvent(new Event('access-expired')); }
+        if (data.code === 'FORBIDDEN') window.dispatchEvent(new Event('access-expired'));
+      }
+      const error = new Error(data.error || '요청에 실패했어요.');
+      error.code = data.code;
+      throw error;
     }
     return data;
   }
   function clearImages() { generation++; imageCache.forEach(p => p.then(url => { if(url)URL.revokeObjectURL(url); }).catch(()=>{})); imageCache.clear(); }
-  function setToken(value) { token=value; if(value)sessionStorage.setItem('chae-session',value); else sessionStorage.removeItem('chae-session'); clearImages(); }
+  function setToken(value) { sessionVersion++; token=value; if(value)sessionStorage.setItem('chae-session',value); else sessionStorage.removeItem('chae-session'); clearImages(); }
   async function image(fileId) {
     if(!/^[-\w]{10,200}$/.test(fileId))return '';
     if(!imageCache.has(fileId)) {

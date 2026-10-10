@@ -2,6 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id), api=window.ZIP_API;
   let currentUser=null, checking=null, loginReady=false, configured=false;
+  let authVersion=0, lastCheck=0;
   function update(user,message='') {
     document.body.classList.remove('auth-checking');
     currentUser=user;
@@ -21,7 +22,7 @@
     const {nonce}=await api.request('challenge',{},true);
     google.accounts.id.initialize({client_id:configured.clientId,nonce,auto_select:false,callback:async result=>{
       $('auth-message').textContent='로그인과 승인 상태를 확인하고 있어요.';
-      try {const data=await api.request('login',{idToken:result.credential,nonce},true);api.setToken(data.sessionToken);update(data.user);}
+      try {const data=await api.request('login',{idToken:result.credential,nonce},true);authVersion++;api.setToken(data.sessionToken);update(data.user);lastCheck=Date.now();}
       catch(error){update(null,error.message); await renderLogin();}
     }});
     $('google-login').replaceChildren();
@@ -30,11 +31,16 @@
   }
   async function check() {
     if(checking)return checking;
+    const version=authVersion;
     checking=(async()=>{
       try {
-        if(api.hasSession){const result=await api.request('me');update(result.user);return result.user;}
+        if(api.hasSession){const result=await api.request('me');if(version!==authVersion)return currentUser;lastCheck=Date.now();update(result.user);return result.user;}
         update(null,configured?'Google 계정으로 로그인하고 메모를 만나보세요.':'Google 로그인 연결을 준비하고 있어요.');
-      }catch(error){update(null,error.message);}
+      }catch(error){
+        if(version!==authVersion)return currentUser;
+        if(currentUser && error.code!=='AUTH_REQUIRED' && error.code!=='FORBIDDEN')return currentUser;
+        update(null,error.message);
+      }
       return null;
     })().finally(()=>{checking=null;});return checking;
   }
@@ -58,15 +64,17 @@
   }
   $('check-approval').onclick=check;
   $('logout-button').onclick=async()=>{
+    authVersion++;
     try{await api.request('logout');}catch(e){/* Drop this device's bearer even on offline logout. */}
     api.setToken('');window.google?.accounts?.id?.disableAutoSelect();update(null);renderLogin().catch(()=>{});
   };
   $('admin-button').onclick=()=>{$('admin-dialog').showModal();loadUsers();};
   $('admin-close').onclick=()=>$('admin-dialog').close();
   $('admin-sync').onclick=()=>{window.dispatchEvent(new Event('notes-refresh'));$('admin-message').textContent='메모에서 최신 시트 자료를 다시 확인하고 있어요.';};
-  window.addEventListener('access-expired',()=>{update(null,'승인 상태 또는 로그인 만료를 확인해 주세요.');});
-  window.addEventListener('pageshow',check);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)check();});
+  window.addEventListener('access-expired',()=>{authVersion++;update(null,'승인 상태 또는 로그인 만료를 확인해 주세요.');renderLogin().catch(()=>{});});
+  const checkOnResume=()=>{if(!document.hidden && Date.now()-lastCheck>=60000)check();};
+  window.addEventListener('pageshow',checkOnResume);
+  document.addEventListener('visibilitychange',checkOnResume);
   setInterval(()=>{if(!document.hidden)check();},60000);
   // A fresh nonce is required after a long idle period before attempting another login.
   setInterval(()=>{if(!currentUser&&loginReady&&!document.hidden)renderLogin().catch(()=>{});},240000);
@@ -85,8 +93,8 @@
       if(!cfg.ok||!cfg.configured||!cfg.clientId)throw new Error('Google 로그인 연결을 준비하고 있어요. 관리자 설정 후 사용할 수 있습니다.');
       configured=cfg;
       const script=document.createElement('script');script.src='https://accounts.google.com/gsi/client';script.async=true;
-      script.onload=()=>renderLogin().catch(error=>update(null,error.message));
-      script.onerror=()=>update(null,'Google 로그인 화면을 불러오지 못했어요. Chrome 또는 Safari에서 다시 열어 주세요.');
+      script.onload=()=>renderLogin().catch(error=>{if(!currentUser)update(null,error.message);});
+      script.onerror=()=>{if(!currentUser)update(null,'Google 로그인 화면을 불러오지 못했어요. Chrome 또는 Safari에서 다시 열어 주세요.');};
       document.head.append(script);await check();
     }catch(error){update(null,error.message||'Google 연결을 확인할 수 없어요.');}
   })();
