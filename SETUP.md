@@ -45,7 +45,7 @@ ADMIN_EMAILS 계정은 Google이 검증한 Gmail 또는 Workspace 이메일이�
 
 ## 시트
 
-메모 탭: 대분류 | 소분류 | 제목 | 부제목 | 내용 | 이미지 | 수정일
+메모 탭: 대분류 | 소분류 | 제목 | 주소 | 내용 | 이미지 | 수정일
 
 접근관리 탭은 첫 로그인 때 서버가 생성합니다:
 Google ID | 이메일 | 이름 | 승인상태 | 최초 로그인 | 최근 로그인
@@ -55,7 +55,8 @@ Google ID | 이메일 | 이름 | 승인상태 | 최초 로그인 | 최근 로그
 로그인 기록은 최초·최근 로그인이며 모든 페이지 방문 기록은 아닙니다.
 
 이미지 열에는 비공개 Google Drive 파일 링크를 |로 구분합니다.
-PNG/JPEG/WebP/GIF 10MB 이하를 지원합니다. 외부 URL, 시트 셀 위에 직접 붙인 이미지는 현재 지원하지 않습니다.
+앱 업로드는 PNG/JPEG/WebP를 지원하며, 압축 후 파일당 최대 4MB까지 저장합니다. 기존 GIF 이미지는 조회할 수 있습니다.
+앱에서 첨부한 이미지는 Drive의 `image` 폴더(`1nmfiM9CwM-hoLiYNulMdouyndxHlj8NV`)에 저장됩니다.
 수정일 자동 입력은 시트에 연결된 scripts/sheet-edit-date.gs의 onEdit를 사용합니다.
 API 쓰기/수식 재계산은 onEdit를 실행하지 않습니다.
 

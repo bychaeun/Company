@@ -3,6 +3,7 @@
 var ZIP_USER_HEADERS = ['Google ID','이메일','이름','승인상태','최초 로그인','최근 로그인'];
 var ZIP_CHECKLIST_HEADERS = ['완료','할 일','날짜','시간','메모','캘린더 이벤트 ID'];
 var ZIP_NOTE_HEADERS = ['소분류','제목','주소','내용','이미지','수정일'];
+var ZIP_IMAGE_FOLDER_ID = '1nmfiM9CwM-hoLiYNulMdouyndxHlj8NV';
 
 function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
@@ -33,8 +34,8 @@ function doPost(e) {
     if (user.status !== 'approved') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자 승인이 필요합니다.'});
     if (action === 'notes') return zipJson_({ok:true,records:zipNotes_(),syncedAt:new Date().toISOString(),syncMode:'scheduled'});
     if (action === 'image') {
+      if(user.status !== 'approved') return zipJson_({ok:false,code:'FORBIDDEN',error:'접근이 제한되었습니다.'});
       var image=zipImage_(body.fileId);
-      if(zipSession_(body.sessionToken).status!=='approved')return zipJson_({ok:false,code:'FORBIDDEN',error:'접근이 제한되었습니다.'});
       return zipJson_(image);
     }
     if (user.role !== 'admin') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자만 사용할 수 있습니다.'});
@@ -251,11 +252,7 @@ function zipDeleteNote_(noteId) {
   try{var found=zipFindNote_(noteId); found.sheet.deleteRow(found.row); SpreadsheetApp.flush(); return {ok:true};}finally{lock.releaseLock();}
 }
 function zipImageFolder_() {
-  var properties=PropertiesService.getScriptProperties(), id=properties.getProperty('IMAGE_FOLDER_ID');
-  if(id){try{return DriveApp.getFolderById(id);}catch(error){properties.deleteProperty('IMAGE_FOLDER_ID');}}
-  var folder=DriveApp.createFolder('CHAE EUN.ZIP 메모 이미지');
-  properties.setProperty('IMAGE_FOLDER_ID',folder.getId());
-  return folder;
+  return DriveApp.getFolderById(ZIP_IMAGE_FOLDER_ID);
 }
 function zipUploadNoteImage_(body) {
   var mime=String(body.mime||''), base64=String(body.base64||''), name=String(body.name||'메모 사진.jpg').replace(/[\\/:*?"<>|]/g,'_').slice(0,120);
@@ -354,6 +351,6 @@ function zipDeleteChecklist_(row) {
   }finally{lock.releaseLock();}
 }
 
-// Run once in the editor to create the access-management tab and authorize Sheets/Drive.
-function setupChaeZip() { zipUserSheet_(); zipChecklistSheet_(); DriveApp.getRootFolder().getId(); CalendarApp.getDefaultCalendar().getId(); console.log('접근관리·체크리스트·캘린더 준비 완료'); }
+// Run once in the editor to create the required tabs and authorize Sheets, Drive and Calendar.
+function setupChaeZip() { zipUserSheet_(); zipChecklistSheet_(); zipImageFolder_().getName(); CalendarApp.getDefaultCalendar().getId(); console.log('접근관리·이미지·체크리스트·캘린더 준비 완료'); }
 
