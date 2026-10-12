@@ -3,6 +3,7 @@
   const $=id=>document.getElementById(id), api=window.ZIP_API;
   let currentUser=null, checking=null, loginReady=false, configured=false;
   let authVersion=0, lastCheck=0;
+  let rendering=null, loginBusy=false;
   function update(user,message='') {
     document.body.classList.remove('auth-checking');
     currentUser=user;
@@ -18,18 +19,28 @@
     window.dispatchEvent(new CustomEvent('access-change',{detail:user}));
   }
   async function renderLogin() {
-    if(!configured || !window.google?.accounts?.id)return;
+    if(currentUser || api.hasSession || loginBusy || !configured || !window.google?.accounts?.id)return;
+    if(rendering)return rendering;
+    rendering=prepareLogin().finally(()=>{rendering=null;});return rendering;
+  }
+  async function prepareLogin() {
     const {nonce}=await api.request('challenge',{},true);
+    if(currentUser || api.hasSession || loginBusy)return;
     google.accounts.id.initialize({client_id:configured.clientId,nonce,auto_select:false,callback:async result=>{
+      if(loginBusy)return;
+      loginBusy=true;
+      const version=++authVersion;
       $('auth-message').textContent='로그인과 승인 상태를 확인하고 있어요.';
-      try {const data=await api.request('login',{idToken:result.credential,nonce},true);authVersion++;api.setToken(data.sessionToken);update(data.user);lastCheck=Date.now();}
-      catch(error){update(null,error.message); await renderLogin();}
+      try {const data=await api.request('login',{idToken:result.credential,nonce},true);if(version!==authVersion)return;api.setToken(data.sessionToken);update(data.user);lastCheck=Date.now();}
+      catch(error){if(version===authVersion)update(null,error.message);}
+      finally{loginBusy=false;if(!currentUser)renderLogin().catch(()=>{});}
     }});
     $('google-login').replaceChildren();
     google.accounts.id.renderButton($('google-login'),{type:'standard',theme:'outline',size:'large',text:'signin_with',shape:'pill',locale:'ko'});
     loginReady=true;
   }
   async function check() {
+    if(loginBusy)return currentUser;
     if(checking)return checking;
     const version=authVersion;
     checking=(async()=>{
@@ -37,9 +48,10 @@
         if(api.hasSession){const result=await api.request('me');if(version!==authVersion)return currentUser;lastCheck=Date.now();update(result.user);return result.user;}
         update(null,configured?'Google 계정으로 로그인하고 메모를 만나보세요.':'Google 로그인 연결을 준비하고 있어요.');
       }catch(error){
-        if(version!==authVersion)return currentUser;
+        if(version!==authVersion || error.code==='STALE_SESSION')return currentUser;
         if(currentUser && error.code!=='AUTH_REQUIRED' && error.code!=='FORBIDDEN')return currentUser;
-        update(null,error.message);
+        update(null,api.hasSession?'연결이 지연되고 있어요. 저장된 로그인으로 다시 연결합니다.':error.message);
+        if(!api.hasSession)renderLogin().catch(()=>{});
       }
       return null;
     })().finally(()=>{checking=null;});return checking;
@@ -65,13 +77,15 @@
   $('check-approval').onclick=check;
   $('logout-button').onclick=async()=>{
     authVersion++;
-    try{await api.request('logout');}catch(e){/* Drop this device's bearer even on offline logout. */}
+    const revoke=api.request('logout').catch(()=>{});
     api.setToken('');window.google?.accounts?.id?.disableAutoSelect();update(null);renderLogin().catch(()=>{});
+    await revoke;
   };
   $('admin-button').onclick=()=>{$('admin-dialog').showModal();loadUsers();};
   $('admin-close').onclick=()=>$('admin-dialog').close();
   $('admin-sync').onclick=()=>{window.dispatchEvent(new Event('notes-refresh'));$('admin-message').textContent='메모에서 최신 시트 자료를 다시 확인하고 있어요.';};
   window.addEventListener('access-expired',()=>{authVersion++;update(null,'승인 상태 또는 로그인 만료를 확인해 주세요.');renderLogin().catch(()=>{});});
+  window.addEventListener('session-restored',()=>{authVersion++;check();});
   const checkOnResume=()=>{if(!document.hidden && Date.now()-lastCheck>=60000)check();};
   window.addEventListener('pageshow',checkOnResume);
   document.addEventListener('visibilitychange',checkOnResume);
@@ -88,6 +102,8 @@
     return;
   }
   (async()=>{
+    // Restore the saved session independently of Google button/config loading.
+    const restore=check();
     try{
       const cfg=await api.config();
       if(!cfg.ok||!cfg.configured||!cfg.clientId)throw new Error('Google 로그인 연결을 준비하고 있어요. 관리자 설정 후 사용할 수 있습니다.');
@@ -95,9 +111,7 @@
       const script=document.createElement('script');script.src='https://accounts.google.com/gsi/client';script.async=true;
       script.onload=()=>renderLogin().catch(error=>{if(!currentUser)update(null,error.message);});
       script.onerror=()=>{if(!currentUser)update(null,'Google 로그인 화면을 불러오지 못했어요. Chrome 또는 Safari에서 다시 열어 주세요.');};
-      document.head.append(script);await check();
-    }catch(error){update(null,error.message||'Google 연결을 확인할 수 없어요.');}
+      document.head.append(script);await restore;
+    }catch(error){await restore;if(!currentUser && !api.hasSession)update(null,error.message||'Google 연결을 확인할 수 없어요.');}
   })();
 })();
-
-

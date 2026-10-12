@@ -3,7 +3,8 @@
 var ZIP_USER_HEADERS = ['Google ID','이메일','이름','승인상태','최초 로그인','최근 로그인'];
 var ZIP_CHECKLIST_HEADERS = ['완료','할 일','날짜','시간','메모','캘린더 이벤트 ID'];
 var ZIP_NOTE_HEADERS = ['소분류','제목','주소','내용','이미지','수정일'];
-var ZIP_IMAGE_FOLDER_ID = '1nmfiM9CwM-hoLiYNulMdouyndxHlj8NV';
+// Configure IMAGE_FOLDER_ID privately in Apps Script project properties.
+var ZIP_IMAGE_FOLDER_ID = '';
 
 function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
@@ -99,9 +100,11 @@ function zipSession_(token) {
   if (typeof token !== 'string' || token.length > 200) throw zipAuthError_();
   var key = 'session:' + zipHash_(token), props = PropertiesService.getScriptProperties();
   var session = JSON.parse(props.getProperty(key) || 'null');
-  if (!session || session.expires <= Date.now()) { props.deleteProperty(key); throw zipAuthError_(); }
+  if (!session || !session.sub || (session.expires != null && session.expires <= Date.now())) { props.deleteProperty(key); throw zipAuthError_(); }
   var row = zipUsers_().find(function(r){return r[0] === session.sub;});
   if (!row) throw zipAuthError_();
+  // Upgrade still-valid legacy sessions. Expired credentials must sign in once again.
+  if (session.expires != null) props.setProperty(key,JSON.stringify({sub:session.sub,expires:null}));
   return zipPublicUser_(row);
 }
 function zipSafeCell_(value) { value = String(value || ''); return /^[=+@-]/.test(value) ? "'" + value : value; }
@@ -139,9 +142,9 @@ function zipLogin_(idToken,nonce) {
       sh.getRange(index,6).setValue(stamp);
     }
     var all = props.getProperties();
-    Object.keys(all).filter(function(k){return k.indexOf('session:')===0;}).forEach(function(k){try{if(JSON.parse(all[k]).expires <= Date.now())props.deleteProperty(k);}catch(e){props.deleteProperty(k);}});
+    Object.keys(all).filter(function(k){return k.indexOf('session:')===0;}).forEach(function(k){try{var old=JSON.parse(all[k]);if(!old || (old.expires != null && old.expires <= Date.now()))props.deleteProperty(k);}catch(e){props.deleteProperty(k);}});
     var token = Utilities.getUuid()+Utilities.getUuid();
-    props.setProperty('session:'+zipHash_(token),JSON.stringify({sub:identity.sub,expires:Date.now()+8*60*60*1000}));
+    props.setProperty('session:'+zipHash_(token),JSON.stringify({sub:identity.sub,expires:null}));
     return {ok:true,sessionToken:token,user:zipPublicUser_(row)};
   } finally { lock.releaseLock(); }
 }
@@ -252,7 +255,9 @@ function zipDeleteNote_(noteId) {
   try{var found=zipFindNote_(noteId); found.sheet.deleteRow(found.row); SpreadsheetApp.flush(); return {ok:true};}finally{lock.releaseLock();}
 }
 function zipImageFolder_() {
-  return DriveApp.getFolderById(ZIP_IMAGE_FOLDER_ID);
+  var folderId=PropertiesService.getScriptProperties().getProperty('IMAGE_FOLDER_ID');
+  if(!folderId)throw new Error('IMAGE_FOLDER_ID is not configured');
+  return DriveApp.getFolderById(folderId);
 }
 function zipUploadNoteImage_(body) {
   var mime=String(body.mime||''), base64=String(body.base64||''), name=String(body.name||'메모 사진.jpg').replace(/[\\/:*?"<>|]/g,'_').slice(0,120);
@@ -353,4 +358,3 @@ function zipDeleteChecklist_(row) {
 
 // Run once in the editor to create the required tabs and authorize Sheets, Drive and Calendar.
 function setupChaeZip() { zipUserSheet_(); zipChecklistSheet_(); zipImageFolder_().getName(); CalendarApp.getDefaultCalendar().getId(); console.log('접근관리·이미지·체크리스트·캘린더 준비 완료'); }
-

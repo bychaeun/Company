@@ -2,16 +2,7 @@
   'use strict';
   if (location.protocol === 'file:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
     window.ZIP_LOCAL_PREVIEW = true;
-    let records = [
-      {noteId:'preview:2',category:'효산 LPL 기본',subcategory:'샘플',title:'샘플별 크기 사양',content:'사이즈\n\n100X100\n140X120\n300X300',updatedAt:'2026-10-05',images:[],imageText:''},
-      {noteId:'preview:3',category:'효산 LPL 기본',subcategory:'유해물질',title:'유해물질 종류',content:'업무에서 자주 확인하는 유해물질 정보를 정리합니다.',updatedAt:'2026-10-05',images:[],imageText:''},
-      {noteId:'preview:4',category:'효산 LPL 기본',subcategory:'프레스',title:'프레스 사이즈',content:'가장 큰게 4*9자 사이즈 밖에 없음.',updatedAt:'2026-10-05',images:[],imageText:''},
-      {noteId:'preview:5',category:'업체별 특징',subcategory:'유통업체',title:'더하임',address:'서울 서초구 3층',content:'담당자와 거래 특징을 간단히 정리한 예시 메모입니다.',updatedAt:'2026-10-05',images:[],imageText:''},
-      {noteId:'preview:6',category:'효산 LPL 기본',subcategory:'샘플',title:'샘플 각인 표기법',content:'효산 넘버 + 수입:S / 국산:O + 이름',updatedAt:'2026-10-05',images:[],imageText:''},
-      {noteId:'preview:7',category:'효산 LPL 기본',subcategory:'지출결의서',title:'지출결의서',content:'매주 월요일에 제출한다.\n영수증은 꼭 챙겨서 뒤에 붙인다.',updatedAt:'2026-10-05',images:[],imageText:''},
-      {noteId:'preview:8',category:'기계 사용법',subcategory:'연구실',title:'샘플 각인하는 법',content:'연구실 기계 사용 순서를 기록합니다.',updatedAt:'2026-10-05',images:[],imageText:''},
-      {noteId:'preview:9',category:'용어 정리',subcategory:'LPM이란',title:'LPM 관련 용어 및 제조방식',content:'기공에 요소수지를 함침 후 건조하고 멜라민 코팅을 진행한다.',updatedAt:'2026-10-05',images:[],imageText:''}
-    ];
+    let records = [{noteId:'preview:2',category:'예시',subcategory:'사용 안내',title:'미리보기 메모',content:'이 항목은 화면 확인용 가상 예시입니다.',updatedAt:'',images:[],imageText:''}];
     let checklist = [{row:2,done:false,task:'로컬 미리보기 할 일',date:new Date().toISOString().slice(0,10),time:'09:00',note:'실제 캘린더에는 저장되지 않아요.',calendar:false}];
     const clone = value => JSON.parse(JSON.stringify(value));
     window.ZIP_API = {
@@ -35,7 +26,10 @@
     return;
   }
   const endpoint = window.COMPANY_CONFIG.API_URL;
-  let token = sessionStorage.getItem('chae-session') || '';
+  const sessionKey = 'chae-session';
+  let token = localStorage.getItem(sessionKey) || sessionStorage.getItem(sessionKey) || '';
+  if (token) localStorage.setItem(sessionKey, token);
+  sessionStorage.removeItem(sessionKey);
   const imageCache = new Map();
   let generation = 0;
   let sessionVersion = 0;
@@ -46,6 +40,7 @@
       body:JSON.stringify({ ...payload, action, sessionToken:anonymous ? undefined : token }) });
     if (!response.ok) throw new Error('Google 연결을 확인할 수 없어요.');
     const data = await response.json();
+    if (!anonymous && version !== sessionVersion) throw Object.assign(new Error('이전 로그인 요청입니다.'), {code:'STALE_SESSION'});
     if (!data.ok) {
       if (!anonymous && version === sessionVersion) {
         if (data.code === 'AUTH_REQUIRED') { setToken(''); window.dispatchEvent(new Event('access-expired')); }
@@ -58,7 +53,12 @@
     return data;
   }
   function clearImages() { generation++; imageCache.forEach(p => p.then(url => { if(url)URL.revokeObjectURL(url); }).catch(()=>{})); imageCache.clear(); }
-  function setToken(value) { sessionVersion++; token=value; if(value)sessionStorage.setItem('chae-session',value); else sessionStorage.removeItem('chae-session'); clearImages(); }
+  function setToken(value) { sessionVersion++; token=value; if(value)localStorage.setItem(sessionKey,value); else localStorage.removeItem(sessionKey); sessionStorage.removeItem(sessionKey); clearImages(); }
+  window.addEventListener('storage', event => {
+    if (event.key !== sessionKey && event.key !== null) return;
+    token = localStorage.getItem(sessionKey) || ''; sessionVersion++; clearImages();
+    window.dispatchEvent(new Event(token ? 'session-restored' : 'access-expired'));
+  });
   async function image(fileId) {
     if(!/^[-\w]{10,200}$/.test(fileId))return '';
     if(!imageCache.has(fileId)) {
@@ -75,4 +75,3 @@
   window.ZIP_API = { request, image, setToken, clearImages, get hasSession(){return !!token;},
     async config(){ const response=await fetch(endpoint+'?action=config',{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)}); if(!response.ok)throw new Error(); return response.json(); } };
 })();
-
