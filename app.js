@@ -172,7 +172,7 @@
     el.dialogContent.innerHTML = `<article class="dialog-body">
       <p class="dialog-category">${escapeHTML(record.category)}${record.subcategory ? ` · ${escapeHTML(record.subcategory)}` : ""}</p>
       <h2>${escapeHTML(record.title)}</h2>
-      ${record.address ? `<p class="dialog-address"><span aria-hidden="true">⌖</span><span>${escapeHTML(record.address)}</span></p>` : ""}
+      ${record.address ? `<div class="dialog-address"><span aria-hidden="true">⌖</span><span class="dialog-address-text">${escapeHTML(record.address)}</span><button class="address-copy-button" type="button" data-copy-address aria-label="주소 복사" title="주소 복사"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M15 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></svg></button><span class="address-copy-status" role="status" aria-live="polite"></span></div>` : ""}
       <div class="dialog-copy">${escapeHTML(record.content)}</div>
       ${record.images.length ? `<div class="dialog-images">${record.images.map((url, index) => `<img data-private-image="${escapeHTML(url)}" alt="${escapeHTML(record.title)} 참고 이미지 ${index + 1}" loading="lazy" />`).join("")}</div>` : ""}
       ${record.updatedAt ? `<p class="dialog-updated">마지막 수정 ${escapeHTML(record.updatedAt)}</p>` : ""}
@@ -184,6 +184,37 @@
     document.querySelector("#dialog-edit-button").hidden = !(window.CHAE_AUTH?.user?.role === "admin" && record.noteId);
     el.dialog.showModal();
     hydrateImages(el.dialogContent);
+  }
+
+  async function copyAddress(button) {
+    const record = state.records.find((item) => item.id === state.currentRecordId);
+    if (!record?.address || button.disabled) return;
+    const status = button.parentElement.querySelector(".address-copy-status");
+    button.disabled = true;
+    status.textContent = "";
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(record.address);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = record.address;
+        input.className = "address-copy-fallback";
+        input.readOnly = true;
+        el.dialog.append(input);
+        try {
+          input.select();
+          if (!document.execCommand("copy")) throw new Error("Copy failed");
+        } finally {
+          input.remove();
+          button.focus({ preventScroll: true });
+        }
+      }
+      status.textContent = "복사했어요!";
+    } catch {
+      status.textContent = "복사하지 못했어요. 주소를 길게 눌러 복사해 주세요.";
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function editorValue(select, input) {
@@ -587,6 +618,11 @@
   document.querySelector("#sidebar-backdrop").addEventListener("click", () => document.body.classList.remove("sidebar-open"));
   document.querySelector("#dialog-close").addEventListener("click", () => el.dialog.close());
   el.dialog.addEventListener("click", (event) => {
+    const copyButton = event.target.closest("[data-copy-address]");
+    if (copyButton) {
+      void copyAddress(copyButton);
+      return;
+    }
     if (event.target.closest("[data-dialog-edit]")) {
       const record = state.records.find((item) => item.id === state.currentRecordId);
       el.dialog.close();
@@ -685,4 +721,6 @@
   window.setInterval(() => loadData(false), syncMinutes * 60 * 1000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch((error) => console.error("Service worker:", error));
 })();
+
+
 
