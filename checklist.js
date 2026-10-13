@@ -20,6 +20,9 @@
   let items = [];
   let loading = null;
   let saving = false;
+  const pendingRows = new Set();
+  let revision = 0;
+  let accessVersion = 0;
   let selectedDate = today();
   let visibleMonth = selectedDate.slice(0, 7);
 
@@ -88,13 +91,13 @@
       return;
     }
     list.innerHTML = dayItems.map((item) => `
-      <div class="checklist-item ${item.done ? "done" : ""}">
+      <div class="checklist-item ${item.done ? "done" : ""}" ${pendingRows.has(Number(item.row)) ? 'aria-busy="true"' : ''}>
         <label class="checklist-toggle">
-          <input type="checkbox" data-checklist-row="${Number(item.row)}" ${item.done ? "checked" : ""} />
+          <input type="checkbox" data-checklist-row="${Number(item.row)}" ${item.done ? "checked" : ""} ${pendingRows.has(Number(item.row)) || saving ? 'disabled' : ''} />
           <span><strong>${escapeHTML(item.task)}</strong><span>${escapeHTML(item.note || "Google 캘린더에 등록됨")}</span></span>
         </label>
         <time datetime="${escapeHTML(item.date)}">${escapeHTML(item.date)}${item.time ? ` · ${escapeHTML(item.time)}` : ""}</time>
-        <button type="button" data-delete-row="${Number(item.row)}" aria-label="${escapeHTML(item.task)} 삭제">삭제</button>
+        <button type="button" data-delete-row="${Number(item.row)}" ${pendingRows.size || saving ? 'disabled' : ''} aria-label="${escapeHTML(item.task)} 삭제">삭제</button>
       </div>`).join("");
   }
 
@@ -104,19 +107,24 @@
   }
 
   function load() {
+    if (pendingRows.size) return Promise.resolve();
     if (loading) return loading;
     loading = fetchItems().finally(() => { loading = null; });
     return loading;
   }
 
   async function fetchItems() {
+    const startedRevision = revision;
+    const startedAccess = accessVersion;
     message.textContent = "체크리스트와 캘린더 상태를 확인하고 있어요.";
     try {
       const data = await api.request("checklist");
+      if (startedRevision !== revision || startedAccess !== accessVersion || pendingRows.size) return;
       items = Array.isArray(data.items) ? data.items : [];
       render();
       message.textContent = `${items.length}개의 할 일을 불러왔어요.`;
     } catch (error) {
+      if (startedRevision !== revision || startedAccess !== accessVersion) return;
       message.textContent = error.message;
     }
   }
@@ -150,7 +158,14 @@
   });
   window.addEventListener("show-notes", showNotes);
   window.addEventListener("access-change", (event) => {
-    if (event.detail?.role !== "admin") showNotes();
+    if (event.detail?.role !== "admin") {
+      accessVersion++;
+      revision++;
+      pendingRows.clear();
+      items = [];
+      render();
+      showNotes();
+    }
   });
 
   form.addEventListener("submit", async (event) => {
@@ -182,25 +197,31 @@
   list.addEventListener("change", async (event) => {
     const checkbox = event.target.closest("[data-checklist-row]");
     if (!checkbox) return;
-    if (saving || loading) { checkbox.checked = !checkbox.checked; return; }
-    saving = true;
-    const previous = !checkbox.checked;
-    const row = checkbox.closest('.checklist-item');
-    row.classList.toggle('done', checkbox.checked);
-    list.querySelectorAll('input, button').forEach(control => { control.disabled = true; });
-    row.setAttribute('aria-busy', 'true');
-    message.textContent = "완료 상태를 캘린더에 반영하고 있어요.";
+    const row = Number(checkbox.dataset.checklistRow);
+    const item = items.find(entry => Number(entry.row) === row);
+    if (!item) return;
+    if (saving || pendingRows.has(row) || window.CHAE_AUTH.user?.role !== 'admin') { checkbox.checked = item.done; return; }
+    const previous = item.done;
+    const startedAccess = accessVersion;
+    item.done = checkbox.checked;
+    pendingRows.add(row);
+    revision++;
+    render();
+    message.textContent = "체크를 반영했어요. Google 시트·캘린더에 저장 중이에요.";
     try {
-      await api.request("toggleChecklist", { row: Number(checkbox.dataset.checklistRow), done: checkbox.checked });
-      await load();
+      await api.request("toggleChecklist", { row, done: item.done });
+      if (startedAccess !== accessVersion) return;
+      message.textContent = pendingRows.size > 1 ? "나머지 체크를 저장 중이에요." : "체크 상태를 저장했어요.";
     } catch (error) {
-      checkbox.checked = previous;
-      row.classList.toggle('done', previous);
-      message.textContent = error.message;
+      if (startedAccess !== accessVersion) return;
+      item.done = previous;
+      message.textContent = `저장을 확인하지 못해 체크를 되돌렸어요. ${error.message}`;
     } finally {
-      saving = false;
-      row.removeAttribute('aria-busy');
-      list.querySelectorAll('input, button').forEach(control => { control.disabled = false; });
+      if (startedAccess === accessVersion) {
+        pendingRows.delete(row);
+        revision++;
+        render();
+      }
     }
   });
 
@@ -213,7 +234,7 @@
   });
   list.addEventListener('click', async event => {
     const button=event.target.closest('[data-delete-row]');
-    if(!button || saving || loading || window.CHAE_AUTH.user?.role!=='admin')return;
+    if(!button || saving || loading || pendingRows.size || window.CHAE_AUTH.user?.role!=='admin')return;
     if(!window.confirm('체크리스트에서 삭제할까요? 연결된 Google 캘린더 일정은 유지됩니다.'))return;
     saving=true;
     list.querySelectorAll('input, button').forEach(control => { control.disabled = true; });
@@ -223,3 +244,5 @@
   });
   setInterval(()=>{if(!saving && !document.hidden && !checklistView.hidden && window.CHAE_AUTH.user?.role==='admin')load();},60000);
 })();
+
+
