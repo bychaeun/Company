@@ -25,7 +25,7 @@ test('temporary session-check failures preserve the approved screen; revocation 
       body: { classList: { remove() {} } }, head: { append() {} },
       getElementById: element, querySelector: element,
       createElement: () => ({}), addEventListener() {}, hidden: false
-    }, setInterval() {}, Event, CustomEvent, Date
+    }, setInterval() {}, setTimeout() {}, clearTimeout() {}, Event, CustomEvent, Date
   });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(window.CHAE_AUTH.user, user);
@@ -38,3 +38,4 @@ test('temporary session-check failures preserve the approved screen; revocation 
   assert.equal(window.CHAE_AUTH.user, null);
   assert.equal(element('private-app').hidden, true);
 });
+
