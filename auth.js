@@ -4,6 +4,40 @@
   let currentUser=null, checking=null, loginReady=false, configured=false;
   let authVersion=0, lastCheck=0;
   let rendering=null, loginBusy=false;
+  let loginSetup=null, retryTimer=null, retryDelay=2000;
+  function restoring(message='저장된 로그인으로 연결하고 있어요. 다시 로그인할 필요 없어요.') {
+    document.body.classList.remove('auth-checking');
+    $('auth-panel').hidden=false;
+    $('private-app').hidden=true;
+    $('google-login').hidden=true;
+    $('check-approval').hidden=true;
+    $('auth-title').textContent='다시 오셨네요 🍮';
+    $('auth-message').textContent=message;
+  }
+  function scheduleRetry() {
+    clearTimeout(retryTimer);
+    retryTimer=setTimeout(()=>{retryTimer=null;if(api.hasSession)check();},retryDelay);
+    retryDelay=Math.min(retryDelay*2,15000);
+  }
+  async function ensureLoginReady() {
+    if(configured && window.google?.accounts?.id)return;
+    if(loginSetup)return loginSetup;
+    loginSetup=(async()=>{
+      const cfg=await api.config();
+      if(!cfg.ok||!cfg.configured||!cfg.clientId)throw new Error('Google 로그인 설정을 확인해 주세요.');
+      configured=cfg;
+      if(window.google?.accounts?.id)return;
+      await new Promise((resolve,reject)=>{
+        const script=document.createElement('script');
+        script.src='https://accounts.google.com/gsi/client';script.async=true;
+        const timeout=setTimeout(()=>{script.remove();reject(new Error('Google 연결이 지연돼요. 잠시 후 다시 시도해 주세요.'));},15000);
+        script.onload=()=>{clearTimeout(timeout);resolve();};
+        script.onerror=()=>{clearTimeout(timeout);script.remove();reject(new Error('Google 로그인 화면을 불러오지 못했어요.'));};
+        document.head.append(script);
+      });
+    })().finally(()=>{loginSetup=null;});
+    return loginSetup;
+  }
   function update(user,message='') {
     document.body.classList.remove('auth-checking');
     currentUser=user;
@@ -19,9 +53,9 @@
     window.dispatchEvent(new CustomEvent('access-change',{detail:user}));
   }
   async function renderLogin() {
-    if(currentUser || api.hasSession || loginBusy || !configured || !window.google?.accounts?.id)return;
+    if(currentUser || api.hasSession || loginBusy)return;
     if(rendering)return rendering;
-    rendering=prepareLogin().finally(()=>{rendering=null;});return rendering;
+    rendering=(async()=>{await ensureLoginReady();if(!currentUser && !api.hasSession && !loginBusy)await prepareLogin();})().finally(()=>{rendering=null;});return rendering;
   }
   async function prepareLogin() {
     const {nonce}=await api.request('challenge',{},true);
@@ -45,11 +79,15 @@
     const version=authVersion;
     checking=(async()=>{
       try {
-        if(api.hasSession){const result=await api.request('me');if(version!==authVersion)return currentUser;lastCheck=Date.now();update(result.user);return result.user;}
+        if(api.hasSession){const result=await api.request('me');if(version!==authVersion)return currentUser;lastCheck=Date.now();clearTimeout(retryTimer);retryDelay=2000;update(result.user);return result.user;}
         update(null,configured?'Google 계정으로 로그인하고 메모를 만나보세요.':'Google 로그인 연결을 준비하고 있어요.');
+        renderLogin().catch(error=>{if(!currentUser && !api.hasSession)update(null,error.message);});
       }catch(error){
         if(version!==authVersion || error.code==='STALE_SESSION')return currentUser;
-        if(currentUser && error.code!=='AUTH_REQUIRED' && error.code!=='FORBIDDEN')return currentUser;
+        if(api.hasSession && error.code!=='AUTH_REQUIRED' && error.code!=='FORBIDDEN'){
+          if(!currentUser)restoring('연결이 잠시 느려요. 로그인은 유지한 채 자동으로 다시 연결하고 있어요.');
+          scheduleRetry();return currentUser;
+        }
         update(null,api.hasSession?'연결이 지연되고 있어요. 저장된 로그인으로 다시 연결합니다.':error.message);
         if(!api.hasSession)renderLogin().catch(()=>{});
       }
@@ -77,6 +115,7 @@
   $('check-approval').onclick=check;
   $('logout-button').onclick=async()=>{
     authVersion++;
+    clearTimeout(retryTimer);
     const revoke=api.request('logout').catch(()=>{});
     api.setToken('');window.google?.accounts?.id?.disableAutoSelect();update(null);renderLogin().catch(()=>{});
     await revoke;
@@ -88,6 +127,7 @@
   window.addEventListener('session-restored',()=>{authVersion++;check();});
   const checkOnResume=()=>{if(!document.hidden && Date.now()-lastCheck>=60000)check();};
   window.addEventListener('pageshow',checkOnResume);
+  window.addEventListener('online',()=>{if(api.hasSession)check();});
   document.addEventListener('visibilitychange',checkOnResume);
   setInterval(()=>{if(!document.hidden)check();},60000);
   // A fresh nonce is required after a long idle period before attempting another login.
@@ -101,17 +141,8 @@
     document.querySelector('#sync-label').textContent='로컬 미리보기 · 시트에 저장되지 않음';
     return;
   }
-  (async()=>{
-    // Restore the saved session independently of Google button/config loading.
-    const restore=check();
-    try{
-      const cfg=await api.config();
-      if(!cfg.ok||!cfg.configured||!cfg.clientId)throw new Error('Google 로그인 연결을 준비하고 있어요. 관리자 설정 후 사용할 수 있습니다.');
-      configured=cfg;
-      const script=document.createElement('script');script.src='https://accounts.google.com/gsi/client';script.async=true;
-      script.onload=()=>renderLogin().catch(error=>{if(!currentUser)update(null,error.message);});
-      script.onerror=()=>{if(!currentUser)update(null,'Google 로그인 화면을 불러오지 못했어요. Chrome 또는 Safari에서 다시 열어 주세요.');};
-      document.head.append(script);await restore;
-    }catch(error){await restore;if(!currentUser && !api.hasSession)update(null,error.message||'Google 연결을 확인할 수 없어요.');}
-  })();
+  // Existing sessions need only one server check, not Google config/GSI/challenge.
+  if(api.hasSession)restoring();
+  check();
 })();
+
