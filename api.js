@@ -5,8 +5,13 @@
     let records = [{noteId:'preview:2',category:'예시',subcategory:'사용 안내',title:'미리보기 메모',content:'이 항목은 화면 확인용 가상 예시입니다.',updatedAt:'',images:[],imageText:''}];
     let checklist = [{row:2,done:false,task:'로컬 미리보기 할 일',date:new Date().toISOString().slice(0,10),time:'09:00',note:'실제 캘린더에는 저장되지 않아요.',calendar:false}];
     const clone = value => JSON.parse(JSON.stringify(value));
+    let specs = [];
     window.ZIP_API = {
       async request(action,payload={}) {
+        if(action==='specs')return {ok:true,items:clone(specs)};
+        if(action==='saveSpec'){const item={...payload,id:payload.id||String(Date.now())};const index=specs.findIndex(x=>x.id===item.id);if(index<0)specs.push(item);else specs[index]=item;return {ok:true,id:item.id};}
+        if(action==='deleteSpec'){specs=specs.filter(x=>x.id!==payload.id);return {ok:true};}
+        if(action==='geocodeSpec')return {ok:true,configured:false,locations:[]};
         if(action==='me')return {ok:true,user:{sub:'local-preview',email:'로컬 파일 미리보기',name:'채은',role:'admin',status:'approved'}};
         if(action==='notes')return {ok:true,records:clone(records),syncedAt:new Date().toISOString(),syncMode:'preview'};
         if(action==='createNote'){records.push({...payload,noteId:`preview:${Date.now()}`,updatedAt:new Date().toISOString().slice(0,10),images:[]});return {ok:true};}
@@ -75,3 +80,4 @@
   window.ZIP_API = { request, image, setToken, clearImages, get hasSession(){return !!token;},
     async config(){ const response=await fetch(endpoint+'?action=config',{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)}); if(!response.ok)throw new Error(); return response.json(); } };
 })();
+

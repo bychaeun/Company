@@ -1,0 +1,40 @@
+#specs-view[hidden], .specs-dialog [hidden] { display:none!important; }
+.specs-heading { padding:28px; border:1px solid #eadfea; border-radius:28px; background:linear-gradient(135deg,#fff0f6,#f3edff,#fff2cf); }
+.specs-heading h1 { margin:0; color:#69485b; }
+.specs-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
+#specs-view button,.specs-dialog button { min-height:40px; padding:9px 14px; border:1px solid #ead0de; border-radius:14px; background:#fff0f5; color:#89566e; font:inherit; cursor:pointer; }
+#specs-view button:focus-visible,.specs-dialog button:focus-visible { outline:3px solid #b97494; outline-offset:2px; }
+#specs-view button:disabled,.specs-dialog button:disabled { opacity:.5; cursor:wait; }
+.specs-search,.specs-dialog label { display:grid; gap:6px; color:#765d70; font-weight:700; }
+.specs-search input,.specs-dialog input { width:100%; min-width:0; padding:11px; border:1px solid #ead7e2; border-radius:12px; font:inherit; background:white; color:#594b5c; }
+.specs-dialog input[type="file"] { padding:7px; min-height:54px; background:#fff8fb; font-size:.85rem; }
+.specs-dialog input[type="file"]::file-selector-button { min-height:38px; margin-right:12px; padding:8px 14px; border:1px solid #edb8c9; border-radius:10px; background:linear-gradient(135deg,#ffe5d7,#f8dceb); color:#89566e; font:inherit; font-weight:700; cursor:pointer; }
+.specs-dialog input[type="file"]::file-selector-button:hover { background:#f8dceb; }
+.specs-dialog input[type="file"]:focus-visible { outline:3px solid #b97494; outline-offset:2px; }
+#specs-map { height:520px; z-index:0; border-radius:24px; border:1px solid #eadfea; background:#f5eef6; }
+.specs-help { font-size:.75rem; color:#887486; }
+#specs-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; margin-top:18px; }
+#specs-list button { text-align:left; background:#fffbfd; padding:20px; }
+#specs-list strong,#specs-list span { display:block; overflow-wrap:anywhere; }
+#specs-list span { font-size:.82rem; margin-top:6px; }
+.specs-dialog { width:min(760px,calc(100% - 24px)); max-height:90dvh; padding:26px; border:1px solid #eadfea; border-radius:24px; background:#fffafc; color:#594b5c; overflow:auto; }
+.specs-dialog::backdrop { background:#45334766; }
+.specs-dialog h2 { margin-top:12px; }
+.specs-dialog form { display:grid; gap:16px; }
+.specs-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.specs-paper { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; padding:12px 0; border-bottom:1px solid #eadfea; }
+.specs-paper input { font-size:.85rem; }
+.specs-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.specs-photos { display:flex; flex-wrap:wrap; gap:12px; }
+.specs-photos img { width:140px; height:120px; object-fit:cover; border-radius:14px; }
+.specs-detail-data { display:grid; grid-template-columns:110px 1fr; gap:8px; }
+.specs-detail-data dd { margin:0; overflow-wrap:anywhere; }
+.specs-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+.specs-table th,.specs-table td { padding:10px; border-bottom:1px solid #eadfea; text-align:left; overflow-wrap:anywhere; }
+.specs-pick-map { height:260px; z-index:0; border-radius:16px; background:#f5eef6; }
+#specs-map,.specs-pick-map { background:#edf1f2; }
+.specs-city { color:#626a6c; font:500 11px/20px system-ui,sans-serif; text-align:center; white-space:nowrap; text-shadow:0 1px 2px #fff,0 -1px 2px #fff; pointer-events:none; }
+.specs-pin { background:none; border:0; }
+.specs-pin span { display:block; position:absolute; top:2px; left:3px; width:18px; height:18px; background:#242629; border:2px solid white; border-radius:50% 50% 50% 0; transform:rotate(-45deg); box-shadow:0 2px 5px #0003; }
+.specs-pin span::after { content:''; position:absolute; top:5px; left:5px; width:4px; height:4px; border-radius:50%; background:white; }
+@media(max-width:600px){#specs-map{height:410px}.specs-grid{grid-template-columns:1fr}.specs-paper{grid-template-columns:1fr}.specs-dialog{padding:18px}.specs-detail-data{grid-template-columns:85px 1fr}}

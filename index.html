@@ -13,6 +13,7 @@
     <link rel="preconnect" href="https://script.google.com" />
     <title>CHAE EUN.ZIP — 채은 지식 저장소</title>
     <link rel="stylesheet" href="styles.css?v=12" />
+    <link rel="stylesheet" href="specs.css?v=1" />
   </head>
   <body class="auth-checking">
     <a class="skip-link" href="#knowledge-list">내용으로 바로가기</a>
@@ -72,6 +73,7 @@
         <button class="category-button checklist-nav-button" id="checklist-nav-button" type="button" hidden>
           <span>체크리스트</span><span aria-hidden="true">✓</span>
         </button>
+        <button class="category-button" id="specs-nav-button" type="button" hidden><span>내 스펙관리</span><span aria-hidden="true">📍</span></button>
         <div class="sidebar-note">
           <strong>승인된 계정만 보는 메모</strong>
           <span>시트의 대분류·소분류를 자유롭게 추가하세요. 앱을 열어 둔 동안 30분마다 새 자료를 읽어요.</span>
@@ -167,6 +169,15 @@
           <h2 id="checklist-selected-title" class="checklist-selected-title"></h2>
           <div id="checklist-list" class="checklist-list" aria-label="체크리스트 항목"></div>
         </section>
+        <section id="specs-view" hidden aria-labelledby="specs-title">
+          <header class="specs-heading"><p class="eyebrow">MY SPEC MAP</p><h1 id="specs-title">내 스펙관리</h1><p>우리나라 지도 위에 현장과 종이 스펙을 차곡차곡.</p></header>
+          <div class="specs-toolbar"><button id="specs-add" type="button">＋ 현장 등록</button><button id="specs-refresh" type="button">새로고침</button><button id="specs-home" type="button">대한민국 전체</button><button id="specs-notes" type="button">메모로 돌아가기</button></div>
+          <label class="specs-search">현장 검색<input id="specs-search" type="search" placeholder="현장명, 주소, 설계사, 건설사, 종이넘버" /></label>
+          <p id="specs-message" role="status"></p>
+          <div id="specs-map" aria-label="대한민국 현장 지도"></div>
+          <p class="specs-help">Natural Earth 기반의 간략 지도 · 주요 도시명만 표시합니다. 도로·건물은 생략되어 있어 정확한 위치는 주소 검색으로 지정해 주세요.</p>
+          <div id="specs-list"></div>
+        </section>
       </main>
     </div>
 
@@ -255,8 +266,10 @@
     <script src="auth.js?v=15"></script>
     <script src="checklist.js?v=12"></script>
     <script src="app.js?v=12"></script>
+    <script src="specs.js?v=1"></script>
   </body>
 </html>
+
 
 
 
