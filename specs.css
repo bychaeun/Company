@@ -43,3 +43,11 @@
 #specs-map .leaflet-control-zoom a:focus-visible,.specs-pick-map .leaflet-control-zoom a:focus-visible { outline:2px solid #b97494; outline-offset:-4px; }
 #specs-map .leaflet-control-zoom a.leaflet-disabled,.specs-pick-map .leaflet-control-zoom a.leaflet-disabled { color:#c9b5c0; }
 @media(max-width:600px){#specs-map{height:410px}.specs-grid{grid-template-columns:1fr}.specs-paper{grid-template-columns:1fr}.specs-dialog{padding:18px}.specs-detail-data{grid-template-columns:85px 1fr}}
+#specs-view #specs-add {position:fixed;right:28px;bottom:28px;z-index:800;border-radius:999px;padding:16px 22px;background:linear-gradient(135deg,#ffd1b8,#f6a9cb);color:#714966;font-weight:800;border:1px solid #edb5cc;box-shadow:0 8px 28px #bf75933d;}
+.specs-map-tools {margin:10px 0 14px;}
+#specs-home {font-size:12px;padding:6px 12px!important;min-height:32px;}
+#specs-message:empty {display:none;}
+#specs-message {font-size:13px;}
+#specs-list strong .list-pin {display:inline-block;width:16px;height:20px;fill:#242629;vertical-align:middle;}
+.specs-street-tiles {filter:saturate(.35);}
+#specs-view {padding-bottom:85px;}

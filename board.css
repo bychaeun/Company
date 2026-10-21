@@ -1,0 +1,16 @@
+#board-view {padding-bottom:28px;}
+.board-tools {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0;}
+#board-status {font-size:12px;color:#806e80;}
+#design-board {height:65dvh;min-height:430px;position:relative;overflow:hidden;touch-action:none;border:1px solid #d9cddb;border-radius:22px;background-color:#393940;background-image:radial-gradient(#74727d 1px,transparent 1px);background-size:24px 24px;cursor:grab;}
+#board-world {position:absolute;inset:0;transform-origin:0 0;}
+#board-links {position:absolute;overflow:visible;inset:0;width:1px;height:1px;pointer-events:none;}
+#board-links path {fill:none;stroke:#dfafcf;stroke-width:3;}
+.board-node {position:absolute;width:260px;border-radius:14px;background:#fff2cc;color:#554754;box-shadow:0 8px 22px #0003;border:1px solid #fff4;}
+.board-node[data-color=pink] {background:#ffe1ec;}.board-node[data-color=mint] {background:#d8efe6;}.board-node[data-color=lavender] {background:#e7defa;}
+.board-node header {display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #67547020;cursor:grab;touch-action:none;user-select:none;}
+.board-node h2 {margin:0;font-size:15px;overflow-wrap:anywhere;color:inherit;}
+.board-node p {margin:0;padding:14px;white-space:pre-wrap;font-size:13px;line-height:1.7;max-height:180px;overflow:auto;touch-action:pan-y;overflow-wrap:anywhere;}
+.board-node a {display:block;margin:0 14px 14px;font-size:12px;color:#70578f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;touch-action:manipulation;}
+.board-node button {border:0;background:transparent;color:inherit;padding:6px;cursor:pointer;}
+.board-editor {padding:24px;max-width:520px;width:calc(100vw - 32px);border:1px solid #e6cadb;border-radius:22px;background:#fff9fc;color:#695266;}
+.board-editor::backdrop {background:#44304366;}.board-editor form,.board-editor label {display:grid;gap:8px;}.board-editor form {gap:14px;}.board-editor input,.board-editor textarea,.board-editor select {font:inherit;border:1px solid #e7ccdf;border-radius:10px;padding:10px;width:100%;background:white;}.board-editor textarea {min-height:140px;resize:vertical;}.board-editor footer {display:flex;gap:8px;justify-content:flex-end;}

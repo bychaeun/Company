@@ -50,6 +50,11 @@
   let noteRequest=null;
   let notesLoading=false, notesRevision=0, selecting=false, selectionBusy=false, suppressClickUntil=0;
   const selectedNotes=new Set();
+  const categoryFilters=document.createElement('section');categoryFilters.className='note-filters';categoryFilters.setAttribute('aria-label','메모 분류');
+  document.querySelector('.search-panel').after(categoryFilters);categoryFilters.append(el.categories);
+  const subcategoryButtons=document.createElement('div');subcategoryButtons.className='subcategory-buttons';subcategoryButtons.setAttribute('aria-label','소분류');categoryFilters.append(subcategoryButtons);el.subcategory.closest('.select-box')?.setAttribute('hidden','');el.subcategory.hidden=true;
+  const notesMenu=document.createElement('button');notesMenu.type='button';notesMenu.className='category-button';notesMenu.textContent='전체 메모';notesMenu.onclick=()=>document.querySelector('.brand').click();document.querySelector('.sidebar').prepend(notesMenu);
+  subcategoryButtons.onclick=event=>{const b=event.target.closest('[data-subcategory]');if(!b)return;state.subcategory=b.dataset.subcategory;state.page=1;renderSubcategories();renderCards();};
   const deleteDialog=document.createElement('dialog');deleteDialog.className='detail-dialog note-delete-confirm';
   deleteDialog.innerHTML='<h2>선택한 메모 삭제</h2><p></p><form method="dialog"><button class="install-button" value="cancel">취소</button><button class="install-button" value="delete">삭제하기</button></form>';
   document.body.append(deleteDialog);
@@ -81,15 +86,17 @@
     }catch(error){showToast(error.message);}
     finally{selectionBusy=false;updateSelection();}
   };
-  let holdTimer,holdStart;
-  const cancelHold=()=>clearTimeout(holdTimer);
+  let holdTimer,holdStart,holdTriggered=false;
+  const cancelHold=()=>{clearTimeout(holdTimer);if(holdTriggered)suppressClickUntil=Date.now()+800;};
   el.list.addEventListener('pointerdown',event=>{
     if(event.button!==0||window.CHAE_AUTH?.user?.role!=='admin')return;
     const card=event.target.closest('[data-id]');if(!card)return;
+    holdTriggered=false;
     holdStart={x:event.clientX,y:event.clientY};
     holdTimer=setTimeout(()=>{
       const record=state.records.find(r=>r.id===Number(card.dataset.id));if(!record?.noteId)return;
-      selecting=true;selectedNotes.add(record.noteId);suppressClickUntil=Date.now()+800;renderCards();
+      if(selectedNotes.size>=100&&!selectedNotes.has(record.noteId))return;
+      holdTriggered=true;selecting=true;selectedNotes.add(record.noteId);suppressClickUntil=Date.now()+800;renderCards();
     },500);
   });
   el.list.addEventListener('pointermove',event=>{if(holdStart&&Math.hypot(event.clientX-holdStart.x,event.clientY-holdStart.y)>10)cancelHold();});
@@ -152,11 +159,12 @@
     const categoryButtons = Array.from(counts.entries())
       .sort((a, b) => a[0].localeCompare(b[0], "ko"))
       .map(([category, count]) => [category, category, count]);
-    const buttons = [["", "전체 메모", state.records.length], ...categoryButtons];
-    el.categories.innerHTML = buttons.map(([value, label, count]) => `
+    const buttons = [["", "전체", state.records.length],...categoryButtons];
+    const markup = entries=>entries.map(([value, label, count]) => `
       <button class="category-button ${state.category === value ? "active" : ""}" type="button" data-category="${escapeHTML(value)}">
         <span>${escapeHTML(label)}</span><span>${count}</span>
-      </button>`).join("");
+      </button>`).join('');
+    el.categories.innerHTML=markup(buttons);
   }
 
   function renderSubcategories() {
@@ -167,6 +175,8 @@
     if (state.subcategory && !values.includes(state.subcategory)) state.subcategory = "";
     el.subcategory.innerHTML = `<option value="">모든 소분류</option>${values.map((value) => `<option value="${escapeHTML(value)}">${escapeHTML(value)}</option>`).join("")}`;
     el.subcategory.value = state.subcategory;
+    subcategoryButtons.hidden=!state.category||!values.length;
+    subcategoryButtons.innerHTML=[['','전체 소분류'],...values.map(v=>[v,v])].map(([value,label])=>`<button type="button" data-subcategory="${escapeHTML(value)}" aria-pressed="${state.subcategory===value}" class="filter-chip ${state.subcategory===value?'active':''}">${escapeHTML(label)}</button>`).join('');
   }
 
   function renderCards() {
@@ -182,7 +192,8 @@
     el.list.innerHTML = pageRecords.map((record) => {
       const image = record.images[0];
       return `<article class="knowledge-card ${selectedNotes.has(record.noteId)?'is-selected':''} ${image ? "has-image" : ""}">
-        <button class="card-button" type="button" data-id="${record.id}" aria-label="${escapeHTML(record.title)} 자세히 보기">
+        <button class="card-button" type="button" data-id="${record.id}" aria-label="${escapeHTML(record.title)} ${selecting?'선택':'자세히 보기'}" ${selecting?`aria-pressed="${selectedNotes.has(record.noteId)}"`:''}>
+          ${selectedNotes.has(record.noteId)?'<span class="note-selected-mark" aria-label="선택됨">✓</span>':''}
           <div>
             <div class="card-category"><span>${escapeHTML(record.category)}</span>${record.subcategory ? `<span>${escapeHTML(record.subcategory)}</span>` : ""}</div>
             <h2 class="card-title">${escapeHTML(record.title)}</h2>
@@ -193,10 +204,8 @@
         </button>
         ${canEdit && record.noteId ? `<button class="card-edit-icon" type="button" data-edit-id="${record.id}" aria-label="${escapeHTML(record.title)} 수정" title="메모 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4" /></svg></button>` : ""}
         <div class="card-actions">
-          ${canEdit ? `<button class="card-save" type="button" data-select-id="${record.id}" aria-pressed="${selectedNotes.has(record.noteId)}">${selectedNotes.has(record.noteId)?'선택됨':'선택'}</button>` : ''}
           <button class="card-save" type="button" data-save-id="${record.id}" aria-label="${escapeHTML(record.title)} 이미지로 저장">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
-            이미지 저장
           </button>
         </div>
       </article>`;
@@ -355,7 +364,7 @@
       imageText: el.noteImageIds.value.trim()
     };
     if(!payload.category){el.noteEditorMessage.textContent='새 대분류 이름을 입력해 주세요.';el.noteCategoryNew.focus();return;}
-    if(/[\\/\?\*\[\]:]/.test(payload.category)||['접근관리','체크리스트','내 스펙관리'].includes(payload.category)||payload.category.startsWith('메모_백업')){
+    if(/[\\/\?\*\[\]:]/.test(payload.category)||['접근관리','체크리스트','내 스펙관리','디자인 보드'].includes(payload.category)||payload.category.startsWith('메모_백업')){
       el.noteEditorMessage.textContent='대분류에는 / \\ ? * [ ] : 문자를 쓸 수 없고, 관리용 시트 이름은 사용할 수 없어요.';return;
     }
     if(el.noteSubcategory.value==='__new__'&&!payload.subcategory){el.noteEditorMessage.textContent='새 소분류 이름을 입력해 주세요.';el.noteSubcategoryNew.focus();return;}
@@ -672,6 +681,7 @@
   });
 
   const topbarMenuButton = document.querySelector("#topbar-menu-button");
+  document.querySelector('#topbar-actions').prepend(document.querySelector('.sidebar'));
   const closeTopbarMenu = () => {
     document.body.classList.remove("topbar-menu-open");
     topbarMenuButton.setAttribute("aria-expanded", "false");
@@ -684,18 +694,26 @@
     topbarMenuButton.setAttribute("aria-label", open ? "상단 메뉴 닫기" : "상단 메뉴 열기");
   });
   document.querySelector("#topbar-actions").addEventListener("click", (event) => {
-    if (event.target.closest("button")) closeTopbarMenu();
+    if (event.target.closest("button")&&!event.target.closest('[data-category=""]')) closeTopbarMenu();
   });
   document.addEventListener("click", (event) => {
-    if (!event.target.closest(".topbar")) closeTopbarMenu();
+    if (!event.composedPath().includes(document.querySelector('.topbar'))) closeTopbarMenu();
   });
   window.addEventListener("resize", () => {
     if (window.innerWidth > 680) closeTopbarMenu();
   });
 
   document.querySelector("#open-sidebar").addEventListener("click", () => {
-    closeTopbarMenu();
-    document.body.classList.add("sidebar-open");
+    topbarMenuButton.click();
+  });
+  document.querySelector('.brand').addEventListener('click',()=>{
+    state.query='';state.category='';state.subcategory='';state.page=1;el.search.value='';render();window.dispatchEvent(new Event('show-notes'));closeTopbarMenu();
+  });
+  el.list.addEventListener('keydown',event=>{
+    if(event.key===' '&&event.shiftKey&&window.CHAE_AUTH?.user?.role==='admin'){
+      const button=event.target.closest('[data-id]'),record=state.records.find(r=>r.id===Number(button?.dataset.id));
+      if(record){event.preventDefault();selecting=true;selectedNotes.has(record.noteId)?selectedNotes.delete(record.noteId):selectedNotes.add(record.noteId);renderCards();}
+    }
   });
   document.querySelector("#close-sidebar").addEventListener("click", () => document.body.classList.remove("sidebar-open"));
   document.querySelector("#sidebar-backdrop").addEventListener("click", () => document.body.classList.remove("sidebar-open"));
@@ -790,11 +808,14 @@
   });
 
   window.addEventListener('access-change', event => {
+    document.querySelector('.sidebar').hidden=event.detail?.status!=='approved';
     el.addNote.hidden = event.detail?.role !== 'admin';
     if (event.detail?.status === 'approved') { if (!state.records.length) loadData(false); }
     else { notesRevision++;window.ZIP_BOOTSTRAP=null;selectedNotes.clear();selecting=false;imageObserver.disconnect(); state.records = []; state.currentRecordId = null; el.dialogContent.replaceChildren(); el.noteEditor.close(); render(); }
   });
   window.addEventListener('notes-refresh', () => loadData(true));
+  document.querySelector('.sidebar').hidden=window.CHAE_AUTH?.user?.status!=='approved';
+  el.addNote.hidden=window.CHAE_AUTH?.user?.role!=='admin';
   if(window.CHAE_AUTH?.user?.status==='approved')loadData(false);
   if (document.modelContext?.registerTool) {
     Promise.resolve(document.modelContext.registerTool({name:'search_notes',description:'승인된 사용자의 화면에서 메모를 검색합니다.',inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async input=>{

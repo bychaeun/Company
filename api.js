@@ -5,9 +5,12 @@
     let records = [{noteId:'preview:2',category:'예시',subcategory:'사용 안내',title:'미리보기 메모',content:'이 항목은 화면 확인용 가상 예시입니다.',updatedAt:'',images:[],imageText:''}];
     let checklist = [{row:2,done:false,task:'로컬 미리보기 할 일',date:new Date().toISOString().slice(0,10),time:'09:00',note:'실제 캘린더에는 저장되지 않아요.',calendar:false}];
     const clone = value => JSON.parse(JSON.stringify(value));
-    let specs = [];
+    let specs = [],board=[];
     window.ZIP_API = {
       async request(action,payload={}) {
+        if(action==='board')return {ok:true,items:clone(board)};
+        if(action==='saveBoard'){board=board.filter(n=>n.id!==payload.id).concat(clone(payload));return {ok:true};}
+        if(action==='deleteBoard'){board=board.filter(n=>n.id!==payload.id);return {ok:true};}
         if(action==='specs')return {ok:true,items:clone(specs)};
         if(action==='saveSpec'){const item={...payload,id:payload.id||String(Date.now())};const index=specs.findIndex(x=>x.id===item.id);if(index<0)specs.push(item);else specs[index]=item;return {ok:true,id:item.id};}
         if(action==='deleteSpec'){specs=specs.filter(x=>x.id!==payload.id);return {ok:true};}

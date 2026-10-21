@@ -4,7 +4,7 @@
   const view = $('specs-view'), nav = $('specs-nav-button'), message = $('specs-message');
   let items = [], map, markers, picker, pickMarker, mapReady, loading, generation = 0, editing = null, location = null, saving = false;
   let retainedImages = [], uploadedImages = [], imageUrls = [], detailVersion = 0, searchVersion = 0, editorVersion = 0;
-  let dataRevision = 0;
+  let dataRevision = 0, page=1;
   const animateMap = () => !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const overview = target => target?.fitBounds([[33.1,125.5],[38.6,130.0]],{padding:[24,24],animate:animateMap()});
   const admin = () => window.CHAE_AUTH?.user?.role === 'admin' && window.CHAE_AUTH?.user?.status === 'approved';
@@ -58,16 +58,14 @@
   ];
   function pinIcon() { return L.divIcon({className:'specs-pin',html:'<span></span>',iconSize:[24,30],iconAnchor:[12,28],popupAnchor:[0,-28]}); }
   async function loadGeography() {
-    if(!geography)geography=fetch('korea-map.json').then(r=>{if(!r.ok)throw Error('평면 지도를 불러오지 못했어요. 새로고침해 주세요.');return r.json();}).catch(e=>{geography=null;throw e;});
-    return geography;
+    return null;
   }
   function makeMap(id, data) {
-    const result=L.map(id,{minZoom:5,maxZoom:17,touchZoom:true,bounceAtZoomLimits:false,zoomSnap:0.25,zoomAnimation:animateMap(),fadeAnimation:animateMap()}).setView([36.0,127.8],7);
+    const result=L.map(id,{minZoom:5,maxZoom:19,touchZoom:true,bounceAtZoomLimits:false,zoomSnap:0.25,zoomAnimation:animateMap(),fadeAnimation:animateMap()}).setView([36.0,127.8],7);
     result.zoomControl.setPosition('topright');
     result.zoomControl.getContainer().querySelector('.leaflet-control-zoom-in').setAttribute('aria-label','지도 확대');
     result.zoomControl.getContainer().querySelector('.leaflet-control-zoom-out').setAttribute('aria-label','지도 축소');
-    L.geoJSON(data,{interactive:false,style:f=>({color:'#c8ced0',weight:1,fillColor:f.properties.name==='South Korea'?'#fafbf9':'#e5e8e6',fillOpacity:1})}).addTo(result);
-    result.attributionControl.addAttribution('<a href="https://www.naturalearthdata.com/">Natural Earth</a>');
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',className:'specs-street-tiles'}).addTo(result);
     const labels=L.layerGroup().addTo(result);
     const renderLabels=()=>{labels.clearLayers();const occupied=[];cities.forEach(([name,lat,lng,zoom])=>{
       if(result.getZoom()<zoom)return;
@@ -76,13 +74,15 @@
       occupied.push(p);
       L.marker([lat,lng],{interactive:false,keyboard:false,icon:L.divIcon({className:'specs-city',html:escape(name),iconSize:[72,20],iconAnchor:[36,10]})}).addTo(labels);
     });};
-    result.on('zoomend moveend resize',renderLabels);renderLabels();
+    // Street tiles provide their own city, road and building labels at each zoom.
     return result;
   }
   function filtered() {const q=$('specs-search').value.trim().toLowerCase();return items.filter(x=>!q||[x.name,x.address,x.designer,x.contact,x.builder,...x.papers.flatMap(p=>[p.number,p.area,p.spec])].join(' ').toLowerCase().includes(q));}
   function render() {
     const rows=filtered();
-    $('specs-list').innerHTML=rows.length?rows.map(x=>`<button type="button" data-spec-id="${escape(x.id)}"><strong>📍 ${escape(x.name)}</strong><span>${escape(x.address)}</span><span>${escape(x.builder || '건설사 미입력')} · 종이 ${x.papers.length}종</span><span>M/H ${escape(x.openMonth||'미정')} · 완공 ${escape(x.completionMonth||'미정')}</span></button>`).join(''):'<p>등록된 현장이 없거나 검색 결과가 없어요.</p>';
+    page=Math.max(1,Math.min(page,Math.ceil(rows.length/20)||1));
+    $('specs-list').innerHTML=rows.length?rows.slice((page-1)*20,page*20).map(x=>`<button type="button" data-spec-id="${escape(x.id)}"><strong><svg class="list-pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22S4 14 4 9a8 8 0 1 1 16 0c0 5-8 13-8 13Z"/><circle cx="12" cy="9" r="2.5" fill="white"/></svg> ${escape(x.name)}</strong><span>${escape(x.address)}</span><span>${escape(x.builder || '건설사 미입력')} · 종이 ${x.papers.length}종</span><span>M/H ${escape(x.openMonth||'미정')} · 완공 ${escape(x.completionMonth||'미정')}</span></button>`).join(''):'<p>등록된 현장이 없거나 검색 결과가 없어요.</p>';
+    const pagination=$('specs-pagination');pagination.hidden=rows.length<=20;pagination.innerHTML=`<button type="button" data-spec-page="${page-1}" ${page===1?'disabled':''}>이전</button><span>${page} / ${Math.ceil(rows.length/20)||1}</span><button type="button" data-spec-page="${page+1}" ${page*20>=rows.length?'disabled':''}>다음</button>`;
     if(!markers)return;markers.clearLayers();
     const groups=new Map();rows.forEach(x=>{if(!Number.isFinite(x.lat)||!Number.isFinite(x.lng)||x.lat<32||x.lat>39.5||x.lng<124||x.lng>132.5)return;const key=`${x.lat},${x.lng}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x);});
     groups.forEach(group=>{
@@ -93,7 +93,7 @@
   async function load() {
     if(!admin())return;if(loading)return loading;const version=generation,revision=dataRevision;
     message.textContent='현장 스펙을 불러오고 있어요.';
-    loading=(async()=>{try{const data=await api.request('specs');if(version!==generation||revision!==dataRevision)return;items=(data.items||[]).map(x=>({...x,papers:Array.isArray(x.papers)?x.papers:[],images:Array.isArray(x.images)?x.images:[]}));render();message.textContent=`현장 ${items.length}개 · 핀이나 목록을 눌러 확인하세요.`;}catch(e){if(version===generation&&revision===dataRevision)message.textContent=e.message+' 새 API 배포가 필요할 수 있어요.';}finally{if(version===generation)loading=null;}})();return loading;
+    loading=(async()=>{try{const data=await api.request('specs');if(version!==generation||revision!==dataRevision)return;items=(data.items||[]).map(x=>({...x,papers:Array.isArray(x.papers)?x.papers:[],images:Array.isArray(x.images)?x.images:[]}));render();message.textContent='';}catch(e){if(version===generation&&revision===dataRevision)message.textContent=e.message;}finally{if(version===generation)loading=null;}})();return loading;
   }
   async function show() {
     if(!admin())return;
@@ -108,7 +108,8 @@
   window.addEventListener('show-notes',hide);
   $('specs-notes').onclick=()=>window.dispatchEvent(new Event('show-notes'));
   $('specs-home').onclick=()=>overview(map);
-  $('specs-search').addEventListener('input',render);
+  $('specs-search').addEventListener('input',()=>{page=1;render();});
+  $('specs-pagination').onclick=event=>{const button=event.target.closest('[data-spec-page]');if(button&&!button.disabled){page=Number(button.dataset.specPage);render();$('specs-list').scrollIntoView({block:'start',behavior:'smooth'});}};
   $('specs-list').onclick=e=>{const b=e.target.closest('[data-spec-id]');if(b){const x=items.find(x=>x.id===b.dataset.specId);if(x)showDetail(x);}};
   function addPaper(p={}) {
     const row=document.createElement('div');row.className='specs-paper';
@@ -167,7 +168,7 @@
       if(index<0)items.push(saved);else items[index]=saved;
       $('specs-search').value='';render();editor.close();
       map?.setView([saved.lat,saved.lng],Math.max(map.getZoom(),9),{animate:animateMap()});
-      message.textContent=`저장했어요. 현장 ${items.length}개 · 지도와 목록에 반영되었습니다.`;
+      message.textContent='';
     }catch(error){if(version===generation)$('specs-save-message').textContent=error.message+' 입력 내용은 유지됩니다.';}
     finally{saving=false;$('specs-fields').disabled=false;form.querySelector('[type=submit]').disabled=false;$('specs-cancel').disabled=false;}
   });

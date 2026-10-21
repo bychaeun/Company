@@ -40,6 +40,9 @@ function doPost(e) {
       return zipJson_(image);
     }
     if (user.role !== 'admin') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자만 사용할 수 있습니다.'});
+    if (action === 'board') return zipJson_({ok:true,items:zipBoard_()});
+    if (action === 'saveBoard') return zipJson_(zipSaveBoard_(body));
+    if (action === 'deleteBoard') return zipJson_(zipDeleteBoard_(body.id));
     if (action === 'specs') return zipJson_({ok:true,items:zipSpecs_()});
     if (action === 'saveSpec') return zipJson_(zipSaveSpec_(body));
     if (action === 'deleteSpec') return zipJson_(zipDeleteSpec_(body.id));
@@ -174,7 +177,7 @@ function zipDriveId_(value) {
 function zipNoteSheets_() {
   var sheets = zipSheet_().getSheets().filter(function(sh){
     var name = sh.getName();
-    return name !== '접근관리' && name !== '체크리스트' && name !== '내 스펙관리' && name.indexOf('메모_백업') !== 0;
+    return name !== '접근관리' && name !== '체크리스트' && name !== '내 스펙관리' && name !== '디자인 보드' && name.indexOf('메모_백업') !== 0;
   });
   var categorySheets = sheets.filter(function(sh){return sh.getName() !== '메모';});
   return categorySheets.length ? categorySheets : sheets;
@@ -192,7 +195,7 @@ function zipNotes_() {
 
 function zipNoteInput_(body) {
   var category=String(body.category||'').trim(), subcategory=String(body.subcategory||'').trim(), title=String(body.title||'').trim(), address=String(body.address||'').trim(), content=String(body.content||'').trim(), imageText=String(body.imageText||'').trim();
-  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw zipNoteError_('NOTE_CATEGORY');
+  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리','디자인 보드'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw zipNoteError_('NOTE_CATEGORY');
   if(!title||title.length>200||subcategory.length>100||address.length>300||content.length>8000||imageText.length>2000)throw zipNoteError_('NOTE_FIELDS');
   imageText.split(/[|\n;]/).map(function(v){return v.trim();}).filter(Boolean).forEach(function(v){if(!zipDriveId_(v)&&!/^[-\w]{10,200}$/.test(v))throw new Error('Invalid note image');});
   return {category:category,subcategory:subcategory,title:title,address:address,content:content,imageText:imageText};
