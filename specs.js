@@ -4,6 +4,9 @@
   const view = $('specs-view'), nav = $('specs-nav-button'), message = $('specs-message');
   let items = [], map, markers, picker, pickMarker, mapReady, loading, generation = 0, editing = null, location = null, saving = false;
   let retainedImages = [], uploadedImages = [], imageUrls = [], detailVersion = 0, searchVersion = 0, editorVersion = 0;
+  let dataRevision = 0;
+  const animateMap = () => !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const overview = target => target?.fitBounds([[33.1,125.5],[38.6,130.0]],{padding:[24,24],animate:animateMap()});
   const admin = () => window.CHAE_AUTH?.user?.role === 'admin' && window.CHAE_AUTH?.user?.status === 'approved';
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const editor = document.createElement('dialog');editor.className = 'specs-dialog';editor.id = 'specs-editor';
@@ -59,7 +62,10 @@
     return geography;
   }
   function makeMap(id, data) {
-    const result=L.map(id,{minZoom:6,maxZoom:17}).setView([36.0,127.8],7);
+    const result=L.map(id,{minZoom:5,maxZoom:17,touchZoom:true,bounceAtZoomLimits:false,zoomSnap:0.25,zoomAnimation:animateMap(),fadeAnimation:animateMap()}).setView([36.0,127.8],7);
+    result.zoomControl.setPosition('topright');
+    result.zoomControl.getContainer().querySelector('.leaflet-control-zoom-in').setAttribute('aria-label','지도 확대');
+    result.zoomControl.getContainer().querySelector('.leaflet-control-zoom-out').setAttribute('aria-label','지도 축소');
     L.geoJSON(data,{interactive:false,style:f=>({color:'#c8ced0',weight:1,fillColor:f.properties.name==='South Korea'?'#fafbf9':'#e5e8e6',fillOpacity:1})}).addTo(result);
     result.attributionControl.addAttribution('<a href="https://www.naturalearthdata.com/">Natural Earth</a>');
     const labels=L.layerGroup().addTo(result);
@@ -85,9 +91,9 @@
     });
   }
   async function load() {
-    if(!admin())return;if(loading)return loading;const version=generation;
+    if(!admin())return;if(loading)return loading;const version=generation,revision=dataRevision;
     message.textContent='현장 스펙을 불러오고 있어요.';
-    loading=(async()=>{try{const data=await api.request('specs');if(version!==generation)return;items=(data.items||[]).map(x=>({...x,papers:Array.isArray(x.papers)?x.papers:[],images:Array.isArray(x.images)?x.images:[]}));render();message.textContent=`현장 ${items.length}개 · 핀이나 목록을 눌러 확인하세요.`;}catch(e){if(version===generation)message.textContent=e.message+' 새 API 배포가 필요할 수 있어요.';}finally{if(version===generation)loading=null;}})();return loading;
+    loading=(async()=>{try{const data=await api.request('specs');if(version!==generation||revision!==dataRevision)return;items=(data.items||[]).map(x=>({...x,papers:Array.isArray(x.papers)?x.papers:[],images:Array.isArray(x.images)?x.images:[]}));render();message.textContent=`현장 ${items.length}개 · 핀이나 목록을 눌러 확인하세요.`;}catch(e){if(version===generation&&revision===dataRevision)message.textContent=e.message+' 새 API 배포가 필요할 수 있어요.';}finally{if(version===generation)loading=null;}})();return loading;
   }
   async function show() {
     if(!admin())return;
@@ -101,8 +107,7 @@
   $('category-nav').addEventListener('click',hide);
   window.addEventListener('show-notes',hide);
   $('specs-notes').onclick=()=>window.dispatchEvent(new Event('show-notes'));
-  $('specs-refresh').onclick=()=>{show();};
-  $('specs-home').onclick=()=>map?.setView([36.3,127.8],7);
+  $('specs-home').onclick=()=>overview(map);
   $('specs-search').addEventListener('input',render);
   $('specs-list').onclick=e=>{const b=e.target.closest('[data-spec-id]');if(b){const x=items.find(x=>x.id===b.dataset.specId);if(x)showDetail(x);}};
   function addPaper(p={}) {
@@ -156,7 +161,13 @@
     try{
       for(let i=0;i<files.length;i++){if(uploadedImages[i])continue;$('specs-save-message').textContent=`사진 ${i+1}/${files.length} 업로드 중…`;const data=await photo(files[i]);if(version!==generation)return;const result=await api.request('uploadNoteImage',data);if(version!==generation)return;uploadedImages[i]=result.fileId;}
       payload.images=[...retainedImages,...uploadedImages];$('specs-save-message').textContent='현장과 종이 스펙을 저장하고 있어요.';
-      await api.request('saveSpec',payload);if(version!==generation)return;editor.close();await load();
+      const result=await api.request('saveSpec',payload);if(version!==generation)return;
+      const saved={...payload,id:result.id||payload.id};dataRevision++;
+      const index=items.findIndex(item=>item.id===saved.id);
+      if(index<0)items.push(saved);else items[index]=saved;
+      $('specs-search').value='';render();editor.close();
+      map?.setView([saved.lat,saved.lng],Math.max(map.getZoom(),9),{animate:animateMap()});
+      message.textContent=`저장했어요. 현장 ${items.length}개 · 지도와 목록에 반영되었습니다.`;
     }catch(error){if(version===generation)$('specs-save-message').textContent=error.message+' 입력 내용은 유지됩니다.';}
     finally{saving=false;$('specs-fields').disabled=false;form.querySelector('[type=submit]').disabled=false;$('specs-cancel').disabled=false;}
   });

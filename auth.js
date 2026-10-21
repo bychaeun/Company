@@ -39,6 +39,7 @@
     return loginSetup;
   }
   function update(user,message='') {
+    const accessChanged=JSON.stringify(currentUser)!==JSON.stringify(user);
     document.body.classList.remove('auth-checking');
     currentUser=user;
     const approved=user?.status==='approved';
@@ -50,7 +51,7 @@
     $('auth-title').textContent=!user?'채은 지식 저장소':user.status==='rejected'?'접근이 제한된 계정이에요':'채은님의 승인을 기다리고 있어요';
     $('auth-message').textContent=message||(user?`${user.email} · 채은님이 승인하면 메모를 볼 수 있어요.`:'Google 계정으로 로그인하고 메모를 만나보세요.');
     if(!approved){$('detail-dialog').close();$('admin-dialog').close();api.clearImages();window.dispatchEvent(new Event('show-notes'));}
-    window.dispatchEvent(new CustomEvent('access-change',{detail:user}));
+    if(accessChanged)window.dispatchEvent(new CustomEvent('access-change',{detail:user}));
   }
   async function renderLogin() {
     if(currentUser || api.hasSession || loginBusy)return;
@@ -79,7 +80,7 @@
     const version=authVersion;
     checking=(async()=>{
       try {
-        if(api.hasSession){const result=await api.request('me');if(version!==authVersion)return currentUser;lastCheck=Date.now();clearTimeout(retryTimer);retryDelay=2000;update(result.user);return result.user;}
+        if(api.hasSession){const result=await api.request('me',{includeNotes:!currentUser});if(version!==authVersion)return currentUser;lastCheck=Date.now();clearTimeout(retryTimer);retryDelay=2000;if(Array.isArray(result.records))window.ZIP_BOOTSTRAP=result;update(result.user);return result.user;}
         update(null,configured?'Google 계정으로 로그인하고 메모를 만나보세요.':'Google 로그인 연결을 준비하고 있어요.');
         renderLogin().catch(error=>{if(!currentUser && !api.hasSession)update(null,error.message);});
       }catch(error){
@@ -125,11 +126,11 @@
   $('admin-sync').onclick=()=>{window.dispatchEvent(new Event('notes-refresh'));$('admin-message').textContent='메모에서 최신 시트 자료를 다시 확인하고 있어요.';};
   window.addEventListener('access-expired',()=>{authVersion++;update(null,'승인 상태 또는 로그인 만료를 확인해 주세요.');renderLogin().catch(()=>{});});
   window.addEventListener('session-restored',()=>{authVersion++;check();});
-  const checkOnResume=()=>{if(!document.hidden && Date.now()-lastCheck>=60000)check();};
+  const checkOnResume=()=>{if(!document.hidden && Date.now()-lastCheck>=300000)check();};
   window.addEventListener('pageshow',checkOnResume);
   window.addEventListener('online',()=>{if(api.hasSession)check();});
   document.addEventListener('visibilitychange',checkOnResume);
-  setInterval(()=>{if(!document.hidden)check();},60000);
+  setInterval(()=>{if(!document.hidden)check();},300000);
   // A fresh nonce is required after a long idle period before attempting another login.
   setInterval(()=>{if(!currentUser&&loginReady&&!document.hidden)renderLogin().catch(()=>{});},240000);
   window.CHAE_AUTH={check,get user(){return currentUser;}};
@@ -145,4 +146,5 @@
   if(api.hasSession)restoring();
   check();
 })();
+
 

@@ -14,8 +14,9 @@
         if(action==='geocodeSpec')return {ok:true,configured:false,locations:[]};
         if(action==='me')return {ok:true,user:{sub:'local-preview',email:'로컬 파일 미리보기',name:'채은',role:'admin',status:'approved'}};
         if(action==='notes')return {ok:true,records:clone(records),syncedAt:new Date().toISOString(),syncMode:'preview'};
-        if(action==='createNote'){records.push({...payload,noteId:`preview:${Date.now()}`,updatedAt:new Date().toISOString().slice(0,10),images:[]});return {ok:true};}
-        if(action==='updateNote'){const index=records.findIndex(item=>item.noteId===payload.noteId);if(index>=0)records[index]={...records[index],...payload,updatedAt:new Date().toISOString().slice(0,10)};return {ok:true};}
+        if(action==='createNote'){const noteId=`preview:${Date.now()}`;records.push({...payload,noteId,updatedAt:new Date().toISOString().slice(0,10),images:[]});return {ok:true,noteId};}
+        if(action==='updateNote'){const index=records.findIndex(item=>item.noteId===payload.noteId);if(index>=0)records[index]={...records[index],...payload,updatedAt:new Date().toISOString().slice(0,10)};return {ok:true,noteId:payload.noteId};}
+        if(action==='deleteNotes'){records=records.filter(item=>!payload.noteIds.includes(item.noteId));return {ok:true};}
         if(action==='deleteNote'){records=records.filter(item=>item.noteId!==payload.noteId);return {ok:true};}
         if(action==='uploadNoteImage')return {ok:true,fileId:`preview-image-${Date.now()}`};
         if(action==='checklist')return {ok:true,items:clone(checklist)};
@@ -41,7 +42,7 @@
   async function request(action, payload = {}, anonymous = false) {
     const version = sessionVersion;
     const response = await fetch(endpoint, { method:'POST', redirect:'follow', cache:'no-store', credentials:'omit',
-      headers:{'content-type':'text/plain;charset=utf-8'}, signal:AbortSignal.timeout(40000),
+      headers:{'content-type':'text/plain;charset=utf-8'}, signal:AbortSignal.timeout(['createNote','updateNote','uploadNoteImage'].includes(action)?90000:40000),
       body:JSON.stringify({ ...payload, action, sessionToken:anonymous ? undefined : token }) });
     if (!response.ok) throw new Error('Google 연결을 확인할 수 없어요.');
     const data = await response.json();

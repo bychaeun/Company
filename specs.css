@@ -37,4 +37,9 @@
 .specs-pin { background:none; border:0; }
 .specs-pin span { display:block; position:absolute; top:2px; left:3px; width:18px; height:18px; background:#242629; border:2px solid white; border-radius:50% 50% 50% 0; transform:rotate(-45deg); box-shadow:0 2px 5px #0003; }
 .specs-pin span::after { content:''; position:absolute; top:5px; left:5px; width:4px; height:4px; border-radius:50%; background:white; }
+#specs-map .leaflet-control-zoom,.specs-pick-map .leaflet-control-zoom { border:1px solid #ead0de; border-radius:16px; overflow:hidden; box-shadow:0 3px 12px #89566e14; }
+#specs-map .leaflet-control-zoom a,.specs-pick-map .leaflet-control-zoom a { width:42px; height:42px; line-height:42px; background:#fff8fb; color:#89566e; font:400 25px/42px system-ui,sans-serif; border-color:#f0dfe8; text-decoration:none; }
+#specs-map .leaflet-control-zoom a:hover,.specs-pick-map .leaflet-control-zoom a:hover { background:#fbeaf2; }
+#specs-map .leaflet-control-zoom a:focus-visible,.specs-pick-map .leaflet-control-zoom a:focus-visible { outline:2px solid #b97494; outline-offset:-4px; }
+#specs-map .leaflet-control-zoom a.leaflet-disabled,.specs-pick-map .leaflet-control-zoom a.leaflet-disabled { color:#c9b5c0; }
 @media(max-width:600px){#specs-map{height:410px}.specs-grid{grid-template-columns:1fr}.specs-paper{grid-template-columns:1fr}.specs-dialog{padding:18px}.specs-detail-data{grid-template-columns:85px 1fr}}

@@ -46,6 +46,55 @@
     toast: document.querySelector("#toast")
   };
   let pendingImages = [];
+  let noteSaving=false;
+  let noteRequest=null;
+  let notesLoading=false, notesRevision=0, selecting=false, selectionBusy=false, suppressClickUntil=0;
+  const selectedNotes=new Set();
+  const deleteDialog=document.createElement('dialog');deleteDialog.className='detail-dialog note-delete-confirm';
+  deleteDialog.innerHTML='<h2>선택한 메모 삭제</h2><p></p><form method="dialog"><button class="install-button" value="cancel">취소</button><button class="install-button" value="delete">삭제하기</button></form>';
+  document.body.append(deleteDialog);
+  function confirmSelectionDelete(count){
+    deleteDialog.querySelector('p').textContent=`메모 ${count}개를 시트에서도 삭제합니다. 되돌릴 수 없어요.`;
+    deleteDialog.returnValue='cancel';deleteDialog.showModal();
+    return new Promise(resolve=>deleteDialog.addEventListener('close',()=>resolve(deleteDialog.returnValue==='delete'),{once:true}));
+  }
+  const selectionBar=document.createElement('div');
+  selectionBar.className='note-selection-bar';selectionBar.hidden=true;
+  selectionBar.innerHTML='<span aria-live="polite"></span><button type="button" class="install-button" data-selection-delete>선택 삭제</button><button type="button" class="install-button" data-selection-cancel>취소</button>';
+  el.list.before(selectionBar);
+  function updateSelection() {
+    selectionBar.hidden=!selecting;
+    selectionBar.querySelector('span').textContent=`${selectedNotes.size}개 선택`;
+    selectionBar.querySelector('[data-selection-delete]').disabled=selectionBusy||!selectedNotes.size;
+    selectionBar.querySelector('[data-selection-cancel]').disabled=selectionBusy;
+  }
+  selectionBar.querySelector('[data-selection-cancel]').onclick=()=>{selecting=false;selectedNotes.clear();renderCards();};
+  selectionBar.querySelector('[data-selection-delete]').onclick=async()=>{
+    if(selectionBusy||!selectedNotes.size||window.CHAE_AUTH?.user?.role!=='admin')return;
+    if(deleteDialog.open||!await confirmSelectionDelete(selectedNotes.size))return;
+    selectionBusy=true;updateSelection();
+    const ids=[...selectedNotes];
+    try {
+      await window.ZIP_API.request('deleteNotes',{noteIds:ids});
+      notesRevision++;state.records=state.records.filter(r=>!ids.includes(r.noteId));
+      selectedNotes.clear();selecting=false;render();showToast('선택한 메모를 삭제했어요');
+    }catch(error){showToast(error.message);}
+    finally{selectionBusy=false;updateSelection();}
+  };
+  let holdTimer,holdStart;
+  const cancelHold=()=>clearTimeout(holdTimer);
+  el.list.addEventListener('pointerdown',event=>{
+    if(event.button!==0||window.CHAE_AUTH?.user?.role!=='admin')return;
+    const card=event.target.closest('[data-id]');if(!card)return;
+    holdStart={x:event.clientX,y:event.clientY};
+    holdTimer=setTimeout(()=>{
+      const record=state.records.find(r=>r.id===Number(card.dataset.id));if(!record?.noteId)return;
+      selecting=true;selectedNotes.add(record.noteId);suppressClickUntil=Date.now()+800;renderCards();
+    },500);
+  });
+  el.list.addEventListener('pointermove',event=>{if(holdStart&&Math.hypot(event.clientX-holdStart.x,event.clientY-holdStart.y)>10)cancelHold();});
+  ['pointerup','pointercancel','pointerleave'].forEach(type=>el.list.addEventListener(type,cancelHold));
+  el.list.addEventListener('contextmenu',event=>{if(event.target.closest('[data-id]')&&window.CHAE_AUTH?.user?.role==='admin')event.preventDefault();});
 
   function jsonToRecords(data) {
     const rows = Array.isArray(data) ? data : data.records;
@@ -121,6 +170,7 @@
   }
 
   function renderCards() {
+    updateSelection();
     const records = visibleRecords();
     const canEdit = window.CHAE_AUTH?.user?.role === "admin";
     const pageCount = Math.max(1, Math.ceil(records.length / pageSize));
@@ -131,7 +181,7 @@
     el.list.hidden = records.length === 0;
     el.list.innerHTML = pageRecords.map((record) => {
       const image = record.images[0];
-      return `<article class="knowledge-card ${image ? "has-image" : ""}">
+      return `<article class="knowledge-card ${selectedNotes.has(record.noteId)?'is-selected':''} ${image ? "has-image" : ""}">
         <button class="card-button" type="button" data-id="${record.id}" aria-label="${escapeHTML(record.title)} 자세히 보기">
           <div>
             <div class="card-category"><span>${escapeHTML(record.category)}</span>${record.subcategory ? `<span>${escapeHTML(record.subcategory)}</span>` : ""}</div>
@@ -143,6 +193,7 @@
         </button>
         ${canEdit && record.noteId ? `<button class="card-edit-icon" type="button" data-edit-id="${record.id}" aria-label="${escapeHTML(record.title)} 수정" title="메모 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4" /></svg></button>` : ""}
         <div class="card-actions">
+          ${canEdit ? `<button class="card-save" type="button" data-select-id="${record.id}" aria-pressed="${selectedNotes.has(record.noteId)}">${selectedNotes.has(record.noteId)?'선택됨':'선택'}</button>` : ''}
           <button class="card-save" type="button" data-save-id="${record.id}" aria-label="${escapeHTML(record.title)} 이미지로 저장">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
             이미지 저장
@@ -240,6 +291,8 @@
   }
 
   function openNoteEditor(record = null) {
+    if(noteSaving)return;
+    noteRequest=null;
     if (window.CHAE_AUTH?.user?.role !== "admin") return;
     const categories = Array.from(new Set(state.records.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"));
     const selectedCategory = record?.category || state.category || categories[0] || "";
@@ -288,6 +341,7 @@
 
   async function saveNote(event) {
     event.preventDefault();
+    if(noteSaving)return;
     if (window.CHAE_AUTH?.user?.role !== "admin") return;
     const submit = el.noteEditorForm.querySelector('button[type="submit"]');
     const noteId = document.querySelector("#note-editor-id").value;
@@ -300,25 +354,41 @@
       content: document.querySelector("#note-content").value.trim(),
       imageText: el.noteImageIds.value.trim()
     };
+    if(!payload.category){el.noteEditorMessage.textContent='새 대분류 이름을 입력해 주세요.';el.noteCategoryNew.focus();return;}
+    if(/[\\/\?\*\[\]:]/.test(payload.category)||['접근관리','체크리스트','내 스펙관리'].includes(payload.category)||payload.category.startsWith('메모_백업')){
+      el.noteEditorMessage.textContent='대분류에는 / \\ ? * [ ] : 문자를 쓸 수 없고, 관리용 시트 이름은 사용할 수 없어요.';return;
+    }
+    if(el.noteSubcategory.value==='__new__'&&!payload.subcategory){el.noteEditorMessage.textContent='새 소분류 이름을 입력해 주세요.';el.noteSubcategoryNew.focus();return;}
+    noteSaving=true;
     submit.disabled = true;
     el.noteEditorMessage.textContent = "Google 시트에 저장하고 있어요.";
     try {
-      const uploaded = [];
-      for (let index = 0; index < pendingImages.length; index += 1) {
-        el.noteEditorMessage.textContent = `사진 ${index + 1}/${pendingImages.length}을 올리고 있어요.`;
-        const result = await window.ZIP_API.request("uploadNoteImage", await imagePayload(pendingImages[index]));
-        uploaded.push(result.fileId);
+      while (pendingImages.length) {
+        el.noteEditorMessage.textContent = `사진을 올리고 있어요. 남은 사진 ${pendingImages.length}장`;
+        const result = await window.ZIP_API.request("uploadNoteImage", await imagePayload(pendingImages[0]));
+        el.noteImageIds.value=[el.noteImageIds.value,result.fileId].filter(Boolean).join('|');
+        pendingImages.shift();renderImagePreview();
       }
-      payload.imageText = [payload.imageText, ...uploaded].filter(Boolean).join("|");
+      payload.imageText = el.noteImageIds.value;
+      const signature=JSON.stringify(payload);
+      if(!noteRequest||noteRequest.signature!==signature)noteRequest={signature,id:crypto.randomUUID()};
+      payload.requestId=noteRequest.id;
       el.noteEditorMessage.textContent = "Google 시트에 저장하고 있어요.";
-      await window.ZIP_API.request(noteId ? "updateNote" : "createNote", payload);
+      const result=await window.ZIP_API.request(noteId ? "updateNote" : "createNote", payload);
+      notesRevision++;
+      if(result.noteId){
+        const updated={...payload,noteId:result.noteId,images:splitImages(payload.imageText),updatedAt:new Date().toLocaleDateString('sv-SE')};
+        state.records=jsonToRecords({records:[...state.records.filter(r=>r.noteId!==noteId),updated]});
+        state.query='';el.search.value='';state.category='';state.subcategory='';state.page=1;render();
+      }
       el.noteEditor.close();
       state.page = 1;
-      await loadData(true);
+      if(!result.noteId)loadData(true);
       showToast(noteId ? "메모와 시트를 수정했어요" : "새 메모를 시트에 저장했어요");
     } catch (error) {
-      el.noteEditorMessage.textContent = error.message;
+      el.noteEditorMessage.textContent = error.name==='TimeoutError'||error.name==='AbortError'?'저장 응답이 늦어요. 입력 내용은 유지했어요. 시트에 이미 저장됐을 수 있으니 같은 내용으로 다시 저장해 확인해 주세요.':error.message;
     } finally {
+      noteSaving=false;
       submit.disabled = false;
     }
   }
@@ -331,8 +401,8 @@
     el.noteEditorMessage.textContent = "Google 시트에서 메모를 삭제하고 있어요.";
     try {
       await window.ZIP_API.request("deleteNote", { noteId });
+      notesRevision++;state.records=state.records.filter(r=>r.noteId!==noteId);render();
       el.noteEditor.close();
-      await loadData(true);
       showToast("메모를 삭제했어요");
     } catch (error) {
       el.noteEditorMessage.textContent = error.message;
@@ -498,15 +568,19 @@
   }
 
   async function loadData(manual) {
+    if(notesLoading)return;
+    notesLoading=true;
+    const revision=notesRevision;
     el.syncDot.className = "sync-dot loading";
     el.syncLabel.textContent = manual ? "새 자료를 확인하는 중" : "동기화 중";
     el.refresh.disabled = true;
     try {
       if (!window.CHAE_AUTH?.user || window.CHAE_AUTH.user.status !== 'approved') return;
-      const payload = await window.ZIP_API.request('notes');
+      const payload = window.ZIP_BOOTSTRAP || await window.ZIP_API.request('notes');
+      window.ZIP_BOOTSTRAP=null;
+      if(revision!==notesRevision)return;
       if (window.CHAE_AUTH?.user?.status !== 'approved') return;
       const nextRecords = jsonToRecords(payload);
-      window.ZIP_API.clearImages();
       state.records = nextRecords;
       render();
       const time = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date());
@@ -527,6 +601,7 @@
         el.list.innerHTML = `<div class="load-error"><strong>자료를 불러오지 못했습니다.</strong><br>Google Sheet 게시 주소와 인터넷 연결을 확인해 주세요.</div>`;
       }
     } finally {
+      notesLoading=false;
       el.refresh.disabled = false;
     }
   }
@@ -555,6 +630,14 @@
   });
 
   el.list.addEventListener("click", (event) => {
+    if(Date.now()<suppressClickUntil||selectionBusy)return;
+    const selectionTarget=event.target.closest('[data-select-id]') || (selecting&&event.target.closest('[data-id]'));
+    if(selectionTarget){
+      const record=state.records.find(r=>r.id===Number(selectionTarget.dataset.selectId??selectionTarget.dataset.id));
+      if(record?.noteId&&window.CHAE_AUTH?.user?.role==='admin'){
+        selecting=true;if(selectedNotes.has(record.noteId))selectedNotes.delete(record.noteId);else if(selectedNotes.size<100)selectedNotes.add(record.noteId);renderCards();
+      }return;
+    }
     const editButton = event.target.closest("[data-edit-id]");
     if (editButton) {
       event.stopPropagation();
@@ -666,8 +749,12 @@
     renderImagePreview();
   });
   el.noteEditorForm.addEventListener("submit", saveNote);
+  el.noteEditorForm.addEventListener('keydown',event=>{
+    if(event.key==='Enter'&&(event.isComposing||event.target===el.noteCategoryNew||event.target===el.noteSubcategoryNew))event.preventDefault();
+  });
+  el.noteEditor.addEventListener('cancel',event=>{if(noteSaving)event.preventDefault();});
   el.noteDelete.addEventListener("click", deleteNote);
-  document.querySelector("#note-editor-close").addEventListener("click", () => el.noteEditor.close());
+  document.querySelector("#note-editor-close").addEventListener("click", () => {if(!noteSaving)el.noteEditor.close();});
   el.noteEditor.addEventListener("click", (event) => { if (event.target === el.noteEditor) el.noteEditor.close(); });
   el.refresh.addEventListener("click", () => loadData(true));
 
@@ -705,9 +792,10 @@
   window.addEventListener('access-change', event => {
     el.addNote.hidden = event.detail?.role !== 'admin';
     if (event.detail?.status === 'approved') { if (!state.records.length) loadData(false); }
-    else { imageObserver.disconnect(); state.records = []; state.currentRecordId = null; el.dialogContent.replaceChildren(); el.noteEditor.close(); render(); }
+    else { notesRevision++;window.ZIP_BOOTSTRAP=null;selectedNotes.clear();selecting=false;imageObserver.disconnect(); state.records = []; state.currentRecordId = null; el.dialogContent.replaceChildren(); el.noteEditor.close(); render(); }
   });
   window.addEventListener('notes-refresh', () => loadData(true));
+  if(window.CHAE_AUTH?.user?.status==='approved')loadData(false);
   if (document.modelContext?.registerTool) {
     Promise.resolve(document.modelContext.registerTool({name:'search_notes',description:'승인된 사용자의 화면에서 메모를 검색합니다.',inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async input=>{
       if (!input || typeof input.query !== 'string' || input.query.length > 300) throw new Error('검색어를 300자 이하로 입력하세요.');
@@ -721,6 +809,7 @@
   window.setInterval(() => loadData(false), syncMinutes * 60 * 1000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch((error) => console.error("Service worker:", error));
 })();
+
 
 
 

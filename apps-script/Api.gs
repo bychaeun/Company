@@ -31,7 +31,7 @@ function doPost(e) {
       PropertiesService.getScriptProperties().deleteProperty('session:' + zipHash_(body.sessionToken));
       return zipJson_({ok:true});
     }
-    if (action === 'me') return zipJson_({ok:true,user:user});
+    if (action === 'me') return zipJson_({ok:true,user:user,records:body.includeNotes && user.status==='approved'?zipNotes_():undefined,syncMode:'scheduled'});
     if (user.status !== 'approved') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자 승인이 필요합니다.'});
     if (action === 'notes') return zipJson_({ok:true,records:zipNotes_(),syncedAt:new Date().toISOString(),syncMode:'scheduled'});
     if (action === 'image') {
@@ -47,9 +47,10 @@ function doPost(e) {
     if (action === 'specImage') return zipJson_(zipSpecImage_(body.fileId));
     if (action === 'users') return zipJson_({ok:true,users:zipUsers_().map(function(row){return {sub:row[0],email:row[1],name:row[2],status:row[3],created:row[4],lastLogin:row[5],admin:zipAdmin_(row[0])};})});
     if (action === 'setStatus') return zipJson_(zipSetStatus_(body.sub,body.status));
-    if (action === 'createNote') return zipJson_(zipCreateNote_(body));
-    if (action === 'updateNote') return zipJson_(zipUpdateNote_(body));
+    if (action === 'createNote') {body.requestOwner=user.sub;return zipJson_(zipCreateNote_(body));}
+    if (action === 'updateNote') {body.requestOwner=user.sub;return zipJson_(zipUpdateNote_(body));}
     if (action === 'deleteNote') return zipJson_(zipDeleteNote_(body.noteId));
+    if (action === 'deleteNotes') return zipJson_(zipDeleteNotes_(body.noteIds));
     if (action === 'uploadNoteImage') return zipJson_(zipUploadNoteImage_(body));
     if (action === 'checklist') return zipJson_({ok:true,items:zipChecklist_()});
     if (action === 'addChecklist') return zipJson_(zipAddChecklist_(body));
@@ -58,7 +59,8 @@ function doPost(e) {
     throw new Error('지원하지 않는 요청입니다.');
   } catch (error) {
     // No token, private note, raw upstream error or configuration secrets in public responses.
-    return zipJson_({ok:false,code:error.zipCode || 'REQUEST_FAILED',error:error.zipCode === 'AUTH_REQUIRED' ? '로그인이 만료됐어요. 다시 로그인해 주세요.' : '요청을 완료하지 못했어요. 설정과 시트 권한을 확인해 주세요.'});
+    var messages={AUTH_REQUIRED:'로그인이 만료됐어요. 다시 로그인해 주세요.',NOTE_CATEGORY:'대분류 이름을 확인해 주세요. 관리용 이름이나 / \\ ? * [ ] : 문자는 사용할 수 없어요.',NOTE_FIELDS:'제목과 입력 길이를 확인해 주세요.',NOTE_HEADERS:'같은 이름의 시트가 있지만 메모 양식이 달라요. 다른 대분류 이름을 사용해 주세요.'};
+    return zipJson_({ok:false,code:error.zipCode || 'REQUEST_FAILED',error:messages[error.zipCode] || '요청을 완료하지 못했어요. 입력 내용은 유지됩니다. 설정과 시트 권한을 확인해 주세요.'});
   }
 }
 
@@ -190,11 +192,12 @@ function zipNotes_() {
 
 function zipNoteInput_(body) {
   var category=String(body.category||'').trim(), subcategory=String(body.subcategory||'').trim(), title=String(body.title||'').trim(), address=String(body.address||'').trim(), content=String(body.content||'').trim(), imageText=String(body.imageText||'').trim();
-  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw new Error('Invalid note category');
-  if(!title||title.length>200||subcategory.length>100||address.length>300||content.length>8000||imageText.length>2000)throw new Error('Invalid note');
+  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw zipNoteError_('NOTE_CATEGORY');
+  if(!title||title.length>200||subcategory.length>100||address.length>300||content.length>8000||imageText.length>2000)throw zipNoteError_('NOTE_FIELDS');
   imageText.split(/[|\n;]/).map(function(v){return v.trim();}).filter(Boolean).forEach(function(v){if(!zipDriveId_(v)&&!/^[-\w]{10,200}$/.test(v))throw new Error('Invalid note image');});
   return {category:category,subcategory:subcategory,title:title,address:address,content:content,imageText:imageText};
 }
+function zipNoteError_(code){var error=new Error(code);error.zipCode=code;return error;}
 function zipNoteSheet_(category) {
   var ss=zipSheet_(), sh=ss.getSheetByName(category);
   if(!sh){
@@ -202,7 +205,7 @@ function zipNoteSheet_(category) {
     sh.getRange(1,1,1,ZIP_NOTE_HEADERS.length).setValues([ZIP_NOTE_HEADERS]);
     sh.setFrozenRows(1);
     sh.getRange(1,1,1,ZIP_NOTE_HEADERS.length).setFontWeight('bold').setBackground('#fce8f1');
-    sh.setColumnWidths(1,1,150); sh.setColumnWidths(2,1,220); sh.setColumnWidths(3,1,260); sh.setColumnWidths(4,1,460); sh.setColumnWidths(5,1,240); sh.setColumnWidths(6,1,110);
+    sh.setColumnWidths(1,ZIP_NOTE_HEADERS.length,220);
   }
   var headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   if(headers.indexOf('주소')<0){
@@ -211,7 +214,7 @@ function zipNoteSheet_(category) {
     sh.setColumnWidth(addressColumn,260);
     headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   }
-  if(!ZIP_NOTE_HEADERS.every(function(h){return headers.indexOf(h)>=0;}))throw new Error('Invalid note headers');
+  if(!ZIP_NOTE_HEADERS.every(function(h){return headers.indexOf(h)>=0;}))throw zipNoteError_('NOTE_HEADERS');
   return sh;
 }
 function zipFindNote_(noteId) {
@@ -244,20 +247,44 @@ function zipWriteNote_(sh,row,input) {
 }
 function zipCreateNote_(body) {
   var input=zipNoteInput_(body), lock=LockService.getScriptLock(); lock.waitLock(10000);
-  try{var sh=zipNoteSheet_(input.category), row=sh.getLastRow()+1; zipWriteNote_(sh,row,input); SpreadsheetApp.flush(); return {ok:true,noteId:sh.getSheetId()+':'+row};}finally{lock.releaseLock();}
+  try{var receipt=zipNoteReceipt_(body,'create');if(receipt.result)return receipt.result;var sh=zipNoteSheet_(input.category), row=sh.getLastRow()+1; zipWriteNote_(sh,row,input); SpreadsheetApp.flush();var result={ok:true,noteId:sh.getSheetId()+':'+row};zipRememberNote_(receipt.key,result);return result;}finally{lock.releaseLock();}
+}
+function zipNoteReceipt_(body,action){
+  if(!body.requestId)return {};
+  if(!/^[a-zA-Z0-9-]{20,80}$/.test(body.requestId))throw zipNoteError_('NOTE_FIELDS');
+  var key='note-write:'+zipHash_(String(body.requestOwner)+':'+action+':'+body.requestId);
+  var stored=PropertiesService.getScriptProperties().getProperty(key);
+  return {key:key,result:stored?JSON.parse(stored).result:null};
+}
+function zipRememberNote_(key,result){
+  if(!key)return;
+  var props=PropertiesService.getScriptProperties(),now=Date.now();
+  props.setProperty(key,JSON.stringify({at:now,result:result}));
+  var all=props.getProperties();Object.keys(all).filter(function(k){return k.indexOf('note-write:')===0;}).forEach(function(k){try{if(now-JSON.parse(all[k]).at>7*86400000)props.deleteProperty(k);}catch(e){props.deleteProperty(k);}});
 }
 function zipUpdateNote_(body) {
   var input=zipNoteInput_(body), lock=LockService.getScriptLock(); lock.waitLock(10000);
   try{
+    var receipt=zipNoteReceipt_(body,'update');if(receipt.result)return receipt.result;
     var found=zipFindNote_(body.noteId);
+    var noteId=body.noteId;
     if(found.sheet.getName()===input.category)zipWriteNote_(found.sheet,found.row,input);
-    else{var target=zipNoteSheet_(input.category), row=target.getLastRow()+1; zipWriteNote_(target,row,input); found.sheet.deleteRow(found.row);}
-    SpreadsheetApp.flush(); return {ok:true};
+    else{var target=zipNoteSheet_(input.category), row=target.getLastRow()+1; zipWriteNote_(target,row,input); found.sheet.getRange(found.row,1,1,found.sheet.getLastColumn()).clearContent();noteId=target.getSheetId()+':'+row;}
+    SpreadsheetApp.flush();var result={ok:true,noteId:noteId};zipRememberNote_(receipt.key,result);return result;
   }finally{lock.releaseLock();}
 }
 function zipDeleteNote_(noteId) {
   var lock=LockService.getScriptLock(); lock.waitLock(10000);
-  try{var found=zipFindNote_(noteId); found.sheet.deleteRow(found.row); SpreadsheetApp.flush(); return {ok:true};}finally{lock.releaseLock();}
+  try{var found=zipFindNote_(noteId); found.sheet.getRange(found.row,1,1,found.sheet.getLastColumn()).clearContent(); SpreadsheetApp.flush(); return {ok:true};}finally{lock.releaseLock();}
+}
+function zipDeleteNotes_(ids) {
+  if(!Array.isArray(ids)||!ids.length||ids.length>100||new Set(ids).size!==ids.length)throw new Error('Invalid selection');
+  var lock=LockService.getScriptLock();lock.waitLock(10000);
+  try {
+    var found=ids.map(zipFindNote_);
+    found.forEach(function(item){item.sheet.getRange(item.row,1,1,item.sheet.getLastColumn()).clearContent();});
+    SpreadsheetApp.flush();return {ok:true};
+  }finally{lock.releaseLock();}
 }
 function zipImageFolder_() {
   var folderId=PropertiesService.getScriptProperties().getProperty('IMAGE_FOLDER_ID');
