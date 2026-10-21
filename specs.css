@@ -51,3 +51,6 @@
 #specs-list strong .list-pin {display:inline-block;width:16px;height:20px;fill:#242629;vertical-align:middle;}
 .specs-street-tiles {filter:saturate(.35);}
 #specs-view {padding-bottom:85px;}
+.specs-search-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 8px;color:#765d70;font-weight:700;}
+.specs-search-input {width:100%;padding:12px;border:1px solid #ead7e2;border-radius:12px;font:inherit;background:white;color:#594b5c;margin-bottom:16px;}
+#specs-map,.specs-pick-map {background:#eef1f3;}

@@ -51,7 +51,10 @@
   let notesLoading=false, notesRevision=0, selecting=false, selectionBusy=false, suppressClickUntil=0;
   const selectedNotes=new Set();
   const categoryFilters=document.createElement('section');categoryFilters.className='note-filters';categoryFilters.setAttribute('aria-label','메모 분류');
-  document.querySelector('.search-panel').after(categoryFilters);categoryFilters.append(el.categories);
+  const categoryDialog=document.createElement('dialog');categoryDialog.className='note-category-dialog';categoryDialog.setAttribute('aria-labelledby','category-dialog-title');categoryDialog.innerHTML='<header><h2 id="category-dialog-title">메모 카테고리</h2><button type="button" class="install-button" data-category-close aria-label="카테고리 닫기">×</button></header>';
+  document.body.append(categoryDialog);categoryDialog.append(categoryFilters);categoryFilters.append(el.categories);
+  const categoryDone=document.createElement('button');categoryDone.type='button';categoryDone.className='install-button category-done';categoryDone.textContent='선택 완료';categoryDialog.append(categoryDone);categoryDone.onclick=()=>categoryDialog.close();categoryDialog.querySelector('[data-category-close]').onclick=()=>categoryDialog.close();
+  const categorySummary=document.createElement('button');categorySummary.type='button';categorySummary.className='category-summary';categorySummary.hidden=true;document.querySelector('.search-panel').after(categorySummary);categorySummary.onclick=()=>categoryDialog.showModal();
   const subcategoryButtons=document.createElement('div');subcategoryButtons.className='subcategory-buttons';subcategoryButtons.setAttribute('aria-label','소분류');categoryFilters.append(subcategoryButtons);el.subcategory.closest('.select-box')?.setAttribute('hidden','');el.subcategory.hidden=true;
   const notesMenu=document.createElement('button');notesMenu.type='button';notesMenu.className='category-button';notesMenu.textContent='전체 메모';notesMenu.onclick=()=>document.querySelector('.brand').click();document.querySelector('.sidebar').prepend(notesMenu);
   subcategoryButtons.onclick=event=>{const b=event.target.closest('[data-subcategory]');if(!b)return;state.subcategory=b.dataset.subcategory;state.page=1;renderSubcategories();renderCards();};
@@ -175,6 +178,7 @@
     if (state.subcategory && !values.includes(state.subcategory)) state.subcategory = "";
     el.subcategory.innerHTML = `<option value="">모든 소분류</option>${values.map((value) => `<option value="${escapeHTML(value)}">${escapeHTML(value)}</option>`).join("")}`;
     el.subcategory.value = state.subcategory;
+    categorySummary.hidden=!state.category;categorySummary.textContent=[state.category,state.subcategory].filter(Boolean).join(' / ')+' · 변경';
     subcategoryButtons.hidden=!state.category||!values.length;
     subcategoryButtons.innerHTML=[['','전체 소분류'],...values.map(v=>[v,v])].map(([value,label])=>`<button type="button" data-subcategory="${escapeHTML(value)}" aria-pressed="${state.subcategory===value}" class="filter-chip ${state.subcategory===value?'active':''}">${escapeHTML(label)}</button>`).join('');
   }
@@ -704,7 +708,7 @@
   });
 
   document.querySelector("#open-sidebar").addEventListener("click", () => {
-    topbarMenuButton.click();
+    closeTopbarMenu();if(window.CHAE_AUTH?.user?.status==='approved')categoryDialog.showModal();
   });
   document.querySelector('.brand').addEventListener('click',()=>{
     state.query='';state.category='';state.subcategory='';state.page=1;el.search.value='';render();window.dispatchEvent(new Event('show-notes'));closeTopbarMenu();
@@ -808,6 +812,7 @@
   });
 
   window.addEventListener('access-change', event => {
+    if(event.detail?.status!=='approved')categoryDialog.close();
     document.querySelector('.sidebar').hidden=event.detail?.status!=='approved';
     el.addNote.hidden = event.detail?.role !== 'admin';
     if (event.detail?.status === 'approved') { if (!state.records.length) loadData(false); }

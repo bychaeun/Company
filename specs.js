@@ -42,7 +42,7 @@
   let geography;
   const cities = [
     ['서울',37.5665,126.978,7],['인천',37.456,126.705,8],['수원시',37.264,127.029,8],['춘천시',37.881,127.73,7],
-    ['강릉시',37.752,128.876,7],['원주시',37.342,127.92,8],['속초시',38.207,128.591,8],['동해시',37.524,129.114,9],
+    ['강릉시',37.752,128.876,7],['원주시',37.342,127.92,8],['속초시',38.207,128.591,8],['동해시',37.524,129.114,9],['화성시',37.199,126.831,8],['안산시',37.322,126.831,9],
     ['대전',36.35,127.385,7],['세종',36.48,127.289,9],['청주시',36.642,127.489,8],['충주시',36.991,127.926,8],
     ['천안시',36.815,127.114,8],['서산시',36.785,126.45,8],['공주시',36.446,127.119,9],['보령시',36.333,126.613,8],
     ['전주시',35.824,127.148,7],['군산시',35.967,126.736,8],['익산시',35.948,126.957,9],['남원시',35.416,127.39,8],
@@ -58,14 +58,15 @@
   ];
   function pinIcon() { return L.divIcon({className:'specs-pin',html:'<span></span>',iconSize:[24,30],iconAnchor:[12,28],popupAnchor:[0,-28]}); }
   async function loadGeography() {
-    return null;
+    if(!geography)geography=fetch('korea-map.json').then(r=>{if(!r.ok)throw Error('지도를 불러오지 못했어요.');return r.json();}).catch(e=>{geography=null;throw e;});return geography;
   }
   function makeMap(id, data) {
     const result=L.map(id,{minZoom:5,maxZoom:19,touchZoom:true,bounceAtZoomLimits:false,zoomSnap:0.25,zoomAnimation:animateMap(),fadeAnimation:animateMap()}).setView([36.0,127.8],7);
     result.zoomControl.setPosition('topright');
     result.zoomControl.getContainer().querySelector('.leaflet-control-zoom-in').setAttribute('aria-label','지도 확대');
     result.zoomControl.getContainer().querySelector('.leaflet-control-zoom-out').setAttribute('aria-label','지도 축소');
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',className:'specs-street-tiles'}).addTo(result);
+    L.geoJSON(data,{interactive:false,style:()=>({color:'#cfd5d8',weight:1,fillColor:'#fafbfc',fillOpacity:1})}).addTo(result);
+    result.attributionControl.addAttribution('<a href="https://www.naturalearthdata.com/">Natural Earth</a>');
     const labels=L.layerGroup().addTo(result);
     const renderLabels=()=>{labels.clearLayers();const occupied=[];cities.forEach(([name,lat,lng,zoom])=>{
       if(result.getZoom()<zoom)return;
@@ -74,7 +75,7 @@
       occupied.push(p);
       L.marker([lat,lng],{interactive:false,keyboard:false,icon:L.divIcon({className:'specs-city',html:escape(name),iconSize:[72,20],iconAnchor:[36,10]})}).addTo(labels);
     });};
-    // Street tiles provide their own city, road and building labels at each zoom.
+    result.on('zoomend moveend resize',renderLabels);renderLabels();
     return result;
   }
   function filtered() {const q=$('specs-search').value.trim().toLowerCase();return items.filter(x=>!q||[x.name,x.address,x.designer,x.contact,x.builder,...x.papers.flatMap(p=>[p.number,p.area,p.spec])].join(' ').toLowerCase().includes(q));}
@@ -99,7 +100,7 @@
     if(!admin())return;
     $('notes-view').hidden=true;$('checklist-view').hidden=true;view.hidden=false;nav.classList.add('active');$('checklist-nav-button').classList.remove('active');$('add-note-button').hidden=true;document.body.classList.remove('sidebar-open');
     const version=generation;load();
-    try{const [,data]=await Promise.all([loadMapLibrary(),loadGeography()]);if(version!==generation||view.hidden)return;if(!map){map=makeMap('specs-map',data);markers=L.layerGroup().addTo(map);}map.invalidateSize();render();}catch(e){message.textContent=e.message;}
+    try{const [,data]=await Promise.all([loadMapLibrary(),loadGeography()]);if(version!==generation||view.hidden)return;if(!map){map=makeMap('specs-map',data);markers=L.layerGroup().addTo(map);overview(map);}map.invalidateSize();render();}catch(e){message.textContent=e.message;}
   }
   function hide(){view.hidden=true;nav.classList.remove('active');}
   nav.addEventListener('click',show);
