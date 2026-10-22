@@ -40,9 +40,11 @@ function doPost(e) {
       return zipJson_(image);
     }
     if (user.role !== 'admin') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자만 사용할 수 있습니다.'});
-    if (action === 'board') return zipJson_({ok:true,items:zipBoard_()});
+    if (action === 'board') return zipJson_({ok:true,items:zipBoard_(),artboards:zipArtboards_()});
     if (action === 'saveBoard') return zipJson_(zipSaveBoard_(body));
     if (action === 'deleteBoard') return zipJson_(zipDeleteBoard_(body.id));
+    if (action === 'deleteBoards') return zipJson_(zipDeleteBoards_(body.ids));
+    if (action === 'saveArtboard') return zipJson_(zipSaveArtboard_(body));
     if (action === 'specs') return zipJson_({ok:true,items:zipSpecs_()});
     if (action === 'saveSpec') return zipJson_(zipSaveSpec_(body));
     if (action === 'deleteSpec') return zipJson_(zipDeleteSpec_(body.id));
@@ -70,11 +72,13 @@ function doPost(e) {
 function zipJson_(value) { return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON); }
 function zipHash_(text) { return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(text))).replace(/=+$/,''); }
 function zipAuthError_() { var e = new Error('Authentication required'); e.zipCode = 'AUTH_REQUIRED'; return e; }
+var ZIP_REQUEST_SPREADSHEET;
 function zipSheet_() {
+  if(ZIP_REQUEST_SPREADSHEET)return ZIP_REQUEST_SPREADSHEET;
   var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
   var sheet = id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
   if (!sheet) throw new Error('No spreadsheet configured');
-  return sheet;
+  ZIP_REQUEST_SPREADSHEET=sheet;return sheet;
 }
 function zipUserSheet_() {
   var ss = zipSheet_(), sheet = ss.getSheetByName('접근관리');
@@ -177,7 +181,7 @@ function zipDriveId_(value) {
 function zipNoteSheets_() {
   var sheets = zipSheet_().getSheets().filter(function(sh){
     var name = sh.getName();
-    return name !== '접근관리' && name !== '체크리스트' && name !== '내 스펙관리' && name !== '디자인 보드' && name.indexOf('메모_백업') !== 0;
+    return name !== '접근관리' && name !== '체크리스트' && name !== '내 스펙관리' && name !== '디자인 보드' && name !== '디자인 대지' && name.indexOf('메모_백업') !== 0;
   });
   var categorySheets = sheets.filter(function(sh){return sh.getName() !== '메모';});
   return categorySheets.length ? categorySheets : sheets;
@@ -195,12 +199,13 @@ function zipNotes_() {
 
 function zipNoteInput_(body) {
   var category=String(body.category||'').trim(), subcategory=String(body.subcategory||'').trim(), title=String(body.title||'').trim(), address=String(body.address||'').trim(), content=String(body.content||'').trim(), imageText=String(body.imageText||'').trim();
-  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리','디자인 보드'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw zipNoteError_('NOTE_CATEGORY');
+  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리','디자인 보드','디자인 대지'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw zipNoteError_('NOTE_CATEGORY');
   if(!title||title.length>200||subcategory.length>100||address.length>300||content.length>8000||imageText.length>2000)throw zipNoteError_('NOTE_FIELDS');
   imageText.split(/[|\n;]/).map(function(v){return v.trim();}).filter(Boolean).forEach(function(v){if(!zipDriveId_(v)&&!/^[-\w]{10,200}$/.test(v))throw new Error('Invalid note image');});
   return {category:category,subcategory:subcategory,title:title,address:address,content:content,imageText:imageText};
 }
 function zipNoteError_(code){var error=new Error(code);error.zipCode=code;return error;}
+var ZIP_NOTE_HEADER_CACHE={};
 function zipNoteSheet_(category) {
   var ss=zipSheet_(), sh=ss.getSheetByName(category);
   if(!sh){
@@ -218,6 +223,7 @@ function zipNoteSheet_(category) {
     headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   }
   if(!ZIP_NOTE_HEADERS.every(function(h){return headers.indexOf(h)>=0;}))throw zipNoteError_('NOTE_HEADERS');
+  ZIP_NOTE_HEADER_CACHE[sh.getSheetId()]=headers;
   return sh;
 }
 function zipFindNote_(noteId) {
@@ -228,10 +234,11 @@ function zipFindNote_(noteId) {
   var headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   var values=sh.getRange(row,1,1,headers.length).getDisplayValues()[0];
   if(!values[headers.indexOf('제목')]&&!values[headers.indexOf('내용')])throw new Error('Unknown note');
+  ZIP_NOTE_HEADER_CACHE[sh.getSheetId()]=headers;
   return {sheet:sh,row:row};
 }
 function zipWriteNote_(sh,row,input) {
-  var headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  var headers=ZIP_NOTE_HEADER_CACHE[sh.getSheetId()]||sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   if(headers.indexOf('주소')<0){
     var addressColumn=sh.getLastColumn()+1;
     sh.getRange(1,addressColumn).setValue('주소').setFontWeight('bold').setBackground('#fce8f1');
@@ -263,7 +270,9 @@ function zipRememberNote_(key,result){
   if(!key)return;
   var props=PropertiesService.getScriptProperties(),now=Date.now();
   props.setProperty(key,JSON.stringify({at:now,result:result}));
+  if(now-Number(props.getProperty('note-receipt-cleanup-at')||0)<86400000)return;
   var all=props.getProperties();Object.keys(all).filter(function(k){return k.indexOf('note-write:')===0;}).forEach(function(k){try{if(now-JSON.parse(all[k]).at>7*86400000)props.deleteProperty(k);}catch(e){props.deleteProperty(k);}});
+  props.setProperty('note-receipt-cleanup-at',String(now));
 }
 function zipUpdateNote_(body) {
   var input=zipNoteInput_(body), lock=LockService.getScriptLock(); lock.waitLock(10000);

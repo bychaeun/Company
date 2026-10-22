@@ -66,7 +66,7 @@
       loginBusy=true;
       const version=++authVersion;
       $('auth-message').textContent='로그인과 승인 상태를 확인하고 있어요.';
-      try {const data=await api.request('login',{idToken:result.credential,nonce},true);if(version!==authVersion)return;api.setToken(data.sessionToken);update(data.user);lastCheck=Date.now();}
+      try {const data=await api.request('login',{idToken:result.credential,nonce},true);if(version!==authVersion)return;window.ZIP_AUTH_PENDING=false;api.setToken(data.sessionToken);api.rememberUser?.(data.user);update(data.user);lastCheck=Date.now();}
       catch(error){if(version===authVersion)update(null,error.message);}
       finally{loginBusy=false;if(!currentUser)renderLogin().catch(()=>{});}
     }});
@@ -80,7 +80,7 @@
     const version=authVersion;
     checking=(async()=>{
       try {
-        if(api.hasSession){const result=await api.request('me',{includeNotes:!currentUser});if(version!==authVersion)return currentUser;lastCheck=Date.now();clearTimeout(retryTimer);retryDelay=2000;if(Array.isArray(result.records))window.ZIP_BOOTSTRAP=result;update(result.user);return result.user;}
+        if(api.hasSession){const result=await api.request('me',{includeNotes:lastCheck===0});if(version!==authVersion)return currentUser;lastCheck=Date.now();clearTimeout(retryTimer);retryDelay=2000;window.ZIP_AUTH_PENDING=false;if(Array.isArray(result.records))window.ZIP_BOOTSTRAP=result;api.rememberUser?.(result.user);update(result.user);if(Array.isArray(result.records))window.dispatchEvent(new Event('notes-bootstrap-ready'));return result.user;}
         update(null,configured?'Google 계정으로 로그인하고 메모를 만나보세요.':'Google 로그인 연결을 준비하고 있어요.');
         renderLogin().catch(error=>{if(!currentUser && !api.hasSession)update(null,error.message);});
       }catch(error){
@@ -116,6 +116,7 @@
   $('check-approval').onclick=check;
   $('logout-button').onclick=async()=>{
     authVersion++;
+    window.ZIP_AUTH_PENDING=false;window.ZIP_BOOTSTRAP=null;
     clearTimeout(retryTimer);
     const revoke=api.request('logout').catch(()=>{});
     api.setToken('');window.google?.accounts?.id?.disableAutoSelect();update(null);renderLogin().catch(()=>{});
@@ -124,8 +125,8 @@
   $('admin-button').onclick=()=>{$('admin-dialog').showModal();loadUsers();};
   $('admin-close').onclick=()=>$('admin-dialog').close();
   $('admin-sync').onclick=()=>{window.dispatchEvent(new Event('notes-refresh'));$('admin-message').textContent='메모에서 최신 시트 자료를 다시 확인하고 있어요.';};
-  window.addEventListener('access-expired',()=>{authVersion++;update(null,'승인 상태 또는 로그인 만료를 확인해 주세요.');renderLogin().catch(()=>{});});
-  window.addEventListener('session-restored',()=>{authVersion++;check();});
+  window.addEventListener('access-expired',()=>{authVersion++;window.ZIP_AUTH_PENDING=false;api.rememberUser?.(null);update(null,'승인 상태 또는 로그인 만료를 확인해 주세요.');renderLogin().catch(()=>{});});
+  window.addEventListener('session-restored',()=>{authVersion++;lastCheck=0;update(null);if(checking)checking.finally(()=>check());else check();});
   const checkOnResume=()=>{if(!document.hidden && Date.now()-lastCheck>=300000)check();};
   window.addEventListener('pageshow',checkOnResume);
   window.addEventListener('online',()=>{if(api.hasSession)check();});
@@ -143,7 +144,11 @@
     return;
   }
   // Existing sessions need only one server check, not Google config/GSI/challenge.
-  if(api.hasSession)restoring();
+  if(api.hasSession){
+    const hint=api.rememberedUser;window.ZIP_AUTH_PENDING=true;
+    // Only the shell is restored; private data and every write still require server approval.
+    if(hint){update(hint);$('sync-label').textContent='최신 자료 확인 중';}else restoring();
+  }
   check();
 })();
 

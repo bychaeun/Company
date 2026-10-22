@@ -69,7 +69,7 @@
     result.attributionControl.addAttribution('<a href="https://www.naturalearthdata.com/">Natural Earth</a>');
     const labels=L.layerGroup().addTo(result);
     const renderLabels=()=>{labels.clearLayers();const occupied=[];cities.forEach(([name,lat,lng,zoom])=>{
-      if(result.getZoom()<zoom)return;
+      if(result.getZoom()<zoom-1)return;
       const p=result.latLngToContainerPoint([lat,lng]);
       if(occupied.some(q=>Math.abs(q.x-p.x)<62&&Math.abs(q.y-p.y)<22))return;
       occupied.push(p);
@@ -176,8 +176,10 @@
   async function showDetail(item) {
     if(!admin())return;const version=++detailVersion,access=generation;clearPhotos();
     detail.innerHTML=`<div class="specs-actions"><button data-edit type="button">수정</button><button data-delete type="button">삭제</button><button data-close type="button">닫기</button></div><h2>${escape(item.name)}</h2><dl class="specs-detail-data">${[['주소',item.address],['설계사',item.designer],['담당자',item.contact],['건설사',item.builder],['M/H 오픈날',item.openMonth],['완공 연월',item.completionMonth]].map(([k,v])=>`<dt>${k}</dt><dd>${escape(v||'미입력')}</dd>`).join('')}</dl><h3>사용 종이</h3><table class="specs-table"><thead><tr><th>종이넘버</th><th>사용부위</th><th>스펙명</th></tr></thead><tbody>${item.papers.map(p=>`<tr><td>${escape(p.number)}</td><td>${escape(p.area)}</td><td>${escape(p.spec)}</td></tr>`).join('')}</tbody></table><h3>사진</h3><div class="specs-photos"></div><p data-status role="status"></p>`;
+    const actionIcons={edit:['현장 수정','<path d="m12 4 4 4M4 12l9-9 4 4-9 9-5 1z"/>'],delete:['현장 삭제','<path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6"/>'],close:['닫기','<path d="m5 5 10 10M15 5 5 15"/>']};
+    for(const [key,[label,path]] of Object.entries(actionIcons)){const button=detail.querySelector(`[data-${key}]`);button.classList.add('specs-icon-action');button.setAttribute('aria-label',label);button.title=label;button.innerHTML=`<svg viewBox="0 0 20 20" aria-hidden="true">${path}</svg>`;}
     detail.querySelector('[data-close]').onclick=()=>detail.close();detail.querySelector('[data-edit]').onclick=()=>{detail.close();edit(item);};
-    detail.querySelector('[data-delete]').onclick=async e=>{if(!confirm('이 현장을 지도와 목록에서 숨길까요? 시트의 삭제일을 비우면 복구할 수 있어요.'))return;e.target.disabled=true;try{await api.request('deleteSpec',{id:item.id});if(access!==generation)return;detail.close();await load();}catch(error){if(version===detailVersion)detail.querySelector('[data-status]').textContent=error.message;}finally{e.target.disabled=false;}};
+    detail.querySelector('[data-delete]').onclick=async e=>{const button=e.currentTarget;if(!confirm('이 현장을 지도와 목록에서 숨길까요? 시트의 삭제일을 비우면 복구할 수 있어요.'))return;button.disabled=true;try{await api.request('deleteSpec',{id:item.id});if(access!==generation)return;detail.close();await load();}catch(error){if(version===detailVersion)detail.querySelector('[data-status]').textContent=error.message;}finally{button.disabled=false;}};
     detail.showModal();
     for(const id of item.images){try{const data=await api.request('specImage',{fileId:id});if(access!==generation||version!==detailVersion||!detail.open)return;if(!/^image\/(jpeg|png|webp)$/.test(data.mime))continue;const url=URL.createObjectURL(new Blob([Uint8Array.from(atob(data.base64),x=>x.charCodeAt(0))],{type:data.mime}));imageUrls.push(url);const image=document.createElement('img');image.src=url;image.alt=item.name+' 현장 사진';detail.querySelector('.specs-photos').append(image);}catch(error){if(version===detailVersion)detail.querySelector('[data-status]').textContent='일부 사진을 불러오지 못했어요.';}}
   }

@@ -1,4 +1,4 @@
-const CACHE_NAME = "chae-appsscript-v21";
+const CACHE_NAME = "chae-appsscript-v23";
 const APP_SHELL = [
   "./",
   "./index.html",

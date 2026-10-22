@@ -368,7 +368,7 @@
       imageText: el.noteImageIds.value.trim()
     };
     if(!payload.category){el.noteEditorMessage.textContent='새 대분류 이름을 입력해 주세요.';el.noteCategoryNew.focus();return;}
-    if(/[\\/\?\*\[\]:]/.test(payload.category)||['접근관리','체크리스트','내 스펙관리','디자인 보드'].includes(payload.category)||payload.category.startsWith('메모_백업')){
+    if(/[\\/\?\*\[\]:]/.test(payload.category)||['접근관리','체크리스트','내 스펙관리','디자인 보드','디자인 대지'].includes(payload.category)||payload.category.startsWith('메모_백업')){
       el.noteEditorMessage.textContent='대분류에는 / \\ ? * [ ] : 문자를 쓸 수 없고, 관리용 시트 이름은 사용할 수 없어요.';return;
     }
     if(el.noteSubcategory.value==='__new__'&&!payload.subcategory){el.noteEditorMessage.textContent='새 소분류 이름을 입력해 주세요.';el.noteSubcategoryNew.focus();return;}
@@ -581,6 +581,7 @@
   }
 
   async function loadData(manual) {
+    if(window.ZIP_AUTH_PENDING&&!window.ZIP_BOOTSTRAP)return;
     if(notesLoading)return;
     notesLoading=true;
     const revision=notesRevision;
@@ -819,6 +820,7 @@
     else { notesRevision++;window.ZIP_BOOTSTRAP=null;selectedNotes.clear();selecting=false;imageObserver.disconnect(); state.records = []; state.currentRecordId = null; el.dialogContent.replaceChildren(); el.noteEditor.close(); render(); }
   });
   window.addEventListener('notes-refresh', () => loadData(true));
+  window.addEventListener('notes-bootstrap-ready',()=>loadData(false));
   document.querySelector('.sidebar').hidden=window.CHAE_AUTH?.user?.status!=='approved';
   el.addNote.hidden=window.CHAE_AUTH?.user?.role!=='admin';
   if(window.CHAE_AUTH?.user?.status==='approved')loadData(false);

@@ -1,5 +1,7 @@
 #board-view {padding-bottom:28px;}
 .board-tools {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0;}
+.board-heading {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.board-heading .board-tools {margin:0 0 0 auto;justify-content:flex-end;}
 #board-status {font-size:12px;color:#806e80;}
 #design-board {height:65dvh;min-height:430px;position:relative;overflow:hidden;touch-action:none;border:1px solid #d9cddb;border-radius:22px;background-color:#393940;background-image:radial-gradient(#74727d 1px,transparent 1px);background-size:24px 24px;cursor:grab;}
 #board-world {position:absolute;inset:0;transform-origin:0 0;}
@@ -12,7 +14,8 @@
 .board-node p {margin:0;padding:14px;white-space:pre-wrap;font-size:13px;line-height:1.7;max-height:180px;overflow:auto;touch-action:pan-y;overflow-wrap:anywhere;}
 .board-node a {display:block;margin:0 14px 14px;font-size:12px;color:#70578f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;touch-action:manipulation;}
 .board-node button {border:0;background:transparent;color:inherit;padding:6px;cursor:pointer;}
-.board-node header button {width:34px;height:34px;flex:0 0 34px;border:1px solid #e7bfd6;border-radius:50%;background:#fff9fc;color:#b5749b;}
+.board-node header button {width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;padding:0;line-height:1;border:1px solid #e7bfd6;border-radius:50%;background:#fff9fc;color:#b5749b;}
+.board-node header button svg {display:block;margin:0;vertical-align:initial;}
 .board-node button svg,.board-detail button svg {width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linejoin:round;vertical-align:middle;}
 .board-node p {overflow:hidden;cursor:pointer;user-select:none;touch-action:none;}
 .board-detail {width:min(740px,calc(100vw - 28px));max-height:88dvh;overflow:auto;padding:28px;border:1px solid #e6cadb;border-radius:22px;background:white;color:#554754;}
@@ -24,3 +27,20 @@
 .board-detail footer {display:flex;justify-content:flex-end;margin-top:22px;}
 .board-editor {padding:24px;max-width:520px;width:calc(100vw - 32px);border:1px solid #e6cadb;border-radius:22px;background:#fff9fc;color:#695266;}
 .board-editor::backdrop {background:#44304366;}.board-editor form,.board-editor label {display:grid;gap:8px;}.board-editor form {gap:14px;}.board-editor input,.board-editor textarea,.board-editor select {font:inherit;border:1px solid #e7ccdf;border-radius:10px;padding:10px;width:100%;background:white;}.board-editor textarea {min-height:140px;resize:vertical;}.board-editor footer {display:flex;gap:8px;justify-content:flex-end;}
+.artboard-toolbar {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:20px;color:#80677a;}
+.artboard-toolbar select {min-width:0;flex:1;max-width:400px;min-height:42px;border:1px solid #e6ccdf;border-radius:12px;padding:8px 12px;background:#fffafc;font:inherit;color:#695266;}
+.artboard-toolbar button {min-height:40px;}
+#artboard-rename {display:grid;place-items:center;width:40px;padding:0;}
+#artboard-rename svg {width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;}
+.artboard-title {font-size:20px;margin:22px 0 0;color:#70566b;}
+.board-url-fields {border:1px solid #ecdbe6;border-radius:12px;padding:12px;min-width:0;}
+.board-url-row {display:flex;gap:6px;margin-bottom:8px;align-items:center;}
+.board-url-row input {min-width:0;}
+.board-url-row button {flex:0 0 34px;width:34px;height:34px;border:1px solid #e5c8db;border-radius:50%;background:#fff7fb;color:#986f8c;cursor:pointer;}
+.board-node.is-selected {outline:3px solid #de9dc6;outline-offset:3px;}
+.board-selected-mark {position:absolute;top:-12px;left:-12px;width:28px;height:28px;display:grid;place-items:center;border:2px solid white;border-radius:50%;background:#b178a0;color:white;font-weight:bold;z-index:2;}
+.board-selection {position:static;margin:10px 0;}
+.board-more-links {display:block;padding:0 14px 12px!important;color:#8c6382!important;font-size:12px;text-align:left;}
+.board-detail-links {display:grid;gap:10px;}
+.board-node {-webkit-touch-callout:none;}
+@media(max-width:480px){.artboard-toolbar label {width:100%;}.board-editor footer {flex-wrap:wrap;}}

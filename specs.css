@@ -25,6 +25,8 @@
 .specs-paper { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; padding:12px 0; border-bottom:1px solid #eadfea; }
 .specs-paper input { font-size:.85rem; }
 .specs-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.specs-dialog .specs-icon-action {width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:50%;}
+.specs-icon-action svg {width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
 .specs-photos { display:flex; flex-wrap:wrap; gap:12px; }
 .specs-photos img { width:140px; height:120px; object-fit:cover; border-radius:14px; }
 .specs-detail-data { display:grid; grid-template-columns:110px 1fr; gap:8px; }
