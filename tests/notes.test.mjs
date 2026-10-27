@@ -12,12 +12,21 @@ function setup(){
   sheets.push(sh);return sh;
  };
  const ctx={LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},SpreadsheetApp:{flush(){}}};vm.createContext(ctx);vm.runInContext(source,ctx);
+ const allowSubcategory=ctx.zipAllowSubcategory_;ctx.zipAllowSubcategory_=(cell,value)=>{if(cell.getDataValidation)allowSubcategory(cell,value);};
  ctx.zipSheet_=()=>({getSheets:()=>sheets,getSheetByName:name=>sheets.find(s=>s.getName()===name),insertSheet:makeSheet});
  const properties={};ctx.PropertiesService={getScriptProperties:()=>({getProperty:k=>properties[k],setProperty:(k,v)=>properties[k]=v,getProperties:()=>({...properties}),deleteProperty:k=>delete properties[k]})};
  ctx.zipHash_=text=>createHash('sha256').update(text).digest('hex');
  ctx.zipJson_=v=>v;return ctx;
 }
 const input={category:'새 업체 특징',subcategory:'인테리어 설계',title:'테스트 메모',content:'내용',address:'',imageText:''};
+
+test('new subcategory extends strict dropdown without disabling validation',()=>{
+ const ctx={SpreadsheetApp:{DataValidationCriteria:{VALUE_IN_LIST:'list'}}};vm.createContext(ctx);vm.runInContext(source,ctx);
+ let result;const existing=['유통업체'];const rule={getCriteriaType:()=> 'list',getCriteriaValues:()=>[existing,true],copy:()=>({requireValueInList(values,show){result={values,show,allowInvalid:false};return this;},build:()=>result})};
+ const cell={getDataValidation:()=>rule,setDataValidation(value){result=value;}};
+ ctx.zipAllowSubcategory_(cell,'프레스');assert.deepEqual(result.values,['유통업체','프레스']);assert.equal(result.allowInvalid,false);assert.deepEqual(existing,['유통업체']);
+ result=null;ctx.zipAllowSubcategory_(cell,'유통업체');assert.equal(result,null);
+});
 test('retry after a lost response returns original note instead of duplicating it',()=>{
  const c=setup(),body={...input,requestId:'12345678-1234-1234-1234-123456789012',requestOwner:'admin'};
  const first=c.zipCreateNote_(body),retry=c.zipCreateNote_(body);assert.equal(first.noteId,retry.noteId);assert.equal(c.zipNotes_().length,1);

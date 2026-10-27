@@ -252,8 +252,17 @@ function zipWriteNote_(sh,row,input) {
   values[headers.indexOf('내용')]=zipSafeCell_(input.content);
   values[headers.indexOf('이미지')]=zipSafeCell_(input.imageText);
   values[headers.indexOf('수정일')]=new Date();
+  zipAllowSubcategory_(sh.getRange(row,headers.indexOf('소분류')+1),input.subcategory);
   sh.getRange(row,1,1,headers.length).setValues([values]);
   sh.getRange(row,headers.indexOf('수정일')+1).setNumberFormat('yyyy-mm-dd');
+}
+function zipAllowSubcategory_(cell,value) {
+  var rule=cell.getDataValidation();
+  if(!rule || !value || rule.getCriteriaType()!==SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)return;
+  var criteria=rule.getCriteriaValues(), options=criteria[0].slice();
+  if(options.indexOf(value)>=0)return;
+  options.push(value);
+  cell.setDataValidation(rule.copy().requireValueInList(options,criteria[1]!==false).build());
 }
 function zipCreateNote_(body) {
   var input=zipNoteInput_(body), lock=LockService.getScriptLock(); lock.waitLock(10000);
