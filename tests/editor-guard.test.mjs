@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';
+const source=readFileSync(new URL('../editor-guard.js',import.meta.url),'utf8');
+function setup(){const handlers={},windowHandlers={},input={name:'content',type:'textarea',value:'',files:[]},submit={disabled:false};let confirmed=0;const discardHandlers={};
+ const discard={nodeType:1,dataset:{},open:false,setAttribute(){},addEventListener:(k,fn)=>discardHandlers[k]=fn,showModal(){this.open=true;confirmed++;},close(){this.open=false;discardHandlers.close?.();}};
+ const dialog={dataset:{},open:false,nodeType:1,matches:s=>s==='dialog',querySelector:()=>({}),querySelectorAll:s=>s==='dialog'?[]:s.includes('type="submit"')?[submit]:[input],showModal(){this.open=true;},close(){this.open=false;handlers.close?.();},addEventListener(k,fn){handlers[k]=fn;}};
+ const root={nodeType:1,matches:()=>false,querySelectorAll:()=>[dialog]};const c={document:{documentElement:root,body:{append(){}},createElement:()=>discard},MutationObserver:class{observe(){}},queueMicrotask:fn=>fn(),window:{addEventListener:(k,fn)=>windowHandlers[k]=fn}};vm.createContext(c);vm.runInContext(source,c);dialog.showModal();
+ const event=target=>({target,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;}});
+ return {dialog,input,submit,handlers,windowHandlers,event,answer(value){discard.returnValue=value;discard.close();},get confirmed(){return confirmed;}};
+}
+test('accidental backdrop click never closes or clears an editor',()=>{const c=setup();c.input.value='작성 중';const e=c.event(c.dialog);c.handlers.click(e);assert.ok(c.dialog.open);assert.equal(c.input.value,'작성 중');assert.ok(e.prevented);assert.ok(e.stopped);assert.equal(c.confirmed,0);});
+test('Escape asks to discard changes; declining preserves input',()=>{const c=setup();c.input.value='긴 메모';const e=c.event();c.handlers.cancel(e);assert.ok(c.dialog.open);assert.equal(c.confirmed,1);c.answer('keep');assert.ok(c.dialog.open);c.handlers.cancel(c.event());c.answer('discard');assert.equal(c.dialog.open,false);});
+test('unchanged editor closes without asking, saving editor cannot close',()=>{const c=setup();c.submit.disabled=true;c.handlers.cancel(c.event());assert.ok(c.dialog.open);assert.equal(c.confirmed,0);c.submit.disabled=false;c.handlers.cancel(c.event());assert.equal(c.dialog.open,false);});
+test('refresh/navigation warns only for dirty or busy open editor',()=>{const c=setup();let e=c.event();c.windowHandlers.beforeunload(e);assert.equal(e.prevented,undefined);c.input.value='보존할 글';e=c.event();c.windowHandlers.beforeunload(e);assert.ok(e.prevented);assert.equal(e.returnValue,'');});

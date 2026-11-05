@@ -109,6 +109,8 @@
   window.addEventListener('show-notes',hide);
   $('specs-notes').onclick=()=>window.dispatchEvent(new Event('show-notes'));
   $('specs-home').onclick=()=>overview(map);
+  window.addEventListener('spec-map-visible',()=>{if(map){map.invalidateSize();render();}});
+  window.addEventListener('spec-map-detail',event=>{if(admin()&&event.detail)showDetail(event.detail);});
   $('specs-search').addEventListener('input',()=>{page=1;render();});
   $('specs-pagination').onclick=event=>{const button=event.target.closest('[data-spec-page]');if(button&&!button.disabled){page=Number(button.dataset.specPage);render();$('specs-list').scrollIntoView({block:'start',behavior:'smooth'});}};
   $('specs-list').onclick=e=>{const b=e.target.closest('[data-spec-id]');if(b){const x=items.find(x=>x.id===b.dataset.specId);if(x)showDetail(x);}};

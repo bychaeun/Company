@@ -40,6 +40,9 @@ function doPost(e) {
       return zipJson_(image);
     }
     if (user.role !== 'admin') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자만 사용할 수 있습니다.'});
+    if (action === 'specRegistry') return zipJson_(zipRegistryData_());
+    if (action === 'saveSpecRegistry') return zipJson_(zipSaveRegistry_(body));
+    if (action === 'deleteSpecRegistry') return zipJson_(zipDeleteRegistry_(body));
     if (action === 'board') return zipJson_({ok:true,items:zipBoard_(),artboards:zipArtboards_()});
     if (action === 'saveBoard') return zipJson_(zipSaveBoard_(body));
     if (action === 'deleteBoard') return zipJson_(zipDeleteBoard_(body.id));
@@ -65,6 +68,7 @@ function doPost(e) {
   } catch (error) {
     // No token, private note, raw upstream error or configuration secrets in public responses.
     var messages={AUTH_REQUIRED:'로그인이 만료됐어요. 다시 로그인해 주세요.',NOTE_CATEGORY:'대분류 이름을 확인해 주세요. 관리용 이름이나 / \\ ? * [ ] : 문자는 사용할 수 없어요.',NOTE_FIELDS:'제목과 입력 길이를 확인해 주세요.',NOTE_HEADERS:'같은 이름의 시트가 있지만 메모 양식이 달라요. 다른 대분류 이름을 사용해 주세요.'};
+    Object.assign(messages,{REGISTRY_SETUP:'컴퍼니 시트의 관리 탭 연결을 확인해 주세요.',REGISTRY_HEADERS:'관리 시트의 제목행이 변경됐어요. 열 이름을 확인해 주세요.',REGISTRY_IDS:'중복된 관리 ID가 있어요. 시트의 ID 열을 확인해 주세요.',REGISTRY_INPUT:'필수 항목과 입력 길이를 확인해 주세요.',REGISTRY_CONFLICT:'시트에서 다른 수정이 확인됐어요. 입력 내용을 복사해 두고 목록을 동기화한 뒤 다시 열어 주세요.',REGISTRY_FORMULA:'수식으로 계산 중인 칸은 앱에서 덮어쓰지 않아요. 시트에서 수정해 주세요.',REGISTRY_VALIDATION:'시트에서 허용한 진행상태를 선택해 주세요.',REGISTRY_LIMIT:'관리 시트는 탭당 10,000개 내역까지 지원해요.'});
     return zipJson_({ok:false,code:error.zipCode || 'REQUEST_FAILED',error:messages[error.zipCode] || '요청을 완료하지 못했어요. 입력 내용은 유지됩니다. 설정과 시트 권한을 확인해 주세요.'});
   }
 }
@@ -181,7 +185,7 @@ function zipDriveId_(value) {
 function zipNoteSheets_() {
   var sheets = zipSheet_().getSheets().filter(function(sh){
     var name = sh.getName();
-    return name !== '접근관리' && name !== '체크리스트' && name !== '내 스펙관리' && name !== '디자인 보드' && name !== '디자인 대지' && name.indexOf('메모_백업') !== 0;
+    return name !== '접근관리' && name !== '체크리스트' && name !== '내 스펙관리' && name !== '스펙번호 관리' && name !== '현장별 관리' && name !== '디자인 보드' && name !== '디자인 대지' && name.indexOf('메모_백업') !== 0;
   });
   var categorySheets = sheets.filter(function(sh){return sh.getName() !== '메모';});
   return categorySheets.length ? categorySheets : sheets;
@@ -199,7 +203,7 @@ function zipNotes_() {
 
 function zipNoteInput_(body) {
   var category=String(body.category||'').trim(), subcategory=String(body.subcategory||'').trim(), title=String(body.title||'').trim(), address=String(body.address||'').trim(), content=String(body.content||'').trim(), imageText=String(body.imageText||'').trim();
-  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리','디자인 보드','디자인 대지'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw zipNoteError_('NOTE_CATEGORY');
+  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리','스펙번호 관리','현장별 관리','디자인 보드','디자인 대지'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw zipNoteError_('NOTE_CATEGORY');
   if(!title||title.length>200||subcategory.length>100||address.length>300||content.length>8000||imageText.length>2000)throw zipNoteError_('NOTE_FIELDS');
   imageText.split(/[|\n;]/).map(function(v){return v.trim();}).filter(Boolean).forEach(function(v){if(!zipDriveId_(v)&&!/^[-\w]{10,200}$/.test(v))throw new Error('Invalid note image');});
   return {category:category,subcategory:subcategory,title:title,address:address,content:content,imageText:imageText};
