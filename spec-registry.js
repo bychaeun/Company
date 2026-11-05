@@ -34,7 +34,7 @@
     if(sortColumn>=0)filtered.sort((a,b)=>sortDirection*String(a.values[sortColumn]).localeCompare(String(b.values[sortColumn]),'ko',{numeric:true}));
     const pages=Math.max(1,Math.ceil(filtered.length/50));page=Math.min(page,pages);
     table.querySelector('thead').innerHTML='<tr>'+headers.map((h,i)=>`<th scope="col" aria-sort="${sortColumn===i?(sortDirection===1?'ascending':'descending'):'none'}"><button type="button" data-sort="${i}">${esc(h)}${sortColumn===i?(sortDirection===1?' ↑':' ↓'):''}</button></th>`).join('')+'<th scope="col">관리</th></tr>';
-    table.querySelector('tbody').innerHTML=filtered.length?filtered.slice((page-1)*50,page*50).map(r=>'<tr>'+r.values.map((v,i)=>`<td>${v&&i===(active==='numbers'?0:1)?`<span class="registry-paper-number"><span>${esc(v)}</span><button type="button" class="registry-copy" data-copy="${esc(v)}" aria-label="종이넘버 ${esc(v)} 복사" title="종이넘버 복사">${clipboardIcon}</button></span>`:esc(v)||'<span class="registry-blank">—</span>'}</td>`).join('')+`<td><button class="registry-row-edit" type="button" data-id="${esc(r.id)}" aria-label="${esc(r.values[0])} ${r.source?'지도 상세 보기':'수정'}">${r.source?'지도':pencil}</button></td></tr>`).join(''):`<tr><td colspan="${headers.length+1}" class="registry-empty">${query?'검색 결과가 없어요.':'등록된 내역이 없어요. 추가 버튼으로 첫 내역을 작성하세요.'}</td></tr>`;
+    table.querySelector('tbody').innerHTML=filtered.length?filtered.slice((page-1)*50,page*50).map(r=>'<tr>'+r.values.map((v,i)=>`<td>${v&&i===(active==='numbers'?0:1)?`<span class="registry-paper-number"><span>${esc(v)}</span><button type="button" class="registry-copy" data-copy="${esc(v)}" aria-label="종이넘버 ${esc(v)} 복사" title="종이넘버 복사">${clipboardIcon}</button></span>`:esc(v)||'<span class="registry-blank">—</span>'}</td>`).join('')+`<td><button class="registry-row-edit" type="button" data-id="${esc(r.id)}" aria-label="${esc(r.values[0])} 수정">${pencil}</button></td></tr>`).join(''):`<tr><td colspan="${headers.length+1}" class="registry-empty">${query?'검색 결과가 없어요.':'등록된 내역이 없어요. 추가 버튼으로 첫 내역을 작성하세요.'}</td></tr>`;
     $('registry-count').textContent=`${filtered.length}개${query?' 검색됨':''}`;pager.hidden=pages<=1;
     pager.innerHTML=`<button type="button" data-page="${page-1}" ${page===1?'disabled':''}>이전</button><span>${page} / ${pages}</span><button type="button" data-page="${page+1}" ${page===pages?'disabled':''}>다음</button>`;
   }
@@ -47,7 +47,7 @@
   }
   function edit(item){
     if(!admin()||saving||!data)return;
-    if(item?.source){selectTab('map');window.dispatchEvent(new CustomEvent('spec-map-detail',{detail:item.source}));return;}
+    if(item?.source){selectTab('map');window.dispatchEvent(new CustomEvent('spec-map-edit',{detail:item.source}));return;}
     const kind=active;editing={kind,id:item?.id||crypto.randomUUID(),version:item?.version||'',values:item?[...item.values]:Array(data.lists[kind].headers.length).fill('')};
     $('registry-editor-title').textContent=(kind==='numbers'?'스펙번호':'현장 내역')+(item?' 수정':' 추가');
     editor.querySelector('[data-fields]').innerHTML=data.lists[kind].headers.map((h,i)=>{
