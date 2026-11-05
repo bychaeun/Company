@@ -1,0 +1,5 @@
+import {readFileSync} from 'node:fs';import vm from 'node:vm';import test from 'node:test';import assert from 'node:assert/strict';
+const source=readFileSync(new URL('../specs.js',import.meta.url),'utf8');
+function lookup(){const c={splitSpec:v=>v.split(/[,\n\r]+/).map(v=>v.trim()).filter(Boolean)};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function findNumberPairs('),source.indexOf('  function photoUrls(')),c);return c.findNumberPairs;}
+test('either field looks up full pairs and preserves the order of multiple entries',()=>{const find=lookup(),rows=[{values:['001','SPEC-1']},{values:['002','SPEC-2']}];assert.deepEqual(JSON.parse(JSON.stringify(find(rows,0,'002\n001'))),[[['002','SPEC-2']],[['001','SPEC-1']]]);assert.deepEqual(JSON.parse(JSON.stringify(find(rows,1,'spec-1'))),[[['001','SPEC-1']]]);});
+test('ambiguous and missing numbers do not become arbitrary matches',()=>{const find=lookup(),rows=[{values:['001','SPEC-1']},{values:['001','SPEC-2']},{values:['001','SPEC-1']}];assert.equal(find(rows,0,'001')[0].length,2);assert.equal(find(rows,1,'missing')[0].length,0);});

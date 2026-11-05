@@ -29,6 +29,7 @@
   const form = $('specs-form');
   const specLabel=p=>{const number=p.spec||p.number||'';return number+(p.mirror?'('+p.mirror+')':'');};
   const splitSpec=v=>String(v||'').split(/[,\n\r]+/).map(s=>s.trim()).filter(Boolean);
+  function findNumberPairs(rows,index,value){const key=v=>String(v||'').normalize('NFKC').trim().toLowerCase();return splitSpec(value).map(token=>[...new Map(rows.filter(r=>key(r.values[index])===key(token)).map(r=>[JSON.stringify(r.values.slice(0,2)),r.values.slice(0,2)])).values()]);}
   function photoUrls(value){const urls=String(value||'').split(/[\r\n]+/).map(v=>v.trim()).filter(Boolean);if(urls.length>12||urls.some(u=>u.length>2000||!/^https:\/\/[^\s<>"']+$/i.test(u)))throw Error('사진은 HTTPS URL을 한 줄에 하나씩, 최대 12장 입력해 주세요.');return urls;}
   function urlImage(url,container){const image=document.createElement('img');image.src=url;image.alt='현장 사진';image.loading='lazy';image.referrerPolicy='no-referrer';image.onerror=()=>{image.replaceWith(Object.assign(document.createElement('span'),{textContent:'사진을 불러올 수 없어요. 직접 이미지 URL인지 확인해 주세요.'}));};container.append(image);}
   $('specs-photo-urls').addEventListener('change',()=>{const box=$('specs-url-preview');box.replaceChildren();try{photoUrls($('specs-photo-urls').value).forEach(url=>urlImage(url,box));}catch(e){$('specs-save-message').textContent=e.message;}});
@@ -124,9 +125,20 @@
   function addPaper(p={}) {
     const row=document.createElement('div');row.className='specs-paper';
     row.dataset.original=JSON.stringify(p);
-    row.innerHTML=`<label>스펙번호 *<textarea data-paper="spec" required maxlength="4000" placeholder="여러 개는 줄바꿈 또는 쉼표로 구분">${escape(p.spec||p.number||'')}</textarea></label><label>경면<textarea data-paper="mirror" maxlength="4000" placeholder="예: HM, SM">${escape(p.mirror||'')}</textarea></label><output class="spec-combined">${escape(specLabel(p))}</output><button type="button" aria-label="이 스펙 항목 삭제">삭제</button>`;
+    row.innerHTML=`<label>종이넘버<textarea data-paper="number" maxlength="4000" placeholder="종이넘버 또는 스펙넘버 중 하나 입력">${escape(p.number||'')}</textarea></label><label>스펙넘버<textarea data-paper="spec" maxlength="4000" placeholder="여러 개는 줄바꿈 또는 쉼표로 구분">${escape(p.spec||'')}</textarea></label><label>경면<textarea data-paper="mirror" maxlength="4000" placeholder="예: HM, SM">${escape(p.mirror||'')}</textarea></label><output class="spec-combined">${escape(specLabel(p))}</output><div class="spec-number-matches"></div><button type="button" data-remove-paper aria-label="이 스펙 항목 삭제">삭제</button>`;
     row.addEventListener('input',()=>{const specs=splitSpec(row.querySelector('[data-paper=spec]').value),mirrors=splitSpec(row.querySelector('[data-paper=mirror]').value);row.querySelector('output').textContent=specs.map((spec,i)=>specLabel({spec,mirror:mirrors.length===1?mirrors[0]:mirrors[i]})).join(', ');});
-    row.querySelector('button').onclick=()=>row.remove();$('specs-papers').append(row);
+    let change=0;row.addEventListener('input',()=>{change++;row.querySelector('.spec-number-matches').replaceChildren();});
+    ['number','spec'].forEach((field,index)=>{row.querySelector('[data-paper='+field+']').onchange=async()=>{
+      const stamp=++change,version=editorVersion,access=generation,input=row.querySelector('[data-paper='+field+']'),value=input.value;if(!value.trim())return;
+      try{const result=await api.request('specRegistry');if(stamp!==change||version!==editorVersion||access!==generation||!editor.open||!row.isConnected)return;
+        const matches=findNumberPairs(result.lists.numbers.items,index,value),box=row.querySelector('.spec-number-matches');box.replaceChildren();
+        const apply=pairs=>{row.querySelector('[data-paper=number]').value=pairs.map(p=>p[0]).join('\n');row.querySelector('[data-paper=spec]').value=pairs.map(p=>p[1]).join('\n');box.replaceChildren();row.dispatchEvent(new Event('input',{bubbles:true}));$('specs-save-message').textContent='연결된 번호를 자동 입력했어요.';};
+        if(matches.length&&matches.every(m=>m.length===1)){apply(matches.map(m=>m[0]));return;}
+        $('specs-save-message').textContent=matches.some(m=>m.length>1)?'같은 번호에 여러 스펙이 있어요. 연결할 번호를 선택해 주세요.':'스펙번호 관리에 연결된 번호가 없어요. 직접 입력할 수 있어요.';
+        if(matches.length===1)matches[0].forEach(pair=>{const b=document.createElement('button');b.type='button';b.textContent=pair[0]+' → '+pair[1];b.onclick=()=>apply([pair]);box.append(b);});
+      }catch(error){if(version===editorVersion&&access===generation&&editor.open)$('specs-save-message').textContent=error.message+' 번호는 직접 입력할 수 있어요.';}
+    };});
+    row.querySelector('[data-remove-paper]').onclick=()=>row.remove();$('specs-papers').append(row);
   }
   function setLocation(lat,lng) {
     location={lat:Number(lat),lng:Number(lng)};form.elements.lat.value=lat;form.elements.lng.value=lng;
@@ -172,7 +184,7 @@
     for(const k of ['name','address','designer','contact','builder','openMonth','completionMonth'])payload[k]=form.elements[k].value.trim();
     try{
       payload.imageUrls=photoUrls($('specs-photo-urls').value);
-      payload.papers=Array.from($('specs-papers').children).flatMap(row=>{const old=JSON.parse(row.dataset.original||'{}'),specs=splitSpec(row.querySelector('[data-paper=spec]').value),mirrors=splitSpec(row.querySelector('[data-paper=mirror]').value);if(!specs.length||mirrors.length>1&&mirrors.length!==specs.length)throw Error('스펙번호와 경면 개수를 맞춰 주세요. 경면 1개는 공통 적용됩니다.');return specs.map((spec,i)=>({...old,number:i===0?old.number||'':'',spec,mirror:mirrors.length===1?mirrors[0]:mirrors[i]||'',specMode:true}));});
+      payload.papers=Array.from($('specs-papers').children).flatMap(row=>{const old=JSON.parse(row.dataset.original||'{}'),numbers=splitSpec(row.querySelector('[data-paper=number]').value),specs=splitSpec(row.querySelector('[data-paper=spec]').value),mirrors=splitSpec(row.querySelector('[data-paper=mirror]').value),count=Math.max(numbers.length,specs.length);if(!count||numbers.length&&specs.length&&numbers.length!==specs.length||mirrors.length>1&&mirrors.length!==count)throw Error('종이넘버 또는 스펙넘버를 입력하고 항목 개수를 맞춰 주세요.');return Array.from({length:count},(_,i)=>({...old,number:numbers[i]||'',spec:specs[i]||'',mirror:mirrors.length===1?mirrors[0]:mirrors[i]||'',specMode:true}));});
       if(payload.papers.length>50)throw Error('스펙은 최대 50개까지 입력해 주세요.');
       if(siteSchemaVersion<2&&(payload.imageUrls.length||payload.papers.some(p=>p.mirror||!p.number)))throw Error('사진 URL·경면·스펙번호 단독 저장은 서버 업데이트 후 사용할 수 있어요. 입력 내용은 유지됩니다.');
     }catch(e){$('specs-save-message').textContent=e.message;return;}
@@ -181,7 +193,7 @@
       for(let i=0;i<files.length;i++){if(uploadedImages[i])continue;$('specs-save-message').textContent=`사진 ${i+1}/${files.length} 업로드 중…`;const data=await photo(files[i]);if(version!==generation)return;const result=await api.request('uploadNoteImage',data);if(version!==generation)return;uploadedImages[i]=result.fileId;}
       payload.images=[...retainedImages,...uploadedImages];$('specs-save-message').textContent='현장과 종이 스펙을 저장하고 있어요.';
       const result=await api.request('saveSpec',payload);if(version!==generation)return;
-      const saved={...payload,id:result.id||payload.id};dataRevision++;
+      const saved={...payload,papers:result.papers||payload.papers,id:result.id||payload.id};dataRevision++;
       const index=items.findIndex(item=>item.id===saved.id);
       if(index<0)items.push(saved);else items[index]=saved;
       $('specs-search').value='';render();editor.close();

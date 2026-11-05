@@ -93,10 +93,10 @@ function zipRegistryMatches_(paper,spec,rows) {
   var key=function(v){return String(v||'').normalize('NFKC').trim().toLowerCase();};
   return rows.filter(function(row){return !row[6]&&((paper&&key(row[0])===key(paper))||(spec&&key(row[1])===key(spec)));});
 }
-function zipFillRegistryPair_(values) {
+function zipFillRegistryPair_(values,masterRows) {
   if(values[1]&&values[2]||!values[1]&&!values[2])return values;
-  var data=zipRegistrySheet_('numbers'),paper=!!values[1],tokens=String(paper?values[1]:values[2]).split(/[,\n\r]+/).map(function(s){return s.trim();}).filter(Boolean),matches=[];
-  for(var i=0;i<tokens.length;i++){var pairs={};zipRegistryMatches_(paper?tokens[i]:'',paper?'':tokens[i],data.rows).forEach(function(r){pairs[JSON.stringify([r[0],r[1]])]=r;});var keys=Object.keys(pairs);if(keys.length!==1)return values;matches.push(pairs[keys[0]]);}
+  var rows=masterRows||zipRegistrySheet_('numbers').rows,paper=!!values[1],tokens=String(paper?values[1]:values[2]).split(/[,\n\r]+/).map(function(s){return s.trim();}).filter(Boolean),matches=[];
+  for(var i=0;i<tokens.length;i++){var pairs={};zipRegistryMatches_(paper?tokens[i]:'',paper?'':tokens[i],rows).forEach(function(r){pairs[JSON.stringify([r[0],r[1]])]=r;});var keys=Object.keys(pairs);if(keys.length!==1)return values;matches.push(pairs[keys[0]]);}
   values[1]=matches.map(function(r){return r[0];}).join('\n');values[2]=matches.map(function(r){return r[1];}).join('\n');return values;
 }
 function zipValidateSiteLists_(values){

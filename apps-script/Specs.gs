@@ -27,9 +27,9 @@ function zipSitePapers_(r){
 }
 function zipUnifiedSiteSheet_(setup){
   var data=zipRegistrySheet_('sites',setup),sheet=data.sheet,names=data.definition.headers.concat(ZIP_REGISTRY_META,ZIP_SITE_EXTRA);
-  data.columns=zipColumns_(sheet,names,[],setup?names:ZIP_SITE_EXTRA);
+  data.columns=zipColumns_(sheet,names,['사진 ID'],setup?names:ZIP_SITE_EXTRA);
   data.rows=zipMappedRows_(sheet,data.columns,2,Math.max(0,sheet.getLastRow()-1));
-  [17,18,19].forEach(function(i){sheet.hideColumns(data.columns[i]);});
+  [17,18,19].forEach(function(i){if(data.columns[i])sheet.hideColumns(data.columns[i]);});
   return data;
 }
 function migrateUnifiedSites(){
@@ -69,7 +69,7 @@ function zipSpecInput_(b) {
   x.lat=Number(b.lat);x.lng=Number(b.lng);
   if(b.lat==null||b.lng==null||b.lat===''||b.lng===''||!isFinite(x.lat)||!isFinite(x.lng)||x.lat<32||x.lat>39.5||x.lng<124||x.lng>132.5)throw new Error('Select location in Korea');
   if(!Array.isArray(b.papers)||b.papers.length>50)throw new Error('Invalid papers');
-  x.papers=b.papers.map(function(p){var row={};['number','area','spec','mirror'].forEach(function(k){row[k]=String(p[k]||'').trim();if(row[k].length>300)throw new Error('Too long');});if(p.specMode===true){if(!row.spec)throw new Error('Specification number required');row.specMode=true;}else if(!row.number)throw new Error('Paper number required');return row;});
+  x.papers=b.papers.map(function(p){var row={};['number','area','spec','mirror'].forEach(function(k){row[k]=String(p[k]||'').trim();if(row[k].length>300)throw new Error('Too long');});if(p.specMode===true){if(!row.spec&&!row.number)throw new Error('Paper or specification number required');row.specMode=true;}else if(!row.number)throw new Error('Paper number required');return row;});
   x.images=b.images||[];if(!Array.isArray(x.images)||x.images.length>4||x.images.some(function(v){return typeof v!=='string'||!/^[-\w]{10,200}$/.test(v);}))throw new Error('Invalid images');
   x.imageUrls=zipPhotoUrls_(b.imageUrls||[]);
   return x;
@@ -78,6 +78,9 @@ function zipSaveSpec_(b) {
   var x=zipSpecInput_(b),lock=LockService.getScriptLock();lock.waitLock(10000);
   try{
     var data=zipUnifiedSiteSheet_(),sh=data.sheet,id=String(b.id||''),row=sh.getLastRow()+1,previous=Array(21).fill('');
+    if(x.images.length&&!data.columns[17])throw new Error('사진은 URL로 입력해 주세요.');
+    var master=x.papers.some(function(p){return !p.number||!p.spec;})?zipRegistrySheet_('numbers').rows:null;
+    x.papers.forEach(function(p){var values=zipFillRegistryPair_(['',p.number,p.spec],master);p.number=values[1];p.spec=values[2];});
     if(id){var index=data.rows.findIndex(function(r){return r[9]===id&&!r[11];});if(index<0)throw new Error('Unknown spec');row=index+2;previous=data.rows[index];}else{id=Utilities.getUuid();}
     // Only images already stored in the configured private upload folder may be attached.
     var folderId=x.images.length?zipImageFolder_().getId():'';
@@ -85,7 +88,7 @@ function zipSaveSpec_(b) {
     var values=[x.name,x.papers.map(function(p){return p.number;}).join('\n'),x.papers.map(function(p){return p.spec||p.number;}).join('\n'),x.papers.map(function(p){return p.mirror;}).join('\n'),x.openMonth,x.completionMonth,x.designer,previous[7]||'',previous[8]||'',id,new Date().toISOString(),'',x.address,x.contact,x.builder,String(x.lat),String(x.lng),x.images.join('|'),JSON.stringify(x.papers),previous[19]||'',x.imageUrls.join('\n')];
     if(row>sh.getMaxRows())sh.insertRowsAfter(sh.getMaxRows(),1);
     zipWriteMapped_(sh,data.columns,row,values);SpreadsheetApp.flush();
-    return {ok:true,id:id};
+    return {ok:true,id:id,papers:x.papers};
   }finally{lock.releaseLock();}
 }
 function zipDeleteSpec_(id) {

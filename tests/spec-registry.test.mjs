@@ -104,3 +104,12 @@ test('builder added under a matching heading is reused and not duplicated during
  const {c,sheet}=setup();vm.runInContext(readFileSync(new URL('../apps-script/Specs.gs',import.meta.url),'utf8'),c);c.zipInvalidateRead_=()=>{};
  const headers=Array.from(c.ZIP_SPEC_HEADERS);headers[5]='건설사 이름';const target=sheet('내 스펙관리',headers);target.data.push(['12345678-1234-1234-1234-123456789012','현장 A','서울','','','직접 추가한 건설사','','','37','127','','[]','','']);c.migrateUnifiedSites();assert.equal(c.zipSpecs_()[0].builder,'직접 추가한 건설사');assert.equal(target.data[0].includes('건설사'),false);assert.notEqual(target.hidden,true);
 });
+test('map save completes either number from the master and returns the completed pair',()=>{
+ const {c,numbers}=setup();vm.runInContext(readFileSync(new URL('../apps-script/Specs.gs',import.meta.url),'utf8'),c);c.zipInvalidateRead_=()=>{};c.migrateUnifiedSites();numbers.data.push(['001','SPEC-1','','']);
+ for(const paper of [{number:'001',spec:'',specMode:true},{number:'',spec:'SPEC-1',specMode:true}]){const result=c.zipSaveSpec_({name:'현장',address:'서울',lat:37.5,lng:127,papers:[paper],images:[]});assert.equal(result.papers[0].number,'001');assert.equal(result.papers[0].spec,'SPEC-1');}
+});
+test('URL photos save after the old photo ID column is deleted without recreating it',()=>{
+ const {c,sites}=setup();vm.runInContext(readFileSync(new URL('../apps-script/Specs.gs',import.meta.url),'utf8'),c);c.zipInvalidateRead_=()=>{};c.migrateUnifiedSites();assert.equal(sites.data[0].includes('사진 ID'),false);
+ sites.data[0].push('사진 ID');sites.data[0].splice(sites.data[0].indexOf('사진 ID'),1);
+ c.zipSaveSpec_({name:'URL 현장',address:'서울',lat:37.5,lng:127,papers:[{number:'001',spec:'SPEC-1',specMode:true}],images:[],imageUrls:['https://example.com/a.jpg','https://example.com/b.png']});const item=c.zipSpecs_()[0];assert.deepEqual(Array.from(item.imageUrls),['https://example.com/a.jpg','https://example.com/b.png']);assert.deepEqual(Array.from(item.images),[]);assert.equal(sites.data[0].includes('사진 ID'),false);
+});
