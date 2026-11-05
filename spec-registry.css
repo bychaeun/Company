@@ -1,6 +1,6 @@
 .spec-view-tabs {display:flex;gap:8px;margin:20px 0;flex-wrap:wrap;}
-.spec-view-tabs button {border:1px solid #e7ccdf;border-radius:14px;padding:11px 18px;background:#fffafd;color:#876782;font:inherit;cursor:pointer;}
-.spec-view-tabs button[aria-selected=true] {background:linear-gradient(120deg,#ffe3c5,#ffc8df);color:#705269;font-weight:700;box-shadow:0 3px 12px #cb9db322;}
+#specs-view .spec-view-tabs button {border:1px solid #e7ccdf;border-radius:14px;padding:11px 18px;background:#fffafd;color:#876782;font:inherit;cursor:pointer;}
+#specs-view .spec-view-tabs button[aria-selected=true] {background:linear-gradient(120deg,#ffe3c5,#ffc8df);color:#705269;font-weight:700;box-shadow:0 3px 12px #cb9db322;}
 .registry-toolbar {display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:22px;}
 .registry-search {display:grid;gap:8px;flex:1;min-width:180px;color:#83647b;font-weight:600;}
 .registry-search input {width:100%;border:1px solid #e7ccdf;background:white;border-radius:12px;padding:13px;font:inherit;}
@@ -14,15 +14,15 @@
 #registry-table th:last-child,#registry-table td:last-child {min-width:64px;max-width:76px;text-align:center;}
 #registry-table tbody tr:nth-child(even) {background:#fcf8fb;}
 #registry-table tbody tr:hover {background:#fff0f6;}
-.registry-row-edit,.registry-copy {width:34px;height:34px;box-sizing:border-box;padding:0;line-height:1;border:1px solid #e6bfd5;border-radius:9px;background:white;color:#ad739b;display:inline-grid;place-items:center;vertical-align:middle;cursor:pointer;}
+#registry-table .registry-row-edit,#registry-table .registry-copy {width:34px;height:34px;min-height:34px;box-sizing:border-box;padding:0;line-height:1;font-size:12px;border:1px solid #e6bfd5;border-radius:9px;background:white;color:#ad739b;display:inline-grid;place-items:center;vertical-align:middle;cursor:pointer;}
 .registry-row-edit svg,.registry-copy svg {display:block;width:16px;height:16px;margin:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
 .registry-paper-number {display:inline-flex;align-items:center;gap:8px;}
-.registry-copy {width:30px;height:30px;flex:0 0 30px;border-color:#ecdfe9;color:#a18a9c;}
-.registry-copy[data-copied=true] {color:#50836f;background:#eef8f1;border-color:#bfdac9;}
+#registry-table .registry-copy {width:30px;height:30px;min-height:30px;flex:0 0 30px;border-color:#ecdfe9;color:#a18a9c;}
+#registry-table .registry-copy[data-copied=true] {color:#50836f;background:#eef8f1;border-color:#bfdac9;}
 .registry-copy:disabled {opacity:.5;cursor:wait;}
 .registry-blank {color:#c6b9c4;}.registry-empty {text-align:center!important;padding:32px!important;color:#9c8697;}
 .registry-editor {max-width:700px;max-height:90dvh;overflow:auto;}
 .registry-fields {display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .registry-fields label:last-child {grid-column:1/-1;}.registry-fields textarea {min-height:90px;}
 .registry-editor footer {position:sticky;bottom:-24px;background:#fff9fc;padding:12px 0;}
-@media(max-width:600px){.spec-view-tabs {gap:6px;}.spec-view-tabs button {flex:1;padding:10px 7px;font-size:13px;}.registry-fields {grid-template-columns:1fr;}.registry-fields label:last-child {grid-column:auto;}.registry-toolbar .install-button {font-size:13px;padding:10px 13px;}#registry-table th,#registry-table td{min-width:110px;padding:11px;}}
+@media(max-width:600px){.spec-view-tabs {gap:6px;}#specs-view .spec-view-tabs button {flex:1;padding:10px 7px;font-size:13px;}.registry-fields {grid-template-columns:1fr;}.registry-fields label:last-child {grid-column:auto;}.registry-toolbar .install-button {font-size:13px;padding:10px 13px;}#registry-table th,#registry-table td{min-width:110px;padding:11px;}}
