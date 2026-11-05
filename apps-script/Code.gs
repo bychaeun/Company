@@ -4,7 +4,7 @@ function onEdit(e) {
   const sheet = e.range.getSheet();
   const name = sheet.getName();
   try {
-    if(name==='현장별 관리')zipAutofillRegistrySheet_(e);
+    if(name===ZIP_REGISTRY.sites.name)zipAutofillRegistrySheet_(e);
     if (name === '접근관리' || name === '체크리스트' || name.indexOf('메모_백업') === 0) return;
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     const dateColumn = headers.indexOf('수정일') + 1;

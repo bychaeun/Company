@@ -8,8 +8,8 @@ function zipSpecSheet_() {
   return sh;
 }
 function zipSpecs_() {
-  var data=zipUnifiedSiteSheet_(),sh=data.sheet;if(sh.getLastRow()<2)return [];
-  return sh.getRange(2,1,sh.getLastRow()-1,21).getDisplayValues().filter(function(r){return r[9]&&!r[11]&&r[0];}).map(function(r){
+  var data=zipUnifiedSiteSheet_();
+  return data.rows.filter(function(r){return r[9]&&!r[11]&&r[0];}).map(function(r){
     return {id:r[9],name:r[0],address:r[12],designer:r[6],contact:r[13],builder:r[14],openMonth:r[4].slice(0,7),completionMonth:r[5].slice(0,7),lat:r[15]===''?null:Number(r[15]),lng:r[16]===''?null:Number(r[16]),images:r[17].split('|').filter(Boolean),imageUrls:zipReadablePhotoUrls_(r[20]),papers:zipSitePapers_(r),updatedAt:r[10]};
   });
 }
@@ -25,37 +25,41 @@ function zipSitePapers_(r){
   if(mirrorLines.length===length&&!String(r[3]||'').includes(','))mirrors=mirrorLines;
   return Array.from({length:length},function(_,i){return {number:numbers[i]||'',spec:specs[i]||numbers[i]||'',mirror:mirrors.length===1?mirrors[0]:mirrors[i]||'',area:old[i]?.area||'',specMode:true};});
 }
-function zipUnifiedSiteSheet_(){
-  var data=zipRegistrySheet_('sites'),sheet=data.sheet;
-  if(sheet.getMaxColumns()<21)sheet.insertColumnsAfter(sheet.getMaxColumns(),21-sheet.getMaxColumns());
-  var headers=sheet.getRange(1,13,1,9).getDisplayValues()[0];
-  if(!ZIP_SITE_EXTRA.every(function(h,i){return headers[i]===h;})){
-    if(headers.some(function(v,i){return v&&v!==ZIP_SITE_EXTRA[i];}))throw new Error('현장별 관리 확장 열을 확인해 주세요.');
-    if(sheet.getMaxColumns()<21)sheet.insertColumnsAfter(sheet.getMaxColumns(),21-sheet.getMaxColumns());
-    sheet.getRange(1,13,1,9).setValues([ZIP_SITE_EXTRA]);sheet.hideColumns(18,3);sheet.setColumnWidth(21,280);
-    var oldFilter=sheet.getFilter(),criteria=[];if(oldFilter){for(var c=1;c<=9;c++)criteria[c]=oldFilter.getColumnFilterCriteria(c);oldFilter.remove();}
-    var filter=sheet.getRange(1,1,sheet.getMaxRows(),21).createFilter();criteria.forEach(function(rule,i){if(rule)filter.setColumnFilterCriteria(i,rule);});
-  }return data;
+function zipUnifiedSiteSheet_(setup){
+  var data=zipRegistrySheet_('sites',setup),sheet=data.sheet,names=data.definition.headers.concat(ZIP_REGISTRY_META,ZIP_SITE_EXTRA);
+  data.columns=zipColumns_(sheet,names,[],setup?names:ZIP_SITE_EXTRA);
+  data.rows=zipMappedRows_(sheet,data.columns,2,Math.max(0,sheet.getLastRow()-1));
+  [17,18,19].forEach(function(i){sheet.hideColumns(data.columns[i]);});
+  return data;
 }
 function migrateUnifiedSites(){
   var lock=LockService.getScriptLock();lock.waitLock(10000);
   try{
-    var data=zipUnifiedSiteSheet_(),target=data.sheet,old=zipSheet_().getSheetByName('내 스펙관리');if(!old)return;
-    var existing=target.getLastRow()>1?target.getRange(2,1,target.getLastRow()-1,21).getDisplayValues():[];
-    var source=old.getLastRow()>1?old.getRange(2,1,old.getLastRow()-1,14).getDisplayValues():[];
-    source.filter(function(r){return r[0]&&!r[13];}).forEach(function(r){
-      if(existing.some(function(v){return v[9]===r[0]||v[19]===r[0];}))return;
-      var papers=[];try{papers=JSON.parse(r[11]||'[]');}catch(ignore){}
-      var matches=existing.map(function(v,i){return {v:v,i:i};}).filter(function(x){return x.v[0]===r[1]&&!x.v[11];});
-      var row=matches.length===1?matches[0].v.slice():Array(21).fill(''),at=matches.length===1?matches[0].i+2:target.getLastRow()+1;
-      while(row.length<21)row.push('');
-      var proposed=[r[1],papers.map(function(p){return p.number||'';}).join('\n'),papers.map(function(p){return p.spec||p.number||'';}).join('\n'),papers.map(function(p){return p.mirror||'';}).join('\n'),r[6],r[7],r[3]];
-      proposed.forEach(function(v,i){if(!row[i])row[i]=v;});row[9]=row[9]||r[0];row[10]=row[10]||r[12];
-      [r[2],r[4],r[5],r[8],r[9],r[10],r[11],r[0],''].forEach(function(v,i){if(!row[12+i])row[12+i]=v;});
-      if(at>target.getMaxRows())target.insertRowsAfter(target.getMaxRows(),1);
-      target.getRange(at,1,1,21).setNumberFormat('@').setValues([row.map(zipSafeCell_)]);if(matches.length===1)existing[matches[0].i]=row;else existing.push(row);
+    var data=zipUnifiedSiteSheet_(true),target=data.sheet,existing=data.rows,old=zipSheet_().getSheetByName('현장별 관리');
+    // Preserve the original map sheet's IDs, coordinates, photos and manually added builder column.
+    existing.forEach(function(row,i){var papers=[];try{papers=JSON.parse(row[18]||'[]');}catch(ignore){}if(!Array.isArray(papers))throw new Error('기존 종이 목록을 확인해 주세요.');
+      [1,2,3].forEach(function(col){if(!row[col])row[col]=papers.map(function(p){return col===1?p.number||'':col===2?p.spec||p.number||'':p.mirror||'';}).join('\n');});
+      zipWriteMapped_(target,data.columns,i+2,row);
     });
-    SpreadsheetApp.flush();old.hideSheet();zipInvalidateRead_(['specs','registry']);console.log('현장별 관리로 통합 완료. 원본은 숨김 보존했습니다.');
+    var source=[],sourceColumns;
+    if(old){
+      var names=data.definition.headers.concat(ZIP_REGISTRY_META,ZIP_SITE_EXTRA);
+      sourceColumns=zipColumns_(old,names,ZIP_SITE_EXTRA,ZIP_REGISTRY_META);
+      source=zipMappedRows_(old,sourceColumns,2,Math.max(0,old.getLastRow()-1));
+      source.forEach(function(row,i){if(!row[0]||row[11])return;if(!row[9]){row[9]=Utilities.getUuid();old.getRange(i+2,sourceColumns[9]).setValue(row[9]);}
+        if(existing.some(function(v){return v[9]===row[9]||v[19]===row[9];}))return;
+        // Merge matching names only when populated fields agree; retain separate conflicting records.
+        var matches=existing.map(function(v,j){return {v:v,i:j};}).filter(function(x){return x.v[0]===row[0]&&!x.v[11];});
+        var match=matches.length===1&&row.every(function(v,j){return [9,10,11,19].indexOf(j)>=0||!v||!matches[0].v[j]||v===matches[0].v[j];})?matches[0]:null;
+        var merged=match?match.v.map(function(v,j){return v||row[j]||'';}):row.slice(),at=match?match.i+2:target.getLastRow()+1;merged[19]=row[9];
+        if(at>target.getMaxRows())target.insertRowsAfter(target.getMaxRows(),1);
+        zipWriteMapped_(target,data.columns,at,merged);if(match)existing[match.i]=merged;else existing.push(merged);
+      });
+    }
+    SpreadsheetApp.flush();
+    var verified=zipMappedRows_(target,data.columns,2,Math.max(0,target.getLastRow()-1));
+    if(source.some(function(row){return row[0]&&!row[11]&&!verified.some(function(v){return v[9]===row[9]||v[19]===row[9];});}))throw new Error('통합 확인 실패. 원본 시트를 유지합니다.');
+    if(old)old.hideSheet();if(typeof target.showSheet==='function')target.showSheet();zipInvalidateRead_(['specs','registry']);console.log('내 스펙관리로 통합 완료. 현장별 관리 원본은 숨김 보존했습니다.');
   }finally{lock.releaseLock();}
 }
 function zipSpecInput_(b) {
@@ -73,14 +77,14 @@ function zipSpecInput_(b) {
 function zipSaveSpec_(b) {
   var x=zipSpecInput_(b),lock=LockService.getScriptLock();lock.waitLock(10000);
   try{
-    var sh=zipUnifiedSiteSheet_().sheet,id=String(b.id||''),row=sh.getLastRow()+1,previous=Array(21).fill('');
-    if(id){var ids=sh.getRange(2,1,Math.max(1,sh.getLastRow()-1),21).getDisplayValues();var index=ids.findIndex(function(r){return r[9]===id&&!r[11];});if(index<0)throw new Error('Unknown spec');row=index+2;previous=ids[index];}else{id=Utilities.getUuid();}
+    var data=zipUnifiedSiteSheet_(),sh=data.sheet,id=String(b.id||''),row=sh.getLastRow()+1,previous=Array(21).fill('');
+    if(id){var index=data.rows.findIndex(function(r){return r[9]===id&&!r[11];});if(index<0)throw new Error('Unknown spec');row=index+2;previous=data.rows[index];}else{id=Utilities.getUuid();}
     // Only images already stored in the configured private upload folder may be attached.
     var folderId=x.images.length?zipImageFolder_().getId():'';
     x.images.forEach(function(image){var parents=DriveApp.getFileById(image).getParents(),found=false;while(parents.hasNext()){if(parents.next().getId()===folderId)found=true;}if(!found)throw new Error('Foreign image');});
     var values=[x.name,x.papers.map(function(p){return p.number;}).join('\n'),x.papers.map(function(p){return p.spec||p.number;}).join('\n'),x.papers.map(function(p){return p.mirror;}).join('\n'),x.openMonth,x.completionMonth,x.designer,previous[7]||'',previous[8]||'',id,new Date().toISOString(),'',x.address,x.contact,x.builder,String(x.lat),String(x.lng),x.images.join('|'),JSON.stringify(x.papers),previous[19]||'',x.imageUrls.join('\n')];
     if(row>sh.getMaxRows())sh.insertRowsAfter(sh.getMaxRows(),1);
-    sh.getRange(row,1,1,21).setNumberFormat('@').setValues([values.map(zipSafeCell_)]);SpreadsheetApp.flush();
+    zipWriteMapped_(sh,data.columns,row,values);SpreadsheetApp.flush();
     return {ok:true,id:id};
   }finally{lock.releaseLock();}
 }

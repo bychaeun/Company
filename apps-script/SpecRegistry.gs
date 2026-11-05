@@ -1,38 +1,51 @@
 // Both registries live in the existing COMPANY workbook. No public sheet export.
 var ZIP_REGISTRY = {
   numbers:{name:'스펙번호 관리',headers:['종이넘버','스펙넘버','경면','비고']},
-  sites:{name:'현장별 관리',headers:['현장명','종이넘버','스펙넘버','경면','모델하우스 예정일','본납 예정일','설계사','진행상태','비고']}
+  sites:{name:'내 스펙관리',headers:['현장명','종이넘버','스펙넘버','경면','모델하우스 예정일','본납 예정일','설계사','진행상태','비고']}
 };
 var ZIP_REGISTRY_META=['관리 ID','앱 수정일','앱 삭제일'];
 function zipRegistryError_(code) {var error=new Error(code);error.zipCode=code;return error;}
 function zipRegistryDefinition_(kind) {if(!Object.prototype.hasOwnProperty.call(ZIP_REGISTRY,kind))throw zipRegistryError_('REGISTRY_INPUT');return ZIP_REGISTRY[kind];}
-function zipRegistrySheet_(kind) {
+var ZIP_HEADER_ALIASES={'관리 ID':['ID'],'앱 수정일':['수정일'],'앱 삭제일':['삭제일'],'모델하우스 예정일':['M/H 오픈날'],'본납 예정일':['완공 연월'],'이전 스펙 상세(JSON)':['종이 목록(JSON)'],'건설사':['건설사 이름','건설사명']};
+function zipHeaderKey_(value){return String(value||'').normalize('NFKC').replace(/\s+/g,'').toLowerCase();}
+// Resolve physical columns once; all row arrays below retain the stable logical field order.
+function zipColumns_(sheet,names,optional,create){
+  var width=Math.max(1,sheet.getLastColumn()),headers=sheet.getRange(1,1,1,width).getDisplayValues()[0],columns=[],missing=[];
+  names.forEach(function(name,i){
+    var keys=[name].concat(ZIP_HEADER_ALIASES[name]||[]).map(zipHeaderKey_),matches=[];
+    headers.forEach(function(h,j){if(h&&keys.indexOf(zipHeaderKey_(h))>=0)matches.push(j+1);});
+    if(matches.length>1)throw zipRegistryError_('REGISTRY_HEADERS');
+    columns[i]=matches[0]||0;
+    if(!columns[i]&&(optional||[]).indexOf(name)<0){if((create||[]).indexOf(name)<0)throw zipRegistryError_('REGISTRY_HEADERS');missing.push(i);}
+  });
+  // Validate the whole schema before appending; never overwrite user columns.
+  missing.forEach(function(i){var col=++width;if(col>sheet.getMaxColumns())sheet.insertColumnsAfter(sheet.getMaxColumns(),col-sheet.getMaxColumns());sheet.getRange(1,col).setValue(names[i]);columns[i]=col;});
+  return columns;
+}
+function zipMappedRows_(sheet,columns,start,length){
+  if(!length)return [];var raw=sheet.getRange(start,1,length,Math.max.apply(null,columns)).getDisplayValues();
+  return raw.map(function(row){return columns.map(function(col){return col?row[col-1]||'':'';});});
+}
+function zipWriteMapped_(sheet,columns,row,values){
+  var before=zipMappedRows_(sheet,columns,row,1)[0],changes=[];
+  values.forEach(function(value,i){if(!columns[i]||String(value)===before[i])return;var cell=sheet.getRange(row,columns[i]);if(cell.getFormulas()[0][0])throw zipRegistryError_('REGISTRY_FORMULA');changes.push({cell:cell,value:String(value)});});
+  changes.forEach(function(change){change.cell.setNumberFormat('@').setValue(/^[=+@-]/.test(change.value)?"'"+change.value:change.value);});
+}
+function zipRegistrySheet_(kind,setup) {
   var def=zipRegistryDefinition_(kind),sheet=zipSheet_().getSheetByName(def.name);
   if(!sheet)throw zipRegistryError_('REGISTRY_SETUP');
-  var count=def.headers.length,headers=sheet.getRange(1,1,1,Math.max(count+3,sheet.getLastColumn())).getDisplayValues()[0];
-  // Keep legacy mirror values recoverable, but remove that column from the working form.
-  if(kind==='numbers'&&typeof sheet.hideColumns==='function')sheet.hideColumns(3);
-  if(!def.headers.every(function(h,i){return headers[i]===h;}))throw zipRegistryError_('REGISTRY_HEADERS');
-  ZIP_REGISTRY_META.forEach(function(h,i){if(headers[count+i]&&headers[count+i]!==h)throw zipRegistryError_('REGISTRY_HEADERS');});
-  if(!ZIP_REGISTRY_META.every(function(h,i){return headers[count+i]===h;})) {
-    if(sheet.getMaxColumns()<count+3)sheet.insertColumnsAfter(sheet.getMaxColumns(),count+3-sheet.getMaxColumns());
-    sheet.getRange(1,count+1,1,3).setValues([ZIP_REGISTRY_META]);
-    sheet.hideColumns(count+1,3);
-    // Normal header-filter sorting includes the stable ID and soft-delete columns.
-    var filter=sheet.getFilter(),criteria=[];
-    if(filter){for(var c=1;c<=count;c++)criteria[c]=filter.getColumnFilterCriteria(c);filter.remove();}
-    var nextFilter=sheet.getRange(1,1,Math.max(2,sheet.getMaxRows()),count+3).createFilter();
-    criteria.forEach(function(rule,i){if(rule)nextFilter.setColumnFilterCriteria(i,rule);});
-  }
+  var count=def.headers.length,names=def.headers.concat(ZIP_REGISTRY_META),columns=zipColumns_(sheet,names,kind==='numbers'?['경면']:[],setup?names:ZIP_REGISTRY_META);
+  if(kind==='numbers'&&columns[2])sheet.hideColumns(columns[2]);
+  ZIP_REGISTRY_META.forEach(function(_,i){sheet.hideColumns(columns[count+i]);});
   if(sheet.getLastRow()>10001)throw zipRegistryError_('REGISTRY_LIMIT');
-  var length=Math.max(0,sheet.getLastRow()-1),rows=length?sheet.getRange(2,1,length,count+3).getDisplayValues():[],seen={};
+  var length=Math.max(0,sheet.getLastRow()-1),rows=zipMappedRows_(sheet,columns,2,length),seen={};
   rows.forEach(function(row,i){
     if(!row.slice(0,count).some(function(v){return v!=='';}))return;
-    if(!row[count]){row[count]=Utilities.getUuid();sheet.getRange(i+2,count+1).setValue(row[count]);}
+    if(!row[count]){row[count]=Utilities.getUuid();sheet.getRange(i+2,columns[count]).setValue(row[count]);}
     if(!/^[a-zA-Z0-9-]{20,80}$/.test(row[count])||seen[row[count]])throw zipRegistryError_('REGISTRY_IDS');
     seen[row[count]]=true;
   });
-  return {sheet:sheet,rows:rows,count:count,definition:def};
+  return {sheet:sheet,rows:rows,count:count,definition:def,columns:columns};
 }
 function zipRegistryVersion_(row,count) {return zipHash_(JSON.stringify(row.slice(0,count).concat(row[count+2]||'')));}
 function zipRegistryItem_(row,count) {return {id:row[count],values:count===4?[row[0],row[1],row[3]]:row.slice(0,count),version:zipRegistryVersion_(row,count)};}
@@ -41,7 +54,7 @@ function zipRegistryData_() {
   try {
     var result={ok:true,syncedAt:new Date().toISOString(),lists:{},statuses:[]};
     Object.keys(ZIP_REGISTRY).forEach(function(kind){var data=zipRegistrySheet_(kind);result.lists[kind]={headers:kind==='numbers'?['종이넘버','스펙넘버','비고']:data.definition.headers,items:data.rows.filter(function(r){return r[data.count]&&!r[data.count+2]&&r.slice(0,data.count).some(function(v){return v!=='';});}).map(function(r){return zipRegistryItem_(r,data.count);})};
-      if(kind==='sites'){var rule=data.sheet.getRange(2,8).getDataValidation();if(rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)result.statuses=rule.getCriteriaValues()[0];}
+      if(kind==='sites'){var rule=data.sheet.getRange(2,data.columns[7]).getDataValidation();if(rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)result.statuses=rule.getCriteriaValues()[0];}
     });result.mapItems=zipSpecs_();result.unifiedSites=true;return result;
   }finally{lock.releaseLock();}
 }
@@ -65,18 +78,14 @@ function zipSaveRegistry_(body) {
     if(!previous&&body.version)throw zipRegistryError_('REGISTRY_CONFLICT');
     var row=rowIndex<0?Math.max(2,data.sheet.getLastRow()+1):rowIndex+2;
     if(row>data.sheet.getMaxRows())data.sheet.insertRowsAfter(data.sheet.getMaxRows(),1);
-    var range=data.sheet.getRange(row,1,1,data.count),formulas=range.getFormulas()[0],rules=range.getDataValidations()[0];
     values.forEach(function(value,i){
-      if(previous&&value===previous[i])return;
-      if(formulas[i])throw zipRegistryError_('REGISTRY_FORMULA');
-      var rule=rules[i];
+      if(!data.columns[i]||previous&&value===previous[i])return;
+      var cell=data.sheet.getRange(row,data.columns[i]);if(cell.getFormulas()[0][0])throw zipRegistryError_('REGISTRY_FORMULA');
+      var rule=cell.getDataValidation();
       if(value&&rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST&&rule.getCriteriaValues()[0].indexOf(value)<0)throw zipRegistryError_('REGISTRY_VALIDATION');
     });
-    values.forEach(function(value,i){if(previous&&value===previous[i])return;
-      var cell=data.sheet.getRange(row,i+1);cell.setNumberFormat('@').setValue(/^[=+@-]/.test(value)?"'"+value:value);
-    });
-    data.sheet.getRange(row,data.count+1,1,3).setValues([[body.id,new Date().toISOString(),'']]);
-    SpreadsheetApp.flush();var saved=data.sheet.getRange(row,1,1,data.count+3).getDisplayValues()[0];
+    zipWriteMapped_(data.sheet,data.columns,row,values.concat([body.id,new Date().toISOString(),'']));
+    SpreadsheetApp.flush();var saved=zipMappedRows_(data.sheet,data.columns,row,1)[0];
     return {ok:true,item:zipRegistryItem_(saved,data.count)};
   }finally{lock.releaseLock();}
 }
@@ -96,14 +105,16 @@ function zipValidateSiteLists_(values){
   if(mirrors.length>1&&mirrors.length!==Math.max(papers.length,specs.length))throw zipRegistryError_('REGISTRY_INPUT');
 }
 function zipAutofillRegistrySheet_(e) {
-  var sheet=e.range.getSheet();if(sheet.getName()!=='현장별 관리'||e.range.getRow()<2||e.range.getNumRows()>200)return;
-  var column=e.range.getColumn(),last=e.range.getLastColumn();if(column>3||last<2)return;
+  var sheet=e.range.getSheet();if(sheet.getName()!==ZIP_REGISTRY.sites.name||e.range.getRow()<2||e.range.getNumRows()>200)return;
+  var columns=zipColumns_(sheet,ZIP_REGISTRY.sites.headers,[],[]),column=e.range.getColumn(),last=e.range.getLastColumn(),paperEdited=columns[1]>=column&&columns[1]<=last,specEdited=columns[2]>=column&&columns[2]<=last;
+  if(!paperEdited&&!specEdited)return;
   var master=zipRegistrySheet_('numbers').rows;
   for(var r=e.range.getRow();r<=e.range.getLastRow();r++){
-    var values=sheet.getRange(r,2,1,2).getDisplayValues()[0],paper=column===3?'':values[0],spec=column===2&&last===2?'':values[1];
+    var values=zipMappedRows_(sheet,columns,r,1)[0],paper=paperEdited?values[1]:'',spec=paperEdited?'':values[2];
+    if(paperEdited&&specEdited&&values[1]&&values[2])continue;
     var tokens=String(paper||spec).split(/[,\n\r]+/).map(function(v){return v.trim();}).filter(Boolean),filled=[],ambiguous=false;
     tokens.forEach(function(token){var pairs={};zipRegistryMatches_(paper?token:'',paper?'':token,master).forEach(function(v){pairs[JSON.stringify([v[0],v[1]])]=v;});var keys=Object.keys(pairs);if(keys.length!==1)ambiguous=true;else filled.push(pairs[keys[0]][paper?1:0]);});
-    if(ambiguous||!tokens.length)continue;var target=column===3?2:3,cell=sheet.getRange(r,target);if(cell.getFormula())continue;
+    if(ambiguous||!tokens.length)continue;var target=paperEdited?columns[2]:columns[1],cell=sheet.getRange(r,target);if(cell.getFormulas()[0][0])continue;
     cell.setNumberFormat('@').setValue(zipSafeCell_(filled.join('\n')));
   }
 }
@@ -112,7 +123,7 @@ function zipDeleteRegistry_(body) {
   var lock=LockService.getScriptLock();lock.waitLock(10000);
   try{var data=zipRegistrySheet_(body.kind),index=data.rows.findIndex(function(r){return r[data.count]===body.id;});if(index<0)throw zipRegistryError_('REGISTRY_CONFLICT');var row=data.rows[index];
     if(row[data.count+2])return {ok:true};if(body.version!==zipRegistryVersion_(row,data.count))throw zipRegistryError_('REGISTRY_CONFLICT');
-    data.sheet.getRange(index+2,data.count+3).setValue(new Date().toISOString());return {ok:true};
+    data.sheet.getRange(index+2,data.columns[data.count+2]).setValue(new Date().toISOString());return {ok:true};
   }finally{lock.releaseLock();}
 }
 function syncSpecRegistryDaily() {var data=zipRegistryData_();PropertiesService.getScriptProperties().setProperty('registry-synced-at',data.syncedAt);if(typeof zipReadCache_==='function')zipReadCache_('registry',true,function(){return data;});if(typeof zipNotes_==='function')zipNotes_(true);}

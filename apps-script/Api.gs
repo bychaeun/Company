@@ -82,7 +82,7 @@ function zipReadCache_(scope,force,loader) {
   var cache,key;
   try {
     cache=CacheService.getScriptCache();
-    key='read-v3:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
+    key='read-v4:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
     if(!force){var packed=cache.get(key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
   }catch(ignore){cache=null;}
   var result=loader();
