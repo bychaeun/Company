@@ -12,6 +12,7 @@
   const fold=v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ko').replace(/\s+/g,'');
   function selectTab(kind,focus=false){
     if(!tabs.includes(kind))return;active=kind;page=1;sortColumn=-1;$('registry-search').value='';
+    $('spec-tab-map').parentElement.style.setProperty('--active-tab',String(tabs.indexOf(kind)));
     tabs.forEach(k=>{const b=$('spec-tab-'+k);b.setAttribute('aria-selected',String(k===kind));b.tabIndex=k===kind?0:-1;});
     $('spec-map-panel').hidden=kind!=='map';$('spec-registry-panel').hidden=kind==='map';
     $('spec-registry-panel').setAttribute('aria-labelledby','spec-tab-'+kind);
@@ -41,7 +42,7 @@
   async function refresh(force=false){
     if(!admin()||loading||saving)return;if(data&&!force&&Date.now()-Date.parse(data.syncedAt)<86400000)return;
     loading=true;render();$('registry-sync').disabled=true;$('registry-message').textContent='시트에서 목록을 불러오는 중…';const access=epoch,start=revision;
-    try{const result=await api.request('specRegistry');if(access!==epoch||start!==revision)return;data=result;render();$('registry-synced').textContent='최근 동기화 '+new Date(result.syncedAt).toLocaleString('ko-KR');$('registry-message').textContent='';}
+    try{const result=await api.request('specRegistry',{force});if(access!==epoch||start!==revision)return;data=result;render();$('registry-synced').textContent='최근 동기화 '+new Date(result.syncedAt).toLocaleString('ko-KR');$('registry-message').textContent='';}
     catch(error){if(access===epoch)$('registry-message').textContent=error.message;}
     finally{loading=false;$('registry-sync').disabled=false;render();}
   }

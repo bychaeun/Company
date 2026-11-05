@@ -684,6 +684,14 @@ body {
 .category-children {padding-left:14px;border-left:1px solid #e7ccdf;margin:6px 0 12px 12px;}
 .topbar-menu-button {display:flex!important;align-items:center;justify-content:center;width:42px;height:42px;flex:0 0 42px;margin-left:12px;padding:10px;border:1px solid #e8cddb;border-radius:13px;color:#87617c;background:#fff6fb;cursor:pointer;}
 .topbar-menu-button svg {width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;}
+
+/* Quiet action controls: preserve input borders and keyboard focus indicators. */
+button {border-color:transparent!important;}
+.install-button {box-shadow:0 4px 14px rgba(173,120,151,.12);}
+.install-button:hover {box-shadow:0 7px 18px rgba(173,120,151,.16);}
+#specs-view > .specs-heading,#board-view > .specs-heading {border:0;background:none;box-shadow:none;border-radius:0;padding:8px 0 4px;}
+#artboard-select {appearance:none;-webkit-appearance:none;padding-right:42px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='10' viewBox='0 0 14 10'%3E%3Cpath d='m2 3 5 5 5-5' fill='none' stroke='%2394778b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-size:14px 10px;background-position:right 15px center;}
+@media(forced-colors:active){#artboard-select {appearance:auto;background-image:none;}}
 .topbar {position:sticky;top:0;z-index:1200;}
 .topbar-actions {display:none!important;position:absolute;right:18px;top:calc(100% + 8px);width:min(340px,calc(100vw - 28px));max-height:calc(100dvh - 100px);overflow:auto;padding:16px;background:#fff9fc;border:1px solid #ecd8e5;border-radius:20px;box-shadow:0 15px 45px #79526b22;flex-direction:column;align-items:stretch;}
 .topbar-menu-open .topbar-actions {display:flex!important;}

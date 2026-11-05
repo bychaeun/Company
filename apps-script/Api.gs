@@ -16,6 +16,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  ZIP_REQUEST_STARTED=Date.now();ZIP_CACHE_HIT=false;
   try {
     var raw = e && e.postData && e.postData.contents || '{}';
     if (raw.length > 8 * 1024 * 1024) throw new Error('요청이 너무 큽니다.');
@@ -33,32 +34,32 @@ function doPost(e) {
     }
     if (action === 'me') return zipJson_({ok:true,user:user,records:body.includeNotes && user.status==='approved'?zipNotes_():undefined,syncMode:'scheduled'});
     if (user.status !== 'approved') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자 승인이 필요합니다.'});
-    if (action === 'notes') return zipJson_({ok:true,records:zipNotes_(),syncedAt:new Date().toISOString(),syncMode:'scheduled'});
+    if (action === 'notes') return zipJson_({ok:true,records:zipNotes_(body.force),syncedAt:new Date().toISOString(),syncMode:'scheduled'});
     if (action === 'image') {
       if(user.status !== 'approved') return zipJson_({ok:false,code:'FORBIDDEN',error:'접근이 제한되었습니다.'});
       var image=zipImage_(body.fileId);
       return zipJson_(image);
     }
     if (user.role !== 'admin') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자만 사용할 수 있습니다.'});
-    if (action === 'specRegistry') return zipJson_(zipRegistryData_());
-    if (action === 'saveSpecRegistry') return zipJson_(zipSaveRegistry_(body));
-    if (action === 'deleteSpecRegistry') return zipJson_(zipDeleteRegistry_(body));
-    if (action === 'board') return zipJson_({ok:true,items:zipBoard_(),artboards:zipArtboards_()});
-    if (action === 'saveBoard') return zipJson_(zipSaveBoard_(body));
-    if (action === 'deleteBoard') return zipJson_(zipDeleteBoard_(body.id));
-    if (action === 'deleteBoards') return zipJson_(zipDeleteBoards_(body.ids));
-    if (action === 'saveArtboard') return zipJson_(zipSaveArtboard_(body));
-    if (action === 'specs') return zipJson_({ok:true,items:zipSpecs_()});
-    if (action === 'saveSpec') return zipJson_(zipSaveSpec_(body));
-    if (action === 'deleteSpec') return zipJson_(zipDeleteSpec_(body.id));
+    if (action === 'specRegistry') return zipJson_(zipReadCache_('registry',body.force,zipRegistryData_));
+    if (action === 'saveSpecRegistry') return zipJson_(zipMutateRead_(['registry'],function(){return zipSaveRegistry_(body);}));
+    if (action === 'deleteSpecRegistry') return zipJson_(zipMutateRead_(['registry'],function(){return zipDeleteRegistry_(body);}));
+    if (action === 'board') return zipJson_(zipReadCache_('board',body.force,function(){return {ok:true,items:zipBoard_(),artboards:zipArtboards_()};}));
+    if (action === 'saveBoard') return zipJson_(zipMutateRead_(['board'],function(){return zipSaveBoard_(body);}));
+    if (action === 'deleteBoard') return zipJson_(zipMutateRead_(['board'],function(){return zipDeleteBoard_(body.id);}));
+    if (action === 'deleteBoards') return zipJson_(zipMutateRead_(['board'],function(){return zipDeleteBoards_(body.ids);}));
+    if (action === 'saveArtboard') return zipJson_(zipMutateRead_(['board'],function(){return zipSaveArtboard_(body);}));
+    if (action === 'specs') return zipJson_(zipReadCache_('specs',body.force,function(){return {ok:true,items:zipSpecs_()};}));
+    if (action === 'saveSpec') return zipJson_(zipMutateRead_(['specs','registry'],function(){return zipSaveSpec_(body);}));
+    if (action === 'deleteSpec') return zipJson_(zipMutateRead_(['specs','registry'],function(){return zipDeleteSpec_(body.id);}));
     if (action === 'geocodeSpec') return zipJson_(zipGeocodeSpec_(body.address));
     if (action === 'specImage') return zipJson_(zipSpecImage_(body.fileId));
     if (action === 'users') return zipJson_({ok:true,users:zipUsers_().map(function(row){return {sub:row[0],email:row[1],name:row[2],status:row[3],created:row[4],lastLogin:row[5],admin:zipAdmin_(row[0])};})});
     if (action === 'setStatus') return zipJson_(zipSetStatus_(body.sub,body.status));
-    if (action === 'createNote') {body.requestOwner=user.sub;return zipJson_(zipCreateNote_(body));}
-    if (action === 'updateNote') {body.requestOwner=user.sub;return zipJson_(zipUpdateNote_(body));}
-    if (action === 'deleteNote') return zipJson_(zipDeleteNote_(body.noteId));
-    if (action === 'deleteNotes') return zipJson_(zipDeleteNotes_(body.noteIds));
+    if (action === 'createNote') {body.requestOwner=user.sub;return zipJson_(zipMutateRead_(['notes'],function(){return zipCreateNote_(body);}));}
+    if (action === 'updateNote') {body.requestOwner=user.sub;return zipJson_(zipMutateRead_(['notes'],function(){return zipUpdateNote_(body);}));}
+    if (action === 'deleteNote') return zipJson_(zipMutateRead_(['notes'],function(){return zipDeleteNote_(body.noteId);}));
+    if (action === 'deleteNotes') return zipJson_(zipMutateRead_(['notes'],function(){return zipDeleteNotes_(body.noteIds);}));
     if (action === 'uploadNoteImage') return zipJson_(zipUploadNoteImage_(body));
     if (action === 'checklist') return zipJson_({ok:true,items:zipChecklist_()});
     if (action === 'addChecklist') return zipJson_(zipAddChecklist_(body));
@@ -73,8 +74,40 @@ function doPost(e) {
   }
 }
 
-function zipJson_(value) { return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON); }
+function zipJson_(value) {if(ZIP_REQUEST_STARTED)value.readTiming={serverMs:Date.now()-ZIP_REQUEST_STARTED,cacheHit:ZIP_CACHE_HIT};return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON); }
+var ZIP_REQUEST_STARTED,ZIP_CACHE_HIT=false;
 function zipHash_(text) { return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(text))).replace(/=+$/,''); }
+// Private, server-side snapshots only. Authentication above is never cached.
+function zipReadCache_(scope,force,loader) {
+  var cache,key;
+  try {
+    cache=CacheService.getScriptCache();
+    key='read-v1:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
+    if(!force){var packed=cache.get(key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
+  }catch(ignore){cache=null;}
+  var result=loader();
+  if(cache)try{var encoded=Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(result))).getBytes());if(encoded.length<90000)cache.put(key,encoded,600);}catch(ignore){}
+  return result;
+}
+function zipInvalidateRead_(scopes) {
+  if(typeof Utilities==='undefined'||typeof Utilities.getUuid!=='function')return;
+  var props=PropertiesService.getScriptProperties();if(typeof props.setProperties!=='function')return;
+  var values={},stamp=Utilities.getUuid();scopes.forEach(function(scope){values['read-version:'+scope]=stamp;});props.setProperties(values,false);
+}
+function zipMutateRead_(scopes,write) {
+  zipInvalidateRead_(scopes);
+  try{return write();}finally{zipInvalidateRead_(scopes);}
+}
+function zipInvalidateSheetRead_(name) {
+  var scopes=name==='내 스펙관리'?['specs','registry']:['현장별 관리','스펙번호 관리'].indexOf(name)>=0?['registry']:['디자인 보드','디자인 대지'].indexOf(name)>=0?['board']:name==='체크리스트'?['checklist']:['notes'];
+  zipInvalidateRead_(scopes);
+}
+function warmAppReadCache() {
+  zipNotes_(true);
+  zipReadCache_('specs',true,function(){return {ok:true,items:zipSpecs_()};});
+  zipReadCache_('registry',true,zipRegistryData_);
+  zipReadCache_('board',true,function(){return {ok:true,items:zipBoard_(),artboards:zipArtboards_()};});
+}
 function zipAuthError_() { var e = new Error('Authentication required'); e.zipCode = 'AUTH_REQUIRED'; return e; }
 var ZIP_REQUEST_SPREADSHEET;
 function zipSheet_() {
@@ -190,7 +223,8 @@ function zipNoteSheets_() {
   var categorySheets = sheets.filter(function(sh){return sh.getName() !== '메모';});
   return categorySheets.length ? categorySheets : sheets;
 }
-function zipNotes_() {
+function zipNotes_(force) {return zipReadCache_('notes',force,zipNotesUncached_);}
+function zipNotesUncached_() {
   return zipNoteSheets_().reduce(function(all,sh){
     var rows=sh.getDataRange().getDisplayValues(), headers=rows.shift()||[];
     if(!['소분류','제목','내용','이미지','수정일'].every(function(h){return headers.indexOf(h)>=0;}))return all;

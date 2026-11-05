@@ -590,11 +590,13 @@
     el.refresh.disabled = true;
     try {
       if (!window.CHAE_AUTH?.user || window.CHAE_AUTH.user.status !== 'approved') return;
-      const payload = window.ZIP_BOOTSTRAP || await window.ZIP_API.request('notes');
+      const payload = window.ZIP_BOOTSTRAP || await window.ZIP_API.request('notes',{force:!!manual});
       window.ZIP_BOOTSTRAP=null;
       if(revision!==notesRevision)return;
       if (window.CHAE_AUTH?.user?.status !== 'approved') return;
       const nextRecords = jsonToRecords(payload);
+      el.syncLabel.dataset.serverMs=String(payload.readTiming?.serverMs??'');
+      el.syncLabel.dataset.cache=payload.clientCacheHit?'memory':payload.readTiming?.cacheHit?'server':'fresh';
       state.records = nextRecords;
       render();
       const time = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date());

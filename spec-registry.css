@@ -1,6 +1,7 @@
-.spec-view-tabs {display:flex;gap:8px;margin:20px 0;flex-wrap:wrap;}
-#specs-view .spec-view-tabs button {border:1px solid #e7ccdf;border-radius:14px;padding:11px 18px;background:#fffafd;color:#876782;font:inherit;cursor:pointer;}
-#specs-view .spec-view-tabs button[aria-selected=true] {background:linear-gradient(120deg,#ffe3c5,#ffc8df);color:#705269;font-weight:700;box-shadow:0 3px 12px #cb9db322;}
+.spec-view-tabs {--active-tab:0;position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:min(100%,380px);gap:0;margin:20px 0;padding:4px;}
+.spec-view-tabs::before {content:'';position:absolute;z-index:-1;left:4px;top:4px;bottom:4px;width:calc((100% - 8px)/3);border-radius:14px;background:linear-gradient(120deg,#ffe3c5,#ffc8df);transform:translateX(calc(var(--active-tab)*100%));transition:transform 260ms cubic-bezier(.22,.7,.25,1);}
+#specs-view .spec-view-tabs button {border:0;border-radius:14px;padding:11px 8px;background:transparent;box-shadow:none;color:#9a8494;font:inherit;cursor:pointer;transition:color 200ms ease;}
+#specs-view .spec-view-tabs button[aria-selected=true] {background:transparent;color:#76536c;font-weight:700;box-shadow:none;}
 .registry-toolbar {display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:22px;}
 .registry-search {display:grid;gap:8px;flex:1;min-width:180px;color:#83647b;font-weight:600;}
 .registry-search input {width:100%;border:1px solid #e7ccdf;background:white;border-radius:12px;padding:13px;font:inherit;}
@@ -25,4 +26,5 @@
 .registry-fields {display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .registry-fields label:last-child {grid-column:1/-1;}.registry-fields textarea {min-height:90px;}
 .registry-editor footer {position:sticky;bottom:-24px;background:#fff9fc;padding:12px 0;}
-@media(max-width:600px){.spec-view-tabs {gap:6px;}#specs-view .spec-view-tabs button {flex:1;padding:10px 7px;font-size:13px;}.registry-fields {grid-template-columns:1fr;}.registry-fields label:last-child {grid-column:auto;}.registry-toolbar .install-button {font-size:13px;padding:10px 13px;}#registry-table th,#registry-table td{min-width:110px;padding:11px;}}
+@media(max-width:600px){#specs-view .spec-view-tabs button {padding:10px 7px;font-size:13px;}.registry-fields {grid-template-columns:1fr;}.registry-fields label:last-child {grid-column:auto;}.registry-toolbar .install-button {font-size:13px;padding:10px 13px;}#registry-table th,#registry-table td{min-width:110px;padding:11px;}}
+@media(prefers-reduced-motion:reduce){.spec-view-tabs::before,#specs-view .spec-view-tabs button{transition:none;}}

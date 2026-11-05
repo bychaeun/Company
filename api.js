@@ -50,12 +50,30 @@
   let generation = 0;
   let sessionVersion = 0;
   const reads=new Map();
+  const recentReads=new Map();let readRevision=0;
+  const cacheable=['notes','specs','specRegistry','board','checklist'];
+  function clearReads(){readRevision++;recentReads.clear();reads.clear();}
   function rememberUser(user){try{if(user?.status==='approved'&&token)localStorage.setItem(userHintKey,JSON.stringify({sessionTag:token.slice(-20),user}));else localStorage.removeItem(userHintKey);}catch{}}
   function rememberedUser(){try{const hint=JSON.parse(localStorage.getItem(userHintKey)||'null');return token&&hint?.sessionTag===token.slice(-20)&&hint.user?.status==='approved'?hint.user:null;}catch{return null;}}
   function request(action,payload={},anonymous=false){
-    if(!['me','notes','specs','specRegistry','board','checklist'].includes(action))return send(action,payload,anonymous);
-    const key=JSON.stringify([sessionVersion,action,payload,anonymous]);if(reads.has(key))return reads.get(key);
-    const promise=send(action,payload,anonymous).finally(()=>reads.delete(key));reads.set(key,promise);return promise;
+    if(!anonymous&&window.ZIP_AUTH_PENDING&&action!=='me'&&cacheable.includes(action)&&window.CHAE_AUTH?.check){
+      return window.CHAE_AUTH.check().then(user=>{if(window.ZIP_AUTH_PENDING)throw new Error('로그인 확인이 지연되고 있어요. 잠시 후 다시 시도해 주세요.');if(user?.status!=='approved')throw new Error('승인된 로그인이 필요합니다.');return request(action,payload,anonymous);});
+    }
+    if(!['me',...cacheable].includes(action)){
+      const mutation=/^(createNote|updateNote|deleteNote|deleteNotes|saveSpec|deleteSpec|saveSpecRegistry|deleteSpecRegistry|saveBoard|deleteBoard|deleteBoards|saveArtboard|addChecklist|toggleChecklist|deleteChecklist)$/.test(action);
+      if(mutation)clearReads();return send(action,payload,anonymous).finally(()=>{if(mutation)clearReads();});
+    }
+    if(payload.force)clearReads();
+    const normalized={...payload};delete normalized.force;
+    const version=sessionVersion,revision=readRevision,key=JSON.stringify([version,revision,action,normalized,anonymous]);
+    const cached=recentReads.get(key);if(!payload.force&&cacheable.includes(action)&&cached&&Date.now()-cached.at<30000)return Promise.resolve({...cached.data,clientCacheHit:true});
+    if(reads.has(key))return reads.get(key);
+    const promise=send(action,payload,anonymous).then(data=>{
+      if(version===sessionVersion&&revision===readRevision){
+        if(cacheable.includes(action))recentReads.set(key,{at:Date.now(),data});
+        if(action==='me'&&data.user?.status==='approved'&&Array.isArray(data.records))recentReads.set(JSON.stringify([version,revision,'notes',{},false]),{at:Date.now(),data});
+      }return data;
+    }).finally(()=>reads.delete(key));reads.set(key,promise);return promise;
   }
   async function send(action, payload = {}, anonymous = false) {
     const version = sessionVersion;
@@ -68,7 +86,7 @@
     if (!data.ok) {
       if (!anonymous && version === sessionVersion) {
         if (data.code === 'AUTH_REQUIRED') { setToken(''); window.dispatchEvent(new Event('access-expired')); }
-        if (data.code === 'FORBIDDEN') {rememberUser(null);window.dispatchEvent(new Event('access-expired'));}
+        if (data.code === 'FORBIDDEN') {clearReads();rememberUser(null);window.dispatchEvent(new Event('access-expired'));}
       }
       const error = new Error(data.error || '요청에 실패했어요.');
       error.code = data.code;
@@ -77,12 +95,13 @@
     return data;
   }
   function clearImages() { generation++; imageCache.forEach(p => p.then(url => { if(url)URL.revokeObjectURL(url); }).catch(()=>{})); imageCache.clear(); }
-  function setToken(value) { sessionVersion++; token=value;rememberUser(null);if(value)localStorage.setItem(sessionKey,value); else localStorage.removeItem(sessionKey); sessionStorage.removeItem(sessionKey); clearImages(); }
+  function setToken(value) { sessionVersion++;clearReads();token=value;rememberUser(null);if(value)localStorage.setItem(sessionKey,value); else localStorage.removeItem(sessionKey); sessionStorage.removeItem(sessionKey); clearImages(); }
   window.addEventListener('storage', event => {
     if (event.key !== sessionKey && event.key !== null) return;
-    token = localStorage.getItem(sessionKey) || ''; sessionVersion++; clearImages();
+    token = localStorage.getItem(sessionKey) || ''; sessionVersion++;clearReads();clearImages();
     window.dispatchEvent(new Event(token ? 'session-restored' : 'access-expired'));
   });
+  window.addEventListener('access-change',event=>{if(event.detail?.status!=='approved')clearReads();});
   async function image(fileId) {
     if(!/^[-\w]{10,200}$/.test(fileId))return '';
     if(!imageCache.has(fileId)) {

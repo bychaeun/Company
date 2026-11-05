@@ -84,7 +84,7 @@ function zipDeleteRegistry_(body) {
     data.sheet.getRange(index+2,data.count+3).setValue(new Date().toISOString());return {ok:true};
   }finally{lock.releaseLock();}
 }
-function syncSpecRegistryDaily() {var data=zipRegistryData_();PropertiesService.getScriptProperties().setProperty('registry-synced-at',data.syncedAt);}
+function syncSpecRegistryDaily() {var data=zipRegistryData_();PropertiesService.getScriptProperties().setProperty('registry-synced-at',data.syncedAt);if(typeof zipReadCache_==='function')zipReadCache_('registry',true,function(){return data;});if(typeof zipNotes_==='function')zipNotes_(true);}
 function setupSpecRegistryDaily() {
   // Does not change existing note/checklist triggers.
   if(!ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='syncSpecRegistryDaily';}))ScriptApp.newTrigger('syncSpecRegistryDaily').timeBased().everyDays(1).atHour(7).create();
