@@ -131,8 +131,8 @@
     for(const k of ['name','address','designer','contact','builder','openMonth','completionMonth'])form.elements[k].value=item?.[k]||'';
     $('specs-papers').replaceChildren();(item?.papers.length?item.papers:[{}]).forEach(addPaper);renderRetained();
     if(pickMarker&&picker){picker.removeLayer(pickMarker);pickMarker=null;}
-    editor.showModal();const version=generation;
     if(item)setLocation(item.lat,item.lng);
+    editor.showModal();const version=generation;
     try{const [,data]=await Promise.all([loadMapLibrary(),loadGeography()]);if(version!==generation||editVersion!==editorVersion||!editor.open)return;if(!picker){picker=makeMap('specs-pick-map',data);picker.on('click',e=>{if(!saving)setLocation(e.latlng.lat,e.latlng.lng);});}picker.invalidateSize();picker.setView(item?[item.lat,item.lng]:[36.0,127.8],item?10:7);if(location)setLocation(location.lat,location.lng);}catch(e){if(editVersion===editorVersion)$('specs-location').textContent=e.message+' 주소 검색을 이용하거나 창을 닫고 다시 열어 주세요.';}
   }
   function renderRetained(){const wrap=$('specs-retained');wrap.replaceChildren();retainedImages.forEach((id,i)=>{const b=document.createElement('button');b.type='button';b.textContent=`기존 사진 ${i+1} 제외`;b.onclick=()=>{retainedImages=retainedImages.filter(x=>x!==id);renderRetained();};wrap.append(b);});}
