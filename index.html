@@ -170,7 +170,7 @@
           <div id="checklist-list" class="checklist-list" aria-label="체크리스트 항목"></div>
         </section>
         <section id="specs-view" hidden aria-labelledby="specs-title">
-          <header class="specs-heading"><p class="eyebrow">MY SPEC MANAGER</p><h1 id="specs-title">내 스펙관리</h1></header>
+          <header class="specs-heading specs-manager-heading"><div><p class="eyebrow">MY SPEC MANAGER</p><h1 id="specs-title">내 스펙관리</h1></div><button id="registry-sync" class="install-button" type="button" aria-label="내 스펙관리 지금 동기화" title="시트에서 다시 불러오기">↻</button></header>
           <div class="spec-view-tabs" role="tablist" aria-label="스펙관리 보기 방식"><button id="spec-tab-map" role="tab" aria-selected="true" aria-controls="spec-map-panel" type="button">지도로 보기</button><button id="spec-tab-sites" role="tab" aria-selected="false" aria-controls="spec-registry-panel" tabindex="-1" type="button">현장 목록</button><button id="spec-tab-numbers" role="tab" aria-selected="false" aria-controls="spec-registry-panel" tabindex="-1" type="button">스펙 목록</button></div>
           <div id="spec-map-panel" role="tabpanel" aria-labelledby="spec-tab-map">
           <div class="specs-toolbar"><button id="specs-add" class="add-note-button" type="button">＋ 현장 등록</button><button id="specs-notes" type="button" hidden>메모로 돌아가기</button></div>
@@ -182,9 +182,10 @@
           <nav id="specs-pagination" class="pagination" aria-label="현장 페이지" hidden></nav>
           </div>
           <div id="spec-registry-panel" role="tabpanel" aria-labelledby="spec-tab-sites" hidden>
-            <div class="registry-toolbar"><label class="registry-search">목록 검색<input id="registry-search" type="search" placeholder="현장명, 종이넘버, 스펙넘버, 경면, 설계사" /></label><button id="registry-sync" class="install-button" type="button" aria-label="스펙 목록 지금 동기화" title="시트에서 다시 불러오기">↻</button><button id="registry-add" class="install-button" type="button" disabled>＋ 내역 추가</button></div>
+            <div class="registry-toolbar"><label class="registry-search">목록 검색<input id="registry-search" type="search" placeholder="현장명, 종이넘버, 스펙넘버, 경면, 설계사" /></label><button id="registry-add" class="install-button" type="button" disabled>＋ 내역 추가</button></div>
             <div class="registry-summary"><span id="registry-count" role="status"></span><span id="registry-synced"></span></div>
             <p id="registry-message" role="status"></p>
+            <div id="registry-site-list" class="registry-site-list" aria-label="현장 목록" hidden></div>
             <div class="registry-table-scroll" tabindex="0" aria-label="스펙 관리 표 가로 스크롤"><table id="registry-table"><thead></thead><tbody></tbody></table></div>
             <nav id="registry-pagination" class="pagination" aria-label="관리 목록 페이지" hidden></nav>
           </div>
@@ -285,9 +286,9 @@
     <script src="auth.js?v=23"></script>
     <script src="checklist.js?v=12"></script>
     <script src="app.js?v=28"></script>
-    <script src="specs.js?v=31"></script>
-    <link rel="stylesheet" href="spec-registry.css?v=30" />
-    <script src="spec-registry.js?v=30"></script>
+    <script src="specs.js?v=32"></script>
+    <link rel="stylesheet" href="spec-registry.css?v=32" />
+    <script src="spec-registry.js?v=32"></script>
     <link rel="stylesheet" href="board.css?v=23" />
     <script src="board.js?v=23"></script>
   </body>

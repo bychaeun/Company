@@ -118,6 +118,7 @@
   $('specs-home').onclick=()=>overview(map);
   window.addEventListener('spec-map-visible',()=>{if(map){map.invalidateSize();render();}});
   window.addEventListener('spec-map-detail',event=>{if(admin()&&event.detail)showDetail(event.detail);});
+  window.addEventListener('spec-map-data',event=>{if(!admin()||!Array.isArray(event.detail))return;dataRevision++;items=event.detail.map(item=>({...item,papers:Array.isArray(item.papers)?item.papers:[],images:Array.isArray(item.images)?item.images:[]}));render();});
   window.addEventListener('spec-map-edit',event=>{if(admin()&&event.detail)edit(event.detail);});
   $('specs-search').addEventListener('input',()=>{page=1;render();});
   $('specs-pagination').onclick=event=>{const button=event.target.closest('[data-spec-page]');if(button&&!button.disabled){page=Number(button.dataset.specPage);render();$('specs-list').scrollIntoView({block:'start',behavior:'smooth'});}};

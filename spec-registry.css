@@ -29,3 +29,23 @@
 .registry-editor footer {position:sticky;bottom:-24px;background:#fff9fc;padding:12px 0;}
 @media(max-width:600px){#specs-view .spec-view-tabs button {padding:10px 7px;font-size:13px;}.registry-fields {grid-template-columns:1fr;}.registry-fields label:last-child {grid-column:auto;}.registry-toolbar .install-button {font-size:13px;padding:10px 13px;}#registry-table th,#registry-table td{min-width:110px;padding:11px;}}
 @media(prefers-reduced-motion:reduce){.spec-view-tabs::before,#specs-view .spec-view-tabs button{transition:none;}}
+.specs-manager-heading {display:flex;align-items:center;justify-content:space-between;gap:16px;}
+#specs-view #registry-sync {display:inline-grid;place-items:center;flex:0 0 36px;width:36px;min-height:36px;padding:0;border-radius:12px;font-size:22px;line-height:1;background:#fff4f9;}
+#specs-search,#registry-search {box-sizing:border-box;height:44px;min-height:0;padding:10px 12px;font-family:inherit;font-size:16px;font-weight:400;line-height:22px;color:#594b5c;}
+#specs-search::placeholder,#registry-search::placeholder {color:#887486;font-weight:400;opacity:1;}
+.registry-search {min-width:0;}
+.registry-site-list {display:grid;gap:2px;padding:6px;border:1px solid #ead7e2;border-radius:16px;background:#fffdfd;}
+.registry-site-list[hidden],.registry-table-scroll[hidden] {display:none!important;}
+#specs-view .registry-site-card {display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;min-width:0;min-height:50px;padding:13px 14px;background:transparent;border-radius:10px;text-align:left;box-shadow:none;font-size:15px;}
+.registry-site-card strong {min-width:0;font-weight:600;overflow-wrap:anywhere;}
+.registry-site-card > span {font-size:24px;line-height:1;color:#b29bab;}
+#specs-view .registry-site-card:hover {background:#fff2f7;}
+.registry-detail-heading {display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
+.registry-detail-heading h2 {margin:4px 0 18px;font-size:22px;overflow-wrap:anywhere;}
+.registry-detail-heading > div {display:flex;flex-shrink:0;gap:6px;}
+.registry-detail-heading button,.registry-detail .registry-copy {display:inline-grid;place-items:center;width:34px;min-height:34px;padding:0;background:transparent;line-height:1;}
+.registry-detail-heading [data-detail-close] {font-size:24px;}
+.registry-detail-edit svg {width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;}
+.registry-detail-fields {display:grid;grid-template-columns:120px minmax(0,1fr);gap:14px 18px;font-size:14px;line-height:1.7;}
+.registry-detail-fields dt {color:#987b90;}.registry-detail-fields dd {margin:0;white-space:pre-line;overflow-wrap:anywhere;}
+@media(max-width:600px){#specs-search,#registry-search {height:42px;padding:9px 12px;}.registry-search {font-size:14px;}.registry-toolbar {gap:8px;margin-top:16px;}.specs-search-heading {font-size:14px;margin-top:16px;}.registry-detail-fields {grid-template-columns:92px minmax(0,1fr);gap:12px;}}
