@@ -23,6 +23,9 @@
 .specs-dialog form { display:grid; gap:16px; }
 .specs-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .specs-paper { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; padding:12px 0; border-bottom:1px solid #eadfea; }
+.spec-combined {align-self:center;color:#a27091;font-weight:700;overflow-wrap:anywhere;}
+.specs-dialog textarea {width:100%;min-width:0;padding:11px;border:1px solid #ead7e2;border-radius:12px;font:inherit;background:white;color:#594b5c;resize:vertical;}
+.registry-match-options {display:flex;gap:8px;flex-wrap:wrap;}
 .specs-paper input { font-size:.85rem; }
 .specs-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
 .specs-dialog .specs-icon-action {width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:50%;}

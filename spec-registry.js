@@ -10,6 +10,12 @@
   editor.innerHTML='<h2 id="registry-editor-title"></h2><form><div data-fields class="registry-fields"></div><p data-message role="status"></p><footer><button type="button" class="install-button" data-remove>삭제</button><button type="button" class="install-button" data-cancel>취소</button><button type="submit" class="install-button">시트에 저장</button></footer></form>';document.body.append(editor);
   const form=editor.querySelector('form');
   const fold=v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ko').replace(/\s+/g,'');
+  function normalizeNumbers(result){
+    const list=result.lists.numbers;
+    if(list.headers.length===4){result.legacyNumberColumns=true;list.headers=[list.headers[0],list.headers[1],list.headers[3]];list.items=list.items.map(item=>({...item,legacyMirror:item.values[2],values:[item.values[0],item.values[1],item.values[3]]}));}
+    return result;
+  }
+  function numberWrite(item){return item.kind==='numbers'&&data.legacyNumberColumns?{...item,values:[item.values[0],item.values[1],item.legacyMirror||'',item.values[2]]}:item;}
   function selectTab(kind,focus=false){
     if(!tabs.includes(kind))return;active=kind;page=1;sortColumn=-1;$('registry-search').value='';
     $('spec-tab-map').parentElement.style.setProperty('--active-tab',String(tabs.indexOf(kind)));
@@ -18,13 +24,13 @@
     $('spec-registry-panel').setAttribute('aria-labelledby','spec-tab-'+kind);
     if(focus)$('spec-tab-'+kind).focus();
     if(kind==='map'){window.dispatchEvent(new Event('spec-map-visible'));return;}
-    $('registry-search').placeholder=kind==='numbers'?'종이넘버, 스펙넘버, 경면, 비고':'현장명, 종이넘버, 스펙넘버, 경면, 설계사';
+    $('registry-search').placeholder=kind==='numbers'?'종이넘버, 스펙넘버, 비고':'현장명, 종이넘버, 스펙넘버, 경면, 설계사';
     $('registry-add').textContent=kind==='numbers'?'＋ 스펙 추가':'＋ 현장 내역';render();refresh();
   }
   tabs.forEach(kind=>{const b=$('spec-tab-'+kind);b.onclick=()=>selectTab(kind);b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const i=tabs.indexOf(active);selectTab(e.key==='Home'?tabs[0]:e.key==='End'?tabs[2]:tabs[(i+(e.key==='ArrowRight'?1:2))%3],true);};});
   function rows(){
     if(!data||active==='map')return [];const result=data.lists[active].items.map(item=>({...item,kind:active}));
-    if(active==='sites')for(const item of data.mapItems||[])for(const paper of item.papers||[]){result.push({id:'map-'+item.id+'-'+result.length,source:item,values:[item.name,paper.number,paper.spec||'', '',item.openMonth||'',item.completionMonth||'',item.designer||'','',paper.area||''],kind:'sites'});}
+    if(active==='sites'&&!data.unifiedSites)for(const item of data.mapItems||[])for(const paper of item.papers||[]){result.push({id:'map-'+item.id+'-'+result.length,source:item,values:[item.name,paper.number||'',paper.spec||'',paper.mirror||'',item.openMonth||'',item.completionMonth||'',item.designer||'','',paper.area||''],kind:'sites'});}
     return result;
   }
   function render(){
@@ -42,27 +48,43 @@
   async function refresh(force=false){
     if(!admin()||loading||saving)return;if(data&&!force&&Date.now()-Date.parse(data.syncedAt)<86400000)return;
     loading=true;render();$('registry-sync').disabled=true;$('registry-message').textContent='시트에서 목록을 불러오는 중…';const access=epoch,start=revision;
-    try{const result=await api.request('specRegistry',{force});if(access!==epoch||start!==revision)return;data=result;render();$('registry-synced').textContent='최근 동기화 '+new Date(result.syncedAt).toLocaleString('ko-KR');$('registry-message').textContent='';}
+    try{const result=await api.request('specRegistry',{force});if(access!==epoch||start!==revision)return;data=normalizeNumbers(structuredClone(result));render();$('registry-synced').textContent='최근 동기화 '+new Date(result.syncedAt).toLocaleString('ko-KR');$('registry-message').textContent='';}
     catch(error){if(access===epoch)$('registry-message').textContent=error.message;}
     finally{loading=false;$('registry-sync').disabled=false;render();}
   }
   function edit(item){
     if(!admin()||saving||!data)return;
     if(item?.source){selectTab('map');window.dispatchEvent(new CustomEvent('spec-map-edit',{detail:item.source}));return;}
-    const kind=active;editing={kind,id:item?.id||crypto.randomUUID(),version:item?.version||'',values:item?[...item.values]:Array(data.lists[kind].headers.length).fill('')};
+    const kind=active;editing={kind,id:item?.id||crypto.randomUUID(),version:item?.version||'',legacyMirror:item?.legacyMirror||'',values:item?[...item.values]:Array(data.lists[kind].headers.length).fill('')};
     $('registry-editor-title').textContent=(kind==='numbers'?'스펙번호':'현장 내역')+(item?' 수정':' 추가');
     editor.querySelector('[data-fields]').innerHTML=data.lists[kind].headers.map((h,i)=>{
-      const required=i<2?' required':'';let input;
+      const required=(kind==='numbers'?i<2:i===0)?' required':'';let input;
       if(kind==='sites'&&i===7&&data.statuses.length)input=`<select name="field-${i}"><option value="">선택 안 함</option>${[...new Set(data.statuses.concat(editing.values[i]||[]))].map(v=>`<option ${v===editing.values[i]?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
-      else if(h==='비고')input=`<textarea name="field-${i}" maxlength="4000">${esc(editing.values[i])}</textarea>`;
+      else if(h==='비고'||kind==='sites'&&[1,2,3].includes(i))input=`<textarea name="field-${i}" maxlength="4000"${kind==='sites'&&[1,2,3].includes(i)?' placeholder="여러 개는 줄바꿈 또는 쉼표로 구분"':''}>${esc(editing.values[i])}</textarea>`;
       else input=`<input name="field-${i}" value="${esc(editing.values[i])}" maxlength="${i<2?300:4000}"${required}${/예정일/.test(h)?' placeholder="예: 2027-03 또는 2027-03-15"':''}>`;
       return `<label>${esc(h)}${required?' *':''}${input}</label>`;
-    }).join('');editor.querySelector('[data-remove]').hidden=!item;editor.querySelector('[data-message]').textContent='';editor.showModal();
+    }).join('');editor.querySelector('[data-remove]').hidden=!item;editor.querySelector('[data-message]').textContent='';
+    if(kind==='sites'){
+      const options=document.createElement('div');options.className='registry-match-options';options.setAttribute('aria-label','일치하는 스펙 선택');editor.querySelector('[data-fields]').after(options);editor.querySelectorAll('.registry-match-options').forEach((v,i)=>{if(v!==options)v.remove();});
+      const apply=row=>{form.elements['field-1'].value=row.values[0];form.elements['field-2'].value=row.values[1];options.replaceChildren();editor.querySelector('[data-message]').textContent='종이넘버와 스펙넘버를 함께 입력했어요.';};
+      [1,2].forEach(index=>{const input=form.elements['field-'+index];input.onchange=()=>{
+        options.replaceChildren();const query=fold(input.value);if(!query)return;
+        const tokens=input.value.split(/[,\n\r]+/).map(v=>v.trim()).filter(Boolean);
+        if(tokens.length>1){const pairs=tokens.map(token=>[...new Map(data.lists.numbers.items.filter(r=>fold(r.values[index-1])===fold(token)).map(r=>[JSON.stringify(r.values.slice(0,2)),r])).values()]);if(pairs.every(p=>p.length===1)){form.elements['field-1'].value=pairs.map(p=>p[0].values[0]).join('\n');form.elements['field-2'].value=pairs.map(p=>p[0].values[1]).join('\n');editor.querySelector('[data-message]').textContent='입력 순서대로 번호를 연결했어요.';}else editor.querySelector('[data-message]').textContent='중복되거나 등록되지 않은 번호가 있어요. 각 번호의 연결을 확인해 주세요.';return;}
+        const matches=data.lists.numbers.items.filter(r=>fold(r.values[index-1])===query),unique=[...new Map(matches.map(r=>[JSON.stringify(r.values.slice(0,2)),r])).values()];
+        if(unique.length===1){apply(unique[0]);return;}
+        editor.querySelector('[data-message]').textContent=unique.length?'같은 번호가 여러 개예요. 연결할 스펙을 선택해 주세요.':'등록된 번호가 없어요. 다른 번호를 직접 입력할 수 있어요.';
+        unique.forEach(row=>{const b=document.createElement('button');b.type='button';b.className='install-button';b.textContent=row.values[0]+' → '+row.values[1];b.onclick=()=>apply(row);options.append(b);});
+      };});
+    }else editor.querySelector('.registry-match-options')?.remove();
+    editor.showModal();
   }
   form.onsubmit=async event=>{
     event.preventDefault();if(saving||!admin())return;const access=epoch,item={...editing,values:editing.values.map((_,i)=>form.elements['field-'+i].value.trim())};
+    if(item.kind==='sites'&&!item.values[1]&&!item.values[2]){editor.querySelector('[data-message]').textContent='종이넘버 또는 스펙넘버를 입력해 주세요.';return;}
+    if(item.kind==='sites'){const split=v=>v.split(/[,\n\r]+/).map(s=>s.trim()).filter(Boolean),a=split(item.values[1]),b=split(item.values[2]),m=split(item.values[3]);if(a.length&&b.length&&a.length!==b.length||m.length>1&&m.length!==Math.max(a.length,b.length)){editor.querySelector('[data-message]').textContent='종이넘버·스펙넘버·경면 개수를 순서대로 맞춰 주세요. 경면 1개는 모든 스펙에 공통 적용됩니다.';return;}}
     saving=true;editor.querySelectorAll('button,input,select,textarea').forEach(e=>e.disabled=true);editor.querySelector('[data-message]').textContent='시트에 저장 중…';
-    try{const result=await api.request('saveSpecRegistry',item);if(access!==epoch)return;revision++;const list=data.lists[item.kind].items;const index=list.findIndex(r=>r.id===item.id);if(index<0)list.push(result.item);else list[index]=result.item;editor.close();$('registry-message').textContent='시트에 저장했어요.';render();}
+    try{const result=await api.request('saveSpecRegistry',numberWrite(item));if(access!==epoch)return;revision++;let saved=result.item;if(item.kind==='numbers'&&data.legacyNumberColumns)saved={...saved,legacyMirror:saved.values[2],values:[saved.values[0],saved.values[1],saved.values[3]]};const list=data.lists[item.kind].items;const index=list.findIndex(r=>r.id===item.id);if(index<0)list.push(saved);else list[index]=saved;editor.close();$('registry-message').textContent='시트에 저장했어요.';render();}
     catch(error){if(access===epoch)editor.querySelector('[data-message]').textContent=error.message+' 입력 내용은 그대로 유지됩니다.';}
     finally{saving=false;editor.querySelectorAll('button,input,select,textarea').forEach(e=>e.disabled=false);render();}
   };

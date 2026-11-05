@@ -4,7 +4,7 @@
   const view = $('specs-view'), nav = $('specs-nav-button'), message = $('specs-message');
   let items = [], map, markers, picker, pickMarker, mapReady, loading, generation = 0, editing = null, location = null, saving = false;
   let retainedImages = [], uploadedImages = [], imageUrls = [], detailVersion = 0, searchVersion = 0, editorVersion = 0;
-  let dataRevision = 0, page=1;
+  let dataRevision = 0, page=1, siteSchemaVersion=0;
   const animateMap = () => !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const overview = target => target?.fitBounds([[33.1,125.5],[38.6,130.0]],{padding:[24,24],animate:animateMap()});
   const admin = () => window.CHAE_AUTH?.user?.role === 'admin' && window.CHAE_AUTH?.user?.status === 'approved';
@@ -20,12 +20,18 @@
     <button id="specs-locate" type="button">주소로 위치 찾기</button><div id="specs-candidates"></div>
     <p id="specs-location" role="status">지도에서 현장 위치를 선택해 주세요.</p><div id="specs-pick-map" class="specs-pick-map" aria-label="현장 위치 선택 지도"></div>
     <input name="lat" type="hidden"><input name="lng" type="hidden">
-    <h3>사용 종이 목록</h3><div id="specs-papers"></div><button id="specs-paper-add" type="button">＋ 종이 추가</button>
-    <label>현장 사진 (최대 4장)<input id="specs-files" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="specs-retained"></div>
+    <h3>스펙번호 · 경면</h3><div id="specs-papers"></div><button id="specs-paper-add" type="button">＋ 스펙 추가</button>
+    <label>사진 URL (한 줄에 하나씩 · 최대 12장)<textarea id="specs-photo-urls" rows="4" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea></label><div id="specs-url-preview" class="specs-photos"></div>
+    <label hidden>기존 방식 사진 첨부<input id="specs-files" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="specs-retained"></div>
     </fieldset><p id="specs-save-message" role="status"></p><div class="specs-actions"><button id="specs-cancel" type="button">취소</button><button type="submit">시트에 저장</button></div></form>`;
   document.body.append(editor);
   editor.addEventListener('close',()=>{editorVersion++;searchVersion++;});
   const form = $('specs-form');
+  const specLabel=p=>{const number=p.spec||p.number||'';return number+(p.mirror?'('+p.mirror+')':'');};
+  const splitSpec=v=>String(v||'').split(/[,\n\r]+/).map(s=>s.trim()).filter(Boolean);
+  function photoUrls(value){const urls=String(value||'').split(/[\r\n]+/).map(v=>v.trim()).filter(Boolean);if(urls.length>12||urls.some(u=>u.length>2000||!/^https:\/\/[^\s<>"']+$/i.test(u)))throw Error('사진은 HTTPS URL을 한 줄에 하나씩, 최대 12장 입력해 주세요.');return urls;}
+  function urlImage(url,container){const image=document.createElement('img');image.src=url;image.alt='현장 사진';image.loading='lazy';image.referrerPolicy='no-referrer';image.onerror=()=>{image.replaceWith(Object.assign(document.createElement('span'),{textContent:'사진을 불러올 수 없어요. 직접 이미지 URL인지 확인해 주세요.'}));};container.append(image);}
+  $('specs-photo-urls').addEventListener('change',()=>{const box=$('specs-url-preview');box.replaceChildren();try{photoUrls($('specs-photo-urls').value).forEach(url=>urlImage(url,box));}catch(e){$('specs-save-message').textContent=e.message;}});
   const detail = document.createElement('dialog');detail.className = 'specs-dialog';detail.setAttribute('aria-label','현장 스펙 상세');document.body.append(detail);
   function clearPhotos() { imageUrls.forEach(url => URL.revokeObjectURL(url));imageUrls=[]; }
   detail.addEventListener('close',()=>{detailVersion++;clearPhotos();detail.replaceChildren();});
@@ -78,11 +84,11 @@
     result.on('zoomend moveend resize',renderLabels);renderLabels();
     return result;
   }
-  function filtered() {const q=$('specs-search').value.trim().toLowerCase();return items.filter(x=>!q||[x.name,x.address,x.designer,x.contact,x.builder,...x.papers.flatMap(p=>[p.number,p.area,p.spec])].join(' ').toLowerCase().includes(q));}
+  function filtered() {const q=$('specs-search').value.trim().toLowerCase();return items.filter(x=>!q||[x.name,x.address,x.designer,x.contact,x.builder,...x.papers.flatMap(p=>[p.number,p.area,p.spec,p.mirror])].join(' ').toLowerCase().includes(q));}
   function render() {
     const rows=filtered();
     page=Math.max(1,Math.min(page,Math.ceil(rows.length/20)||1));
-    $('specs-list').innerHTML=rows.length?rows.slice((page-1)*20,page*20).map(x=>`<button type="button" data-spec-id="${escape(x.id)}"><strong><svg class="list-pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22S4 14 4 9a8 8 0 1 1 16 0c0 5-8 13-8 13Z"/><circle cx="12" cy="9" r="2.5" fill="white"/></svg> ${escape(x.name)}</strong><span>${escape(x.address)}</span><span>${escape(x.builder || '건설사 미입력')} · 종이 ${x.papers.length}종</span><span>M/H ${escape(x.openMonth||'미정')} · 완공 ${escape(x.completionMonth||'미정')}</span></button>`).join(''):'<p>등록된 현장이 없거나 검색 결과가 없어요.</p>';
+    $('specs-list').innerHTML=rows.length?rows.slice((page-1)*20,page*20).map(x=>`<button type="button" data-spec-id="${escape(x.id)}"><strong><svg class="list-pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22S4 14 4 9a8 8 0 1 1 16 0c0 5-8 13-8 13Z"/><circle cx="12" cy="9" r="2.5" fill="white"/></svg> ${escape(x.name)}</strong><span>${escape(x.address)}</span><span>${escape(x.builder || '건설사 미입력')} · ${escape(x.papers.map(specLabel).join(', ')||'스펙 미입력')}</span><span>M/H ${escape(x.openMonth||'미정')} · 완공 ${escape(x.completionMonth||'미정')}</span></button>`).join(''):'<p>등록된 현장이 없거나 검색 결과가 없어요.</p>';
     const pagination=$('specs-pagination');pagination.hidden=rows.length<=20;pagination.innerHTML=`<button type="button" data-spec-page="${page-1}" ${page===1?'disabled':''}>이전</button><span>${page} / ${Math.ceil(rows.length/20)||1}</span><button type="button" data-spec-page="${page+1}" ${page*20>=rows.length?'disabled':''}>다음</button>`;
     if(!markers)return;markers.clearLayers();
     const groups=new Map();rows.forEach(x=>{if(!Number.isFinite(x.lat)||!Number.isFinite(x.lng)||x.lat<32||x.lat>39.5||x.lng<124||x.lng>132.5)return;const key=`${x.lat},${x.lng}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x);});
@@ -94,7 +100,7 @@
   async function load() {
     if(!admin())return;if(loading)return loading;const version=generation,revision=dataRevision;
     message.textContent='현장 스펙을 불러오고 있어요.';
-    loading=(async()=>{try{const data=await api.request('specs');if(version!==generation||revision!==dataRevision)return;items=(data.items||[]).map(x=>({...x,papers:Array.isArray(x.papers)?x.papers:[],images:Array.isArray(x.images)?x.images:[]}));render();message.textContent='';}catch(e){if(version===generation&&revision===dataRevision)message.textContent=e.message;}finally{if(version===generation)loading=null;}})();return loading;
+    loading=(async()=>{try{const data=await api.request('specs');if(version!==generation||revision!==dataRevision)return;siteSchemaVersion=Number(data.siteSchemaVersion)||0;items=(data.items||[]).map(x=>({...x,papers:Array.isArray(x.papers)?x.papers:[],images:Array.isArray(x.images)?x.images:[]}));render();message.textContent='';}catch(e){if(version===generation&&revision===dataRevision)message.textContent=e.message;}finally{if(version===generation)loading=null;}})();return loading;
   }
   async function show() {
     if(!admin())return;
@@ -117,7 +123,9 @@
   $('specs-list').onclick=e=>{const b=e.target.closest('[data-spec-id]');if(b){const x=items.find(x=>x.id===b.dataset.specId);if(x)showDetail(x);}};
   function addPaper(p={}) {
     const row=document.createElement('div');row.className='specs-paper';
-    row.innerHTML=`<label>종이넘버 *<input data-paper="number" required maxlength="300" value="${escape(p.number)}"></label><label>사용부위<input data-paper="area" maxlength="300" value="${escape(p.area)}"></label><label>스펙명<input data-paper="spec" maxlength="300" value="${escape(p.spec)}"></label><button type="button" aria-label="이 종이 항목 삭제">삭제</button>`;
+    row.dataset.original=JSON.stringify(p);
+    row.innerHTML=`<label>스펙번호 *<textarea data-paper="spec" required maxlength="4000" placeholder="여러 개는 줄바꿈 또는 쉼표로 구분">${escape(p.spec||p.number||'')}</textarea></label><label>경면<textarea data-paper="mirror" maxlength="4000" placeholder="예: HM, SM">${escape(p.mirror||'')}</textarea></label><output class="spec-combined">${escape(specLabel(p))}</output><button type="button" aria-label="이 스펙 항목 삭제">삭제</button>`;
+    row.addEventListener('input',()=>{const specs=splitSpec(row.querySelector('[data-paper=spec]').value),mirrors=splitSpec(row.querySelector('[data-paper=mirror]').value);row.querySelector('output').textContent=specs.map((spec,i)=>specLabel({spec,mirror:mirrors.length===1?mirrors[0]:mirrors[i]})).join(', ');});
     row.querySelector('button').onclick=()=>row.remove();$('specs-papers').append(row);
   }
   function setLocation(lat,lng) {
@@ -130,6 +138,7 @@
     $('specs-editor-title').textContent=item?'현장 수정':'현장 등록';$('specs-save-message').textContent='';$('specs-candidates').replaceChildren();$('specs-location').textContent='주소 검색 또는 지도 클릭으로 위치를 선택하세요.';
     for(const k of ['name','address','designer','contact','builder','openMonth','completionMonth'])form.elements[k].value=item?.[k]||'';
     $('specs-papers').replaceChildren();(item?.papers.length?item.papers:[{}]).forEach(addPaper);renderRetained();
+    $('specs-photo-urls').value=(item?.imageUrls||[]).join('\n');$('specs-url-preview').replaceChildren();
     if(pickMarker&&picker){picker.removeLayer(pickMarker);pickMarker=null;}
     if(item)setLocation(item.lat,item.lng);
     editor.showModal();const version=generation;
@@ -161,7 +170,12 @@
     const files=Array.from($('specs-files').files);if(files.length+retainedImages.length>4){$('specs-save-message').textContent='사진은 기존 사진을 포함해 4장까지 가능해요.';return;}
     const payload={id:editing?.id||'',lat:Number(form.elements.lat.value),lng:Number(form.elements.lng.value)};
     for(const k of ['name','address','designer','contact','builder','openMonth','completionMonth'])payload[k]=form.elements[k].value.trim();
-    payload.papers=Array.from($('specs-papers').children).map(row=>Object.fromEntries(Array.from(row.querySelectorAll('input')).map(input=>[input.dataset.paper,input.value.trim()])));
+    try{
+      payload.imageUrls=photoUrls($('specs-photo-urls').value);
+      payload.papers=Array.from($('specs-papers').children).flatMap(row=>{const old=JSON.parse(row.dataset.original||'{}'),specs=splitSpec(row.querySelector('[data-paper=spec]').value),mirrors=splitSpec(row.querySelector('[data-paper=mirror]').value);if(!specs.length||mirrors.length>1&&mirrors.length!==specs.length)throw Error('스펙번호와 경면 개수를 맞춰 주세요. 경면 1개는 공통 적용됩니다.');return specs.map((spec,i)=>({...old,number:i===0?old.number||'':'',spec,mirror:mirrors.length===1?mirrors[0]:mirrors[i]||'',specMode:true}));});
+      if(payload.papers.length>50)throw Error('스펙은 최대 50개까지 입력해 주세요.');
+      if(siteSchemaVersion<2&&(payload.imageUrls.length||payload.papers.some(p=>p.mirror||!p.number)))throw Error('사진 URL·경면·스펙번호 단독 저장은 서버 업데이트 후 사용할 수 있어요. 입력 내용은 유지됩니다.');
+    }catch(e){$('specs-save-message').textContent=e.message;return;}
     const version=generation;saving=true;$('specs-fields').disabled=true;form.querySelector('[type=submit]').disabled=true;$('specs-cancel').disabled=true;
     try{
       for(let i=0;i<files.length;i++){if(uploadedImages[i])continue;$('specs-save-message').textContent=`사진 ${i+1}/${files.length} 업로드 중…`;const data=await photo(files[i]);if(version!==generation)return;const result=await api.request('uploadNoteImage',data);if(version!==generation)return;uploadedImages[i]=result.fileId;}
@@ -178,12 +192,13 @@
   });
   async function showDetail(item) {
     if(!admin())return;const version=++detailVersion,access=generation;clearPhotos();
-    detail.innerHTML=`<div class="specs-actions"><button data-edit type="button">수정</button><button data-delete type="button">삭제</button><button data-close type="button">닫기</button></div><h2>${escape(item.name)}</h2><dl class="specs-detail-data">${[['주소',item.address],['설계사',item.designer],['담당자',item.contact],['건설사',item.builder],['M/H 오픈날',item.openMonth],['완공 연월',item.completionMonth]].map(([k,v])=>`<dt>${k}</dt><dd>${escape(v||'미입력')}</dd>`).join('')}</dl><h3>사용 종이</h3><table class="specs-table"><thead><tr><th>종이넘버</th><th>사용부위</th><th>스펙명</th></tr></thead><tbody>${item.papers.map(p=>`<tr><td>${escape(p.number)}</td><td>${escape(p.area)}</td><td>${escape(p.spec)}</td></tr>`).join('')}</tbody></table><h3>사진</h3><div class="specs-photos"></div><p data-status role="status"></p>`;
+    detail.innerHTML=`<div class="specs-actions"><button data-edit type="button">수정</button><button data-delete type="button">삭제</button><button data-close type="button">닫기</button></div><h2>${escape(item.name)}</h2><dl class="specs-detail-data">${[['주소',item.address],['설계사',item.designer],['담당자',item.contact],['건설사',item.builder],['M/H 오픈날',item.openMonth],['완공 연월',item.completionMonth]].map(([k,v])=>`<dt>${k}</dt><dd>${escape(v||'미입력')}</dd>`).join('')}</dl><h3>스펙번호(경면)</h3><table class="specs-table"><thead><tr><th>스펙번호(경면)</th></tr></thead><tbody>${item.papers.map(p=>`<tr><td>${escape(specLabel(p))}</td></tr>`).join('')}</tbody></table><h3>사진</h3><div class="specs-photos"></div><p data-status role="status"></p>`;
     const actionIcons={edit:['현장 수정','<path d="m12 4 4 4M4 12l9-9 4 4-9 9-5 1z"/>'],delete:['현장 삭제','<path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6"/>'],close:['닫기','<path d="m5 5 10 10M15 5 5 15"/>']};
     for(const [key,[label,path]] of Object.entries(actionIcons)){const button=detail.querySelector(`[data-${key}]`);button.classList.add('specs-icon-action');button.setAttribute('aria-label',label);button.title=label;button.innerHTML=`<svg viewBox="0 0 20 20" aria-hidden="true">${path}</svg>`;}
     detail.querySelector('[data-close]').onclick=()=>detail.close();detail.querySelector('[data-edit]').onclick=()=>{detail.close();edit(item);};
     detail.querySelector('[data-delete]').onclick=async e=>{const button=e.currentTarget;if(!confirm('이 현장을 지도와 목록에서 숨길까요? 시트의 삭제일을 비우면 복구할 수 있어요.'))return;button.disabled=true;try{await api.request('deleteSpec',{id:item.id});if(access!==generation)return;detail.close();await load();}catch(error){if(version===detailVersion)detail.querySelector('[data-status]').textContent=error.message;}finally{button.disabled=false;}};
     detail.showModal();
+    for(const url of item.imageUrls||[])urlImage(url,detail.querySelector('.specs-photos'));
     for(const id of item.images){try{const data=await api.request('specImage',{fileId:id});if(access!==generation||version!==detailVersion||!detail.open)return;if(!/^image\/(jpeg|png|webp)$/.test(data.mime))continue;const url=URL.createObjectURL(new Blob([Uint8Array.from(atob(data.base64),x=>x.charCodeAt(0))],{type:data.mime}));imageUrls.push(url);const image=document.createElement('img');image.src=url;image.alt=item.name+' 현장 사진';detail.querySelector('.specs-photos').append(image);}catch(error){if(version===detailVersion)detail.querySelector('[data-status]').textContent='일부 사진을 불러오지 못했어요.';}}
   }
   window.addEventListener('access-change',()=>{

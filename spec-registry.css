@@ -15,6 +15,7 @@
 #registry-table th:last-child,#registry-table td:last-child {min-width:64px;max-width:76px;text-align:center;}
 #registry-table tbody tr:nth-child(even) {background:#fcf8fb;}
 #registry-table tbody tr:hover {background:#fff0f6;}
+#registry-table td {white-space:pre-line;}
 #registry-table .registry-row-edit,#registry-table .registry-copy {width:34px;height:34px;min-height:34px;box-sizing:border-box;padding:0;line-height:1;font-size:12px;border:1px solid #e6bfd5;border-radius:9px;background:white;color:#ad739b;display:inline-grid;place-items:center;vertical-align:middle;cursor:pointer;}
 .registry-row-edit svg,.registry-copy svg {display:block;width:16px;height:16px;margin:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
 .registry-paper-number {display:inline-flex;align-items:center;gap:8px;}

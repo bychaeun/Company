@@ -42,14 +42,14 @@ function doPost(e) {
     }
     if (user.role !== 'admin') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자만 사용할 수 있습니다.'});
     if (action === 'specRegistry') return zipJson_(zipReadCache_('registry',body.force,zipRegistryData_));
-    if (action === 'saveSpecRegistry') return zipJson_(zipMutateRead_(['registry'],function(){return zipSaveRegistry_(body);}));
-    if (action === 'deleteSpecRegistry') return zipJson_(zipMutateRead_(['registry'],function(){return zipDeleteRegistry_(body);}));
+    if (action === 'saveSpecRegistry') return zipJson_(zipMutateRead_(['registry','specs'],function(){return zipSaveRegistry_(body);}));
+    if (action === 'deleteSpecRegistry') return zipJson_(zipMutateRead_(['registry','specs'],function(){return zipDeleteRegistry_(body);}));
     if (action === 'board') return zipJson_(zipReadCache_('board',body.force,function(){return {ok:true,items:zipBoard_(),artboards:zipArtboards_()};}));
     if (action === 'saveBoard') return zipJson_(zipMutateRead_(['board'],function(){return zipSaveBoard_(body);}));
     if (action === 'deleteBoard') return zipJson_(zipMutateRead_(['board'],function(){return zipDeleteBoard_(body.id);}));
     if (action === 'deleteBoards') return zipJson_(zipMutateRead_(['board'],function(){return zipDeleteBoards_(body.ids);}));
     if (action === 'saveArtboard') return zipJson_(zipMutateRead_(['board'],function(){return zipSaveArtboard_(body);}));
-    if (action === 'specs') return zipJson_(zipReadCache_('specs',body.force,function(){return {ok:true,items:zipSpecs_()};}));
+    if (action === 'specs') return zipJson_(zipReadCache_('specs',body.force,function(){return {ok:true,siteSchemaVersion:2,items:zipSpecs_()};}));
     if (action === 'saveSpec') return zipJson_(zipMutateRead_(['specs','registry'],function(){return zipSaveSpec_(body);}));
     if (action === 'deleteSpec') return zipJson_(zipMutateRead_(['specs','registry'],function(){return zipDeleteSpec_(body.id);}));
     if (action === 'geocodeSpec') return zipJson_(zipGeocodeSpec_(body.address));
@@ -82,7 +82,7 @@ function zipReadCache_(scope,force,loader) {
   var cache,key;
   try {
     cache=CacheService.getScriptCache();
-    key='read-v1:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
+    key='read-v3:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
     if(!force){var packed=cache.get(key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
   }catch(ignore){cache=null;}
   var result=loader();
@@ -99,12 +99,12 @@ function zipMutateRead_(scopes,write) {
   try{return write();}finally{zipInvalidateRead_(scopes);}
 }
 function zipInvalidateSheetRead_(name) {
-  var scopes=name==='내 스펙관리'?['specs','registry']:['현장별 관리','스펙번호 관리'].indexOf(name)>=0?['registry']:['디자인 보드','디자인 대지'].indexOf(name)>=0?['board']:name==='체크리스트'?['checklist']:['notes'];
+  var scopes=['내 스펙관리','현장별 관리'].indexOf(name)>=0?['specs','registry']:name==='스펙번호 관리'?['registry']:['디자인 보드','디자인 대지'].indexOf(name)>=0?['board']:name==='체크리스트'?['checklist']:['notes'];
   zipInvalidateRead_(scopes);
 }
 function warmAppReadCache() {
   zipNotes_(true);
-  zipReadCache_('specs',true,function(){return {ok:true,items:zipSpecs_()};});
+  zipReadCache_('specs',true,function(){return {ok:true,siteSchemaVersion:2,items:zipSpecs_()};});
   zipReadCache_('registry',true,zipRegistryData_);
   zipReadCache_('board',true,function(){return {ok:true,items:zipBoard_(),artboards:zipArtboards_()};});
 }

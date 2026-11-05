@@ -9,6 +9,11 @@ const valid=()=>({name:'테스트 현장',address:'서울 테스트 주소',lat:
 test('preserves multiple paper numbers, parts, names and both dates',()=>{
  const data=ctx.zipSpecInput_(valid());assert.equal(data.papers.length,2);assert.equal(data.papers[0].number,'001');assert.equal(data.openMonth,'2026-10');assert.equal(data.completionMonth,'2028-01');
 });
+test('specification-only entries preserve mirror and legacy fields without needing a paper number',()=>{
+ const value=ctx.zipSpecInput_({...valid(),papers:[{spec:'1234',mirror:'HM',specMode:true}]});assert.equal(value.papers[0].spec,'1234');assert.equal(value.papers[0].mirror,'HM');assert.equal(value.papers[0].number,'');assert.equal(value.papers[0].specMode,true);
+ assert.throws(()=>ctx.zipSpecInput_({...valid(),papers:[{spec:'',mirror:'HM',specMode:true}]}));
+ const old=ctx.zipSpecInput_({...valid(),papers:[{number:'001',area:'거실',spec:'1234',mirror:'SM',specMode:true}]});assert.equal(old.papers[0].number,'001');assert.equal(old.papers[0].area,'거실');
+});
 test('rejects missing names, bad coordinates, invalid months, malformed paper rows',()=>{
  for(const extra of [{name:''},{address:''},{lat:null},{lat:0},{lng:Infinity},{openMonth:'2026-13'},{papers:[{number:''}]},{images:['https://example.test/image.png']}])assert.throws(()=>ctx.zipSpecInput_({...valid(),...extra}));
 });
