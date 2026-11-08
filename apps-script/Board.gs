@@ -46,7 +46,7 @@ function zipSaveBoard_(body){
   try{var sh=zipBoardSheet_(),rows=sh.getLastRow()<2?[]:sh.getRange(2,1,sh.getLastRow()-1,12).getDisplayValues(),index=rows.findIndex(function(r){return r[0]===x.id;});
     if(index>=0&&rows[index][9])throw new Error('Deleted board note');
     if(index>=0){var old=zipBoardRow_(rows[index]);if(body.boardId===undefined)x.boardId=old.boardId;if(body.urls===undefined&&x.url===old.url)x.urls=old.urls;}
-    if(!zipArtboards_().some(function(b){return b.id===x.boardId;}))throw new Error('Unknown artboard');
+    if(x.boardId!=='default'&&!zipArtboards_().some(function(b){return b.id===x.boardId;}))throw new Error('Unknown artboard');
     if(x.link&&!rows.some(function(r){return r[0]===x.link&&!r[9]&&(r[10]||'default')===x.boardId;}))throw new Error('Invalid board connection');
     var stamp=new Date().toISOString();sh.getRange(index<0?sh.getLastRow()+1:index+2,1,1,12).setNumberFormat('@').setValues([[x.id,x.title,x.content,x.urls[0]||'',x.color,String(x.x),String(x.y),x.link,stamp,'',x.boardId,JSON.stringify(x.urls)].map(zipSafeCell_)]);return {ok:true,updatedAt:stamp};
   }finally{lock.releaseLock();}
