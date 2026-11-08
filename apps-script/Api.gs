@@ -78,16 +78,34 @@ function zipJson_(value) {if(ZIP_REQUEST_STARTED)value.readTiming={serverMs:Date
 var ZIP_REQUEST_STARTED,ZIP_CACHE_HIT=false;
 function zipHash_(text) { return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(text))).replace(/=+$/,''); }
 // Private, server-side snapshots only. Authentication above is never cached.
+// Large snapshots are split across several cache entries (CacheService allows ~100KB per value).
+var ZIP_CACHE_CHUNK=90000,ZIP_CACHE_MAX_CHUNKS=40;
 function zipReadCache_(scope,force,loader) {
   var cache,key;
   try {
     cache=CacheService.getScriptCache();
-    key='read-v4:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
-    if(!force){var packed=cache.get(key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
+    key='read-v5:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
+    if(!force){var packed=zipCacheGetChunks_(cache,key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
   }catch(ignore){cache=null;}
   var result=loader();
-  if(cache)try{var encoded=Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(result))).getBytes());if(encoded.length<90000)cache.put(key,encoded,600);}catch(ignore){}
+  if(cache)try{zipCachePutChunks_(cache,key,Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(result))).getBytes()),600);}catch(ignore){}
   return result;
+}
+function zipCacheGetChunks_(cache,key) {
+  var count=Number(cache.get(key+':n')||0);
+  if(!count||count>ZIP_CACHE_MAX_CHUNKS)return null;
+  var keys=[];for(var i=0;i<count;i++)keys.push(key+':'+i);
+  var parts=typeof cache.getAll==='function'?cache.getAll(keys):keys.reduce(function(all,k){var v=cache.get(k);if(v!=null)all[k]=v;return all;},{});
+  var text='';for(var j=0;j<count;j++){var part=parts[keys[j]];if(part==null)return null;text+=part;}
+  return text;
+}
+function zipCachePutChunks_(cache,key,encoded,ttl) {
+  var count=Math.ceil(encoded.length/ZIP_CACHE_CHUNK);
+  if(!count||count>ZIP_CACHE_MAX_CHUNKS)return;
+  var values={};for(var i=0;i<count;i++)values[key+':'+i]=encoded.slice(i*ZIP_CACHE_CHUNK,(i+1)*ZIP_CACHE_CHUNK);
+  if(typeof cache.putAll==='function')cache.putAll(values,ttl);else Object.keys(values).forEach(function(k){cache.put(k,values[k],ttl);});
+  // The count is written last so a partially stored snapshot is never read.
+  cache.put(key+':n',String(count),ttl);
 }
 function zipInvalidateRead_(scopes) {
   if(typeof Utilities==='undefined'||typeof Utilities.getUuid!=='function')return;
@@ -99,6 +117,7 @@ function zipMutateRead_(scopes,write) {
   try{return write();}finally{zipInvalidateRead_(scopes);}
 }
 function zipInvalidateSheetRead_(name) {
+  if(name==='접근관리'){zipInvalidateUsers_();return;}
   var scopes=['내 스펙관리','현장별 관리'].indexOf(name)>=0?['specs','registry']:name==='스펙번호 관리'?['registry']:['디자인 보드','디자인 대지'].indexOf(name)>=0?['board']:name==='체크리스트'?['checklist']:['notes'];
   zipInvalidateRead_(scopes);
 }
@@ -147,16 +166,32 @@ function zipPublicUser_(row) {
   var admin = zipAdmin_(row[0]);
   return {sub:row[0],email:row[1],name:row[2],role:admin?'admin':'member',status:admin||row[3]==='승인'?'approved':row[3]==='거절'||row[3]==='차단'?'rejected':'pending'};
 }
+// Resolved accounts are cached briefly so every request does not reopen the 접근관리 sheet.
+// Any status change (app or direct sheet edit) rotates the generation and drops every cached account.
+function zipUserCacheKey_(cache,hash) {
+  var generation=cache.get('users-generation');
+  if(!generation){generation=Utilities.getUuid();cache.put('users-generation',generation,21600);}
+  return 'session-user:'+generation+':'+hash;
+}
+function zipInvalidateUsers_() {
+  try{CacheService.getScriptCache().put('users-generation',Utilities.getUuid(),21600);}catch(ignore){}
+}
 function zipSession_(token) {
   if (typeof token !== 'string' || token.length > 200) throw zipAuthError_();
-  var key = 'session:' + zipHash_(token), props = PropertiesService.getScriptProperties();
+  var hash = zipHash_(token), key = 'session:' + hash, props = PropertiesService.getScriptProperties();
   var session = JSON.parse(props.getProperty(key) || 'null');
   if (!session || !session.sub || (session.expires != null && session.expires <= Date.now())) { props.deleteProperty(key); throw zipAuthError_(); }
+  var cache = null, cacheKey = '';
+  if (session.expires == null) {
+    try { cache = CacheService.getScriptCache(); cacheKey = zipUserCacheKey_(cache,hash); var known = JSON.parse(cache.get(cacheKey) || 'null'); if (known && known.sub === session.sub) return known; } catch (ignore) { cache = null; }
+  }
   var row = zipUsers_().find(function(r){return r[0] === session.sub;});
   if (!row) throw zipAuthError_();
   // Upgrade still-valid legacy sessions. Expired credentials must sign in once again.
   if (session.expires != null) props.setProperty(key,JSON.stringify({sub:session.sub,expires:null}));
-  return zipPublicUser_(row);
+  var user = zipPublicUser_(row);
+  if (cache) try { cache.put(cacheKey,JSON.stringify(user),120); } catch (ignore) {}
+  return user;
 }
 function zipSafeCell_(value) { value = String(value || ''); return /^[=+@-]/.test(value) ? "'" + value : value; }
 
@@ -196,6 +231,7 @@ function zipLogin_(idToken,nonce) {
     Object.keys(all).filter(function(k){return k.indexOf('session:')===0;}).forEach(function(k){try{var old=JSON.parse(all[k]);if(!old || (old.expires != null && old.expires <= Date.now()))props.deleteProperty(k);}catch(e){props.deleteProperty(k);}});
     var token = Utilities.getUuid()+Utilities.getUuid();
     props.setProperty('session:'+zipHash_(token),JSON.stringify({sub:identity.sub,expires:null}));
+    zipInvalidateUsers_();
     return {ok:true,sessionToken:token,user:zipPublicUser_(row)};
   } finally { lock.releaseLock(); }
 }
@@ -207,6 +243,7 @@ function zipSetStatus_(sub,status) {
     var i=rows.findIndex(function(r){return r[0]===sub;});
     if(i<1)throw new Error('Unknown user');
     sh.getRange(i+1,4).setValue(status);
+    zipInvalidateUsers_();
     return {ok:true};
   } finally {lock.releaseLock();}
 }
@@ -377,9 +414,12 @@ function zipChecklistSheet_() {
   if(!ZIP_CHECKLIST_HEADERS.every(function(h,i){return headers[i]===h;}))throw new Error('Invalid checklist headers');
   var extra=sh.getRange(1,7,1,2).getDisplayValues()[0];
   if(extra[0] && extra[0]!=='완료일시' || extra[1] && extra[1]!=='삭제일시')throw new Error('Unexpected checklist columns');
-  if(!extra[0] || !extra[1])sh.getRange(1,7,1,2).setValues([['완료일시','삭제일시']]);
-  sh.getRange(2,1,Math.max(1,sh.getMaxRows()-1),1).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
-  sh.getRange(2,3,Math.max(1,sh.getMaxRows()-1),1).setNumberFormat('yyyy-mm-dd');
+  if(!extra[0] || !extra[1]){
+    sh.getRange(1,7,1,2).setValues([['완료일시','삭제일시']]);
+    // One-time column setup; new rows are formatted individually when added.
+    sh.getRange(2,1,Math.max(1,sh.getMaxRows()-1),1).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+    sh.getRange(2,3,Math.max(1,sh.getMaxRows()-1),1).setNumberFormat('yyyy-mm-dd');
+  }
   return sh;
 }
 function zipChecklist_() {
@@ -406,7 +446,9 @@ function zipAddChecklist_(body) {
     event.setDescription(['CHAE EUN.ZIP 체크리스트',item.note].filter(Boolean).join('\n\n'));
     var sh=zipChecklistSheet_();
     sh.appendRow([false,zipSafeCell_(item.task),item.when,item.time,zipSafeCell_(item.note),event.getId()]);
-    sh.getRange(sh.getLastRow(),3).setNumberFormat('yyyy-mm-dd');
+    var added=sh.getLastRow();
+    sh.getRange(added,1).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+    sh.getRange(added,3).setNumberFormat('yyyy-mm-dd');
     return {ok:true,item:{row:sh.getLastRow(),done:false,task:item.task,date:item.date,time:item.time,note:item.note,calendar:true}};
   }finally{lock.releaseLock();}
 }
