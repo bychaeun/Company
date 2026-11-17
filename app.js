@@ -217,7 +217,7 @@
     el.pagination.hidden = records.length <= pageSize;
     el.pagination.innerHTML = records.length <= pageSize ? "" : `
       <button class="page-arrow" type="button" data-page="${state.page - 1}" ${state.page === 1 ? "disabled" : ""} aria-label="이전 페이지">‹</button>
-      <span class="page-pudding" aria-hidden="true">🍮</span>
+
       ${Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => `<button type="button" data-page="${page}" class="page-number ${page === state.page ? "active" : ""}" ${page === state.page ? 'aria-current="page"' : ""}>${page}</button>`).join("")}
       <button class="page-arrow" type="button" data-page="${state.page + 1}" ${state.page === pageCount ? "disabled" : ""} aria-label="다음 페이지">›</button>`;
     hydrateImages(el.list);
@@ -507,47 +507,37 @@
       canvas.height = height;
       const context = canvas.getContext("2d");
 
-      context.fillStyle = "#fff8fb";
+      context.fillStyle = "#ffffff";
       context.fillRect(0, 0, width, height);
-      context.fillStyle = "#f7e7ff";
-      context.beginPath();
-      context.arc(width - 80, 80, 230, 0, Math.PI * 2);
-      context.fill();
-      context.fillStyle = "#fff0c9";
-      context.beginPath();
-      context.arc(20, height - 20, 260, 0, Math.PI * 2);
-      context.fill();
-      roundedRect(context, 42, 42, width - 84, height - 84, 44);
-      context.fillStyle = "rgba(255,255,255,.92)";
-      context.fill();
-      context.strokeStyle = "#eaddea";
-      context.lineWidth = 3;
+      roundedRect(context, 42, 42, width - 84, height - 84, 14);
+      context.strokeStyle = "#e2e5e8";
+      context.lineWidth = 2;
       context.stroke();
 
       let y = 104;
-      context.fillStyle = "#f08aa7";
+      context.fillStyle = "#426d79";
       context.font = "800 24px Pretendard, Arial, sans-serif";
       context.fillText("CHAE EUN.ZIP  ·  채은 지식 저장소", padding, y);
       y += 58;
-      context.fillStyle = "#8d6bb4";
+      context.fillStyle = "#68727c";
       context.font = "700 24px Pretendard, Arial, sans-serif";
       context.fillText(`${record.category}${record.subcategory ? `  ·  ${record.subcategory}` : ""}`, padding, y);
       y += 68;
-      context.fillStyle = "#352f3f";
+      context.fillStyle = "#252b32";
       context.font = "800 58px Pretendard, Arial, sans-serif";
       titleLines.forEach((line) => { context.fillText(line, padding, y); y += 72; });
       y += 14;
       if (addressLines.length) {
-        context.fillStyle = "#a45f7c";
+        context.fillStyle = "#68727c";
         context.font = "700 27px Pretendard, Arial, sans-serif";
         addressLines.forEach((line) => { context.fillText(line, padding, y); y += 44; });
         y += 8;
       }
-      context.strokeStyle = "#eaddea";
+      context.strokeStyle = "#e2e5e8";
       context.lineWidth = 2;
       context.beginPath(); context.moveTo(padding, y); context.lineTo(width - padding, y); context.stroke();
       y += 58;
-      context.fillStyle = "#4e4657";
+      context.fillStyle = "#35424c";
       context.font = "400 31px Pretendard, Arial, sans-serif";
       contentLines.forEach((line) => { context.fillText(line, padding, y); y += 48; });
       y += 28;
@@ -561,7 +551,7 @@
         y += size.height + 24;
       });
 
-      context.fillStyle = "#a196aa";
+      context.fillStyle = "#89939c";
       context.font = "500 22px Pretendard, Arial, sans-serif";
       context.fillText(record.updatedAt ? `마지막 수정  ${record.updatedAt}` : "CHAE EUN.ZIP · 채은 지식 저장소", padding, height - 92);
 
