@@ -20,6 +20,14 @@ function zipColumns_(sheet,names,optional,create){
   });
   // Validate the whole schema before appending; never overwrite user columns.
   missing.forEach(function(i){var col=++width;if(col>sheet.getMaxColumns())sheet.insertColumnsAfter(sheet.getMaxColumns(),col-sheet.getMaxColumns());sheet.getRange(1,col).setValue(names[i]);columns[i]=col;});
+  // Sorting with the sheet's filter must move image URLs together with their record IDs.
+  var filter=missing.length?sheet.getFilter():null;
+  if(filter&&typeof filter.getRange==='function'){
+    var filtered=filter.getRange();if(filtered.getLastColumn()<width){
+      var criteria=[];for(var c=filtered.getColumn();c<=filtered.getLastColumn();c++)criteria[c]=filter.getColumnFilterCriteria(c);
+      filter.remove();var expanded=sheet.getRange(filtered.getRow(),1,filtered.getNumRows(),width).createFilter();criteria.forEach(function(rule,i){if(rule)expanded.setColumnFilterCriteria(i,rule);});
+    }
+  }
   return columns;
 }
 function zipMappedRows_(sheet,columns,start,length){
@@ -55,7 +63,12 @@ function zipRegistryData_() {
     var result={ok:true,syncedAt:new Date().toISOString(),lists:{},statuses:[]};
     Object.keys(ZIP_REGISTRY).forEach(function(kind){var data=zipRegistrySheet_(kind);result.lists[kind]={headers:kind==='numbers'?['종이넘버','스펙넘버','비고']:data.definition.headers,items:data.rows.filter(function(r){return r[data.count]&&!r[data.count+2]&&r.slice(0,data.count).some(function(v){return v!=='';});}).map(function(r){return zipRegistryItem_(r,data.count);})};
       if(kind==='sites'){var rule=data.sheet.getRange(2,data.columns[7]).getDataValidation();if(rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)result.statuses=rule.getCriteriaValues()[0];}
-    });result.mapItems=zipSpecs_();result.unifiedSites=true;result.registryPhotoUrls=true;return result;
+      if(kind==='numbers'){
+        var photoColumn=zipColumns_(data.sheet,['종이 이미지 URL'],[],['종이 이미지 URL'])[0],photoRows=data.rows.length?data.sheet.getRange(2,photoColumn,data.rows.length,1).getDisplayValues():[],photosById={};
+        data.rows.forEach(function(row,i){photosById[row[data.count]]=photoRows[i][0]||'';});
+        result.lists.numbers.items=result.lists.numbers.items.map(function(item){var raw=photosById[item.id]||'';item.imageUrls=zipReadablePhotoUrls_(raw);item.photoVersion=zipHash_(raw);return item;});
+      }
+    });result.mapItems=zipSpecs_();result.unifiedSites=true;result.registryPhotoUrls=true;result.paperPhotoUrls=true;return result;
   }finally{lock.releaseLock();}
 }
 function zipRegistryInput_(body) {
@@ -72,10 +85,10 @@ function zipSaveRegistry_(body) {
     if(body.kind==='numbers'&&values.length===3)values=[values[0],values[1],previous?previous[2]:'',values[2]];
     if(body.kind==='sites'){values=zipFillRegistryPair_(values);zipValidateSiteLists_(values);}
     var photos=null;
-    if(body.kind==='sites'&&Object.prototype.hasOwnProperty.call(body,'imageUrls')){
+    if(Object.prototype.hasOwnProperty.call(body,'imageUrls')){
       if(!Array.isArray(body.imageUrls))throw zipRegistryError_('REGISTRY_INPUT');
       var urls;try{urls=zipPhotoUrls_(body.imageUrls);}catch(error){throw zipRegistryError_('REGISTRY_INPUT');}
-      var photoColumn=zipColumns_(data.sheet,['사진 URL'],[],['사진 URL'])[0],before=rowIndex<0?'':data.sheet.getRange(rowIndex+2,photoColumn).getDisplayValues()[0][0],after=urls.join('\n');
+      var photoHeader=body.kind==='numbers'?'종이 이미지 URL':'사진 URL',photoColumn=zipColumns_(data.sheet,[photoHeader],[],[photoHeader])[0],before=rowIndex<0?'':data.sheet.getRange(rowIndex+2,photoColumn).getDisplayValues()[0][0],after=urls.join('\n');
       if(previous&&after!==before&&body.photoVersion!==zipHash_(before))throw zipRegistryError_('REGISTRY_CONFLICT');
       photos={column:photoColumn,before:before,after:after,urls:urls};
     }

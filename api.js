@@ -9,8 +9,8 @@
     const registry={numbers:{headers:['종이넘버','스펙넘버','비고'],items:[]},sites:{headers:['현장명','종이넘버','스펙넘버','경면','모델하우스 예정일','본납 예정일','설계사','진행상태','비고'],items:[]}};
     window.ZIP_API = {
       async request(action,payload={}) {
-        if(action==='specRegistry')return {ok:true,lists:clone(registry),mapItems:clone(specs),unifiedSites:false,registryPhotoUrls:true,statuses:['제안 중','스펙 확정','모델하우스 진행','본납 대기','본납 완료','보류'],syncedAt:new Date().toISOString()};
-        if(action==='saveSpecRegistry'){const before=registry[payload.kind].items.find(r=>r.id===payload.id),urls=payload.imageUrls??before?.imageUrls??[];const item={id:payload.id,values:clone(payload.values),version:String(Date.now()),...(payload.kind==='sites'?{imageUrls:clone(urls),photoVersion:JSON.stringify(urls)}:{})};registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==item.id).concat(item);return {ok:true,item:clone(item)};}
+        if(action==='specRegistry')return {ok:true,lists:clone(registry),mapItems:clone(specs),unifiedSites:false,registryPhotoUrls:true,paperPhotoUrls:true,statuses:['제안 중','스펙 확정','모델하우스 진행','본납 대기','본납 완료','보류'],syncedAt:new Date().toISOString()};
+        if(action==='saveSpecRegistry'){const before=registry[payload.kind].items.find(r=>r.id===payload.id),urls=payload.imageUrls??before?.imageUrls??[];const item={id:payload.id,values:clone(payload.values),version:String(Date.now()),imageUrls:clone(urls),photoVersion:JSON.stringify(urls)};registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==item.id).concat(item);return {ok:true,item:clone(item)};}
         if(action==='deleteSpecRegistry'){registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==payload.id);return {ok:true};}
         if(action==='board')return {ok:true,items:clone(board),artboards:clone(artboards)};
         if(action==='saveBoard'){board=board.filter(n=>n.id!==payload.id).concat(clone(payload));return {ok:true};}

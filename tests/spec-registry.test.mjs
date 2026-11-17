@@ -21,7 +21,7 @@ function setup(){
   };store.set(name,sh);return sh;
  }
  const numbers=sheet('스펙번호 관리',['종이넘버','스펙넘버','경면','비고']),sites=sheet('내 스펙관리',['현장명','종이넘버','스펙넘버','경면','모델하우스 예정일','본납 예정일','설계사','진행상태','비고']);
- const c={zipSheet_:()=>({getSheetByName:n=>store.get(n)}),zipHash_:s=>createHash('sha256').update(s).digest('hex'),zipSpecs_:()=>[],Utilities:{getUuid:()=>`00000000-0000-0000-0000-${String(++next).padStart(12,'0')}`},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},SpreadsheetApp:{DataValidationCriteria:{VALUE_IN_LIST:'list'},flush(){}},console};vm.createContext(c);vm.runInContext(source,c);return {c,numbers,sites,sheet};
+ const c={zipSheet_:()=>({getSheetByName:n=>store.get(n)}),zipHash_:s=>createHash('sha256').update(s).digest('hex'),Utilities:{getUuid:()=>`00000000-0000-0000-0000-${String(++next).padStart(12,'0')}`},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},SpreadsheetApp:{DataValidationCriteria:{VALUE_IN_LIST:'list'},flush(){}},console};vm.createContext(c);vm.runInContext(source,c);vm.runInContext(readFileSync(new URL('../apps-script/Specs.gs',import.meta.url),'utf8'),c);c.zipSpecs_=()=>[];return {c,numbers,sites,sheet};
 }
 test('reads append stable IDs without changing leading-zero numbers or original columns',()=>{
  const {c,numbers}=setup();numbers.data.push(['0012','0007','HM','그대로']);const result=c.zipRegistryData_();
@@ -126,4 +126,10 @@ test('invalid, stale and formula-backed photo edits never partially overwrite a 
  assert.throws(()=>c.zipSaveRegistry_({...body,imageUrls:['javascript:alert(1)']}),e=>e.zipCode==='REGISTRY_INPUT');assert.equal(JSON.stringify(sites.data),before);
  const column=c.zipUnifiedSiteSheet_().columns[20];sites.data[1][column-1]='https://example.com/concurrent.jpg';before=JSON.stringify(sites.data);assert.throws(()=>c.zipSaveRegistry_({...body,imageUrls:['https://example.com/new.jpg']}),e=>e.zipCode==='REGISTRY_CONFLICT');assert.equal(JSON.stringify(sites.data),before);
  const current=c.zipSpecs_()[0];sites.formulas[`2:${column}`]='=IMAGE(1)';assert.throws(()=>c.zipSaveRegistry_({...body,photoVersion:current.photoVersion,imageUrls:[]}),e=>e.zipCode==='REGISTRY_FORMULA');assert.equal(JSON.stringify(sites.data),before);
+});
+test('paper images persist independently of site images and retain paper/specification values',()=>{
+ const {c,numbers,sites}=setup();numbers.data.push(['001','SPEC-1','','원본 비고']);let item=c.zipRegistryData_().lists.numbers.items[0];const urls=['https://example.com/paper-1.jpg','https://example.com/paper-2.png'];
+ const saved=c.zipSaveRegistry_({kind:'numbers',...item,imageUrls:urls}).item;assert.deepEqual(Array.from(saved.imageUrls),urls);assert.deepEqual(Array.from(saved.values),['001','SPEC-1','원본 비고']);item=c.zipRegistryData_().lists.numbers.items[0];assert.deepEqual(Array.from(item.imageUrls),urls);assert.equal(item.photoVersion,saved.photoVersion);assert.ok(numbers.data[0].includes('종이 이미지 URL'));assert.equal(sites.data[0].includes('종이 이미지 URL'),false);
+ const oldClient=c.zipSaveRegistry_({kind:'numbers',id:item.id,version:item.version,values:['001','SPEC-1','비고 수정']}).item;assert.deepEqual(Array.from(c.zipRegistryData_().lists.numbers.items[0].imageUrls),urls);
+ assert.throws(()=>c.zipSaveRegistry_({kind:'numbers',...oldClient,imageUrls:[],photoVersion:'stale'}),e=>e.zipCode==='REGISTRY_CONFLICT');c.zipSaveRegistry_({kind:'numbers',...oldClient,imageUrls:[],photoVersion:item.photoVersion});assert.deepEqual(Array.from(c.zipRegistryData_().lists.numbers.items[0].imageUrls),[]);
 });

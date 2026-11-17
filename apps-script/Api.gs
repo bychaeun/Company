@@ -84,7 +84,7 @@ function zipReadCache_(scope,force,loader) {
   var cache,key;
   try {
     cache=CacheService.getScriptCache();
-    key='read-v6:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
+    key='read-v7:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
     if(!force){var packed=zipCacheGetChunks_(cache,key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
   }catch(ignore){cache=null;}
   var result=loader();

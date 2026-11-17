@@ -62,3 +62,9 @@
 .registry-photo-preview {display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px;}
 .registry-photo-preview img {display:block;width:100%;height:130px;object-fit:contain;border-radius:12px;background:#f4eff3;}
 .registry-photo-preview > p {grid-column:1/-1;}
+#registry-table .registry-image-column {width:96px;min-width:96px;max-width:110px;text-align:center;}
+#registry-table .registry-paper-preview {position:relative;display:inline-grid;place-items:center;width:68px;height:68px;min-height:68px;margin:0;padding:0;overflow:hidden;border-radius:10px;background:#f7f0f5;font-size:12px;color:#98758b;}
+.registry-paper-preview img {display:block;width:68px;height:68px;object-fit:cover;}
+.registry-paper-preview [hidden] {display:none!important;}
+.registry-paper-count {position:absolute;right:3px;bottom:3px;min-width:18px;border-radius:8px;padding:0 4px;background:#705163dc;color:white;font-size:10px;line-height:18px;}
+.registry-paper-memo {white-space:pre-line;overflow-wrap:anywhere;font-size:14px;line-height:1.7;}
