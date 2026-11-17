@@ -49,3 +49,16 @@
 .registry-detail-fields {display:grid;grid-template-columns:120px minmax(0,1fr);gap:14px 18px;font-size:14px;line-height:1.7;}
 .registry-detail-fields dt {color:#987b90;}.registry-detail-fields dd {margin:0;white-space:pre-line;overflow-wrap:anywhere;}
 @media(max-width:600px){#specs-search,#registry-search {height:42px;padding:9px 12px;}.registry-search {font-size:14px;}.registry-toolbar {gap:8px;margin-top:16px;}.specs-search-heading {font-size:14px;margin-top:16px;}.registry-detail-fields {grid-template-columns:92px minmax(0,1fr);gap:12px;}}
+.registry-photo-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;}
+.registry-photo-heading h3 {margin:0;font-size:15px;}.registry-photo-heading button {font-size:13px;padding:7px 10px;}
+.registry-photo-gallery {display:grid;gap:14px;margin-bottom:24px;}
+.registry-photo-gallery figure,.registry-photo-preview figure {margin:0;min-width:0;}
+.registry-photo-gallery img {display:block;width:100%;height:auto;max-height:50dvh;object-fit:contain;border-radius:14px;background:#f4eff3;}
+.registry-photo-empty,.registry-photo-error {margin:0;padding:22px 14px;border-radius:14px;background:#f8f3f7;color:#998491;font-size:13px;line-height:1.6;text-align:center;}
+.registry-photo-error {color:#a36075;}
+.registry-photo-editor {grid-column:1/-1;min-width:0;}
+.registry-photo-editor label {display:grid;gap:8px;}.registry-photo-editor label span {font-size:12px;font-weight:400;color:#998491;}
+.registry-photo-editor textarea {width:100%;box-sizing:border-box;min-height:120px;resize:vertical;}
+.registry-photo-preview {display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px;}
+.registry-photo-preview img {display:block;width:100%;height:130px;object-fit:contain;border-radius:12px;background:#f4eff3;}
+.registry-photo-preview > p {grid-column:1/-1;}

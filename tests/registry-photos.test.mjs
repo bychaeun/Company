@@ -1,0 +1,4 @@
+import {readFileSync} from 'node:fs';import vm from 'node:vm';import test from 'node:test';import assert from 'node:assert/strict';
+const source=readFileSync(new URL('../spec-registry.js',import.meta.url),'utf8'),c={};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function parsePhotoUrls('),source.indexOf('  function renderPhotos(')),c);
+test('URL lines preserve ordering and commas in addresses',()=>{assert.deepEqual(Array.from(c.parsePhotoUrls(' https://example.com/a,b.jpg\n\nhttps://example.com/c.png ')),['https://example.com/a,b.jpg','https://example.com/c.png']);assert.deepEqual(Array.from(c.parsePhotoUrls('')),[]);});
+test('executable URLs, HTML and excessive images are rejected',()=>{for(const input of ['javascript:alert(1)','data:image/svg+xml,abc','https://example.com/"onload=alert(1)',Array(13).fill('https://example.com/a.jpg').join('\n')])assert.throws(()=>c.parsePhotoUrls(input));});

@@ -10,7 +10,7 @@ function zipSpecSheet_() {
 function zipSpecs_() {
   var data=zipUnifiedSiteSheet_();
   return data.rows.filter(function(r){return r[9]&&!r[11]&&r[0];}).map(function(r){
-    return {id:r[9],name:r[0],address:r[12],designer:r[6],contact:r[13],builder:r[14],openMonth:r[4].slice(0,7),completionMonth:r[5].slice(0,7),lat:r[15]===''?null:Number(r[15]),lng:r[16]===''?null:Number(r[16]),images:r[17].split('|').filter(Boolean),imageUrls:zipReadablePhotoUrls_(r[20]),papers:zipSitePapers_(r),updatedAt:r[10]};
+    return {id:r[9],name:r[0],address:r[12],designer:r[6],contact:r[13],builder:r[14],openMonth:r[4].slice(0,7),completionMonth:r[5].slice(0,7),lat:r[15]===''?null:Number(r[15]),lng:r[16]===''?null:Number(r[16]),images:r[17].split('|').filter(Boolean),imageUrls:zipReadablePhotoUrls_(r[20]),photoVersion:zipHash_(r[20]||''),papers:zipSitePapers_(r),updatedAt:r[10]};
   });
 }
 var ZIP_SITE_EXTRA=['주소','담당자','건설사','위도','경도','사진 ID','이전 스펙 상세(JSON)','통합 원본 ID','사진 URL'];

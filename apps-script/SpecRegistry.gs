@@ -55,7 +55,7 @@ function zipRegistryData_() {
     var result={ok:true,syncedAt:new Date().toISOString(),lists:{},statuses:[]};
     Object.keys(ZIP_REGISTRY).forEach(function(kind){var data=zipRegistrySheet_(kind);result.lists[kind]={headers:kind==='numbers'?['종이넘버','스펙넘버','비고']:data.definition.headers,items:data.rows.filter(function(r){return r[data.count]&&!r[data.count+2]&&r.slice(0,data.count).some(function(v){return v!=='';});}).map(function(r){return zipRegistryItem_(r,data.count);})};
       if(kind==='sites'){var rule=data.sheet.getRange(2,data.columns[7]).getDataValidation();if(rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)result.statuses=rule.getCriteriaValues()[0];}
-    });result.mapItems=zipSpecs_();result.unifiedSites=true;return result;
+    });result.mapItems=zipSpecs_();result.unifiedSites=true;result.registryPhotoUrls=true;return result;
   }finally{lock.releaseLock();}
 }
 function zipRegistryInput_(body) {
@@ -71,9 +71,17 @@ function zipSaveRegistry_(body) {
     var data=zipRegistrySheet_(body.kind),rowIndex=data.rows.findIndex(function(r){return r[data.count]===body.id;}),previous=rowIndex<0?null:data.rows[rowIndex];
     if(body.kind==='numbers'&&values.length===3)values=[values[0],values[1],previous?previous[2]:'',values[2]];
     if(body.kind==='sites'){values=zipFillRegistryPair_(values);zipValidateSiteLists_(values);}
+    var photos=null;
+    if(body.kind==='sites'&&Object.prototype.hasOwnProperty.call(body,'imageUrls')){
+      if(!Array.isArray(body.imageUrls))throw zipRegistryError_('REGISTRY_INPUT');
+      var urls;try{urls=zipPhotoUrls_(body.imageUrls);}catch(error){throw zipRegistryError_('REGISTRY_INPUT');}
+      var photoColumn=zipColumns_(data.sheet,['사진 URL'],[],['사진 URL'])[0],before=rowIndex<0?'':data.sheet.getRange(rowIndex+2,photoColumn).getDisplayValues()[0][0],after=urls.join('\n');
+      if(previous&&after!==before&&body.photoVersion!==zipHash_(before))throw zipRegistryError_('REGISTRY_CONFLICT');
+      photos={column:photoColumn,before:before,after:after,urls:urls};
+    }
     if(previous&&previous[data.count+2])throw zipRegistryError_('REGISTRY_CONFLICT');
     // Safe response-loss retries: an identical write with the same UUID is a no-op.
-    if(previous&&JSON.stringify(previous.slice(0,data.count))===JSON.stringify(values))return {ok:true,item:zipRegistryItem_(previous,data.count)};
+    if(previous&&JSON.stringify(previous.slice(0,data.count))===JSON.stringify(values)&&(!photos||photos.before===photos.after))return {ok:true,item:zipRegistrySavedItem_(previous,data.count,photos)};
     if(previous&&body.version!==zipRegistryVersion_(previous,data.count))throw zipRegistryError_('REGISTRY_CONFLICT');
     if(!previous&&body.version)throw zipRegistryError_('REGISTRY_CONFLICT');
     var row=rowIndex<0?Math.max(2,data.sheet.getLastRow()+1):rowIndex+2;
@@ -84,15 +92,16 @@ function zipSaveRegistry_(body) {
       var rule=cell.getDataValidation();
       if(value&&rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST&&rule.getCriteriaValues()[0].indexOf(value)<0)throw zipRegistryError_('REGISTRY_VALIDATION');
     });
-    zipWriteMapped_(data.sheet,data.columns,row,values.concat([body.id,new Date().toISOString(),'']));
+    zipWriteMapped_(data.sheet,photos?data.columns.concat([photos.column]):data.columns,row,values.concat([body.id,new Date().toISOString(),''],photos?[photos.after]:[]));
     SpreadsheetApp.flush();var saved=zipMappedRows_(data.sheet,data.columns,row,1)[0];
-    return {ok:true,item:zipRegistryItem_(saved,data.count)};
+    return {ok:true,item:zipRegistrySavedItem_(saved,data.count,photos)};
   }finally{lock.releaseLock();}
 }
 function zipRegistryMatches_(paper,spec,rows) {
   var key=function(v){return String(v||'').normalize('NFKC').trim().toLowerCase();};
   return rows.filter(function(row){return !row[6]&&((paper&&key(row[0])===key(paper))||(spec&&key(row[1])===key(spec)));});
 }
+function zipRegistrySavedItem_(row,count,photos){var item=zipRegistryItem_(row,count);if(photos){item.imageUrls=photos.urls;item.photoVersion=zipHash_(photos.after);}return item;}
 function zipFillRegistryPair_(values,masterRows) {
   if(values[1]&&values[2]||!values[1]&&!values[2])return values;
   var rows=masterRows||zipRegistrySheet_('numbers').rows,paper=!!values[1],tokens=String(paper?values[1]:values[2]).split(/[,\n\r]+/).map(function(s){return s.trim();}).filter(Boolean),matches=[];

@@ -113,3 +113,17 @@ test('URL photos save after the old photo ID column is deleted without recreatin
  sites.data[0].push('사진 ID');sites.data[0].splice(sites.data[0].indexOf('사진 ID'),1);
  c.zipSaveSpec_({name:'URL 현장',address:'서울',lat:37.5,lng:127,papers:[{number:'001',spec:'SPEC-1',specMode:true}],images:[],imageUrls:['https://example.com/a.jpg','https://example.com/b.png']});const item=c.zipSpecs_()[0];assert.deepEqual(Array.from(item.imageUrls),['https://example.com/a.jpg','https://example.com/b.png']);assert.deepEqual(Array.from(item.images),[]);assert.equal(sites.data[0].includes('사진 ID'),false);
 });
+test('list editor saves, reloads and removes multiple URL photos without changing site fields',()=>{
+ const {c,sites}=setup();vm.runInContext(readFileSync(new URL('../apps-script/Specs.gs',import.meta.url),'utf8'),c);c.zipInvalidateRead_=()=>{};c.migrateUnifiedSites();sites.data.push(['사진 현장','001','SPEC-1','','','','','','비고']);
+ let item=c.zipRegistryData_().lists.sites.items[0],mapped=c.zipSpecs_()[0];const urls=['https://example.com/a,b.jpg','https://example.com/c.png'];const body={kind:'sites',...item,imageUrls:urls,photoVersion:mapped.photoVersion};
+ const saved=c.zipSaveRegistry_(body).item;assert.deepEqual(Array.from(saved.imageUrls),urls);assert.deepEqual(Array.from(c.zipSpecs_()[0].imageUrls),urls);assert.deepEqual(Array.from(saved.values),Array.from(item.values));assert.equal(c.zipSaveRegistry_(body).item.id,item.id);
+ const oldClient=c.zipSaveRegistry_({kind:'sites',...saved,values:saved.values.map((v,i)=>i===8?'비고 수정':v)}).item;assert.deepEqual(Array.from(c.zipSpecs_()[0].imageUrls),urls);
+ c.zipSaveRegistry_({kind:'sites',...oldClient,imageUrls:[],photoVersion:saved.photoVersion});assert.deepEqual(Array.from(c.zipSpecs_()[0].imageUrls),[]);
+});
+test('invalid, stale and formula-backed photo edits never partially overwrite a site',()=>{
+ const {c,sites}=setup();vm.runInContext(readFileSync(new URL('../apps-script/Specs.gs',import.meta.url),'utf8'),c);c.zipInvalidateRead_=()=>{};c.migrateUnifiedSites();sites.data.push(['사진 현장','001','SPEC-1','','','','','','원본']);
+ const item=c.zipRegistryData_().lists.sites.items[0],mapped=c.zipSpecs_()[0],body={kind:'sites',...item,values:item.values.map((v,i)=>i===8?'변경':v),photoVersion:mapped.photoVersion};let before=JSON.stringify(sites.data);
+ assert.throws(()=>c.zipSaveRegistry_({...body,imageUrls:['javascript:alert(1)']}),e=>e.zipCode==='REGISTRY_INPUT');assert.equal(JSON.stringify(sites.data),before);
+ const column=c.zipUnifiedSiteSheet_().columns[20];sites.data[1][column-1]='https://example.com/concurrent.jpg';before=JSON.stringify(sites.data);assert.throws(()=>c.zipSaveRegistry_({...body,imageUrls:['https://example.com/new.jpg']}),e=>e.zipCode==='REGISTRY_CONFLICT');assert.equal(JSON.stringify(sites.data),before);
+ const current=c.zipSpecs_()[0];sites.formulas[`2:${column}`]='=IMAGE(1)';assert.throws(()=>c.zipSaveRegistry_({...body,photoVersion:current.photoVersion,imageUrls:[]}),e=>e.zipCode==='REGISTRY_FORMULA');assert.equal(JSON.stringify(sites.data),before);
+});
