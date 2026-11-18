@@ -1,4 +1,6 @@
-const CACHE_NAME = "chae-appsscript-v38";
+const CACHE_NAME = "chae-appsscript-v39";
+// Private image previews live in their own cache (managed by api.js) and survive app updates.
+const KEEP_CACHES = [CACHE_NAME, "chae-private-images-v1"];
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -28,7 +30,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))));
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => !KEEP_CACHES.includes(key)).map((key) => caches.delete(key)))));
   self.clients.claim();
 });
 

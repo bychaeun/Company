@@ -35,6 +35,7 @@ function doPost(e) {
     if (action === 'me') return zipJson_({ok:true,user:user,records:body.includeNotes && user.status==='approved'?zipNotes_():undefined,syncMode:'scheduled'});
     if (user.status !== 'approved') return zipJson_({ok:false,code:'FORBIDDEN',error:'관리자 승인이 필요합니다.'});
     if (action === 'notes') return zipJson_({ok:true,records:zipNotes_(body.force),syncedAt:new Date().toISOString(),syncMode:'scheduled'});
+    if (action === 'thumbs') return zipJson_(zipThumbs_(body.fileIds));
     if (action === 'image') {
       if(user.status !== 'approved') return zipJson_({ok:false,code:'FORBIDDEN',error:'접근이 제한되었습니다.'});
       var image=zipImage_(body.fileId);
@@ -80,6 +81,9 @@ function zipHash_(text) { return Utilities.base64EncodeWebSafe(Utilities.compute
 // Private, server-side snapshots only. Authentication above is never cached.
 // Large snapshots are split across several cache entries (CacheService allows ~100KB per value).
 var ZIP_CACHE_CHUNK=90000,ZIP_CACHE_MAX_CHUNKS=40;
+// Every write and every direct sheet edit (onEdit) rotates the read version, so snapshots can live for
+// the CacheService maximum (6h) instead of expiring every 10 minutes and forcing a slow full sheet read.
+var ZIP_READ_CACHE_TTL=21600;
 function zipReadCache_(scope,force,loader) {
   var cache,key;
   try {
@@ -88,7 +92,7 @@ function zipReadCache_(scope,force,loader) {
     if(!force){var packed=zipCacheGetChunks_(cache,key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
   }catch(ignore){cache=null;}
   var result=loader();
-  if(cache)try{zipCachePutChunks_(cache,key,Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(result))).getBytes()),600);}catch(ignore){}
+  if(cache)try{zipCachePutChunks_(cache,key,Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(result))).getBytes()),ZIP_READ_CACHE_TTL);}catch(ignore){}
   return result;
 }
 function zipCacheGetChunks_(cache,key) {
@@ -120,6 +124,12 @@ function zipInvalidateSheetRead_(name) {
   if(name==='접근관리'){zipInvalidateUsers_();return;}
   var scopes=['내 스펙관리','현장별 관리'].indexOf(name)>=0?['specs','registry']:name==='스펙번호 관리'?['registry']:['디자인 보드','디자인 대지'].indexOf(name)>=0?['board']:name==='체크리스트'?['checklist']:['notes'];
   zipInvalidateRead_(scopes);
+}
+// Run once in the editor: keeps the 6h snapshots warm so the first visit of the day is not a cold sheet read.
+function setupWarmCacheTrigger() {
+  ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()==='warmAppReadCache';}).forEach(function(t){ScriptApp.deleteTrigger(t);});
+  ScriptApp.newTrigger('warmAppReadCache').timeBased().everyHours(4).create();
+  warmAppReadCache();
 }
 function warmAppReadCache() {
   zipNotes_(true);
@@ -401,6 +411,32 @@ function zipImage_(fileId) {
   var file=DriveApp.getFileById(fileId), type=file.getMimeType();
   if(!/^image\/(png|jpeg|webp|gif)$/.test(type)||file.getSize()>4*1024*1024)throw new Error('Unsupported image');
   return {ok:true,mime:type,base64:Utilities.base64Encode(file.getBlob().getBytes())};
+}
+
+// Small previews for note cards: one request for several images instead of one full-size request per card.
+// Access is checked against the current notes before any cached preview is returned.
+var ZIP_THUMB_TYPES=/^image\/(png|jpeg|webp|gif)$/;
+function zipThumbs_(ids) {
+  if(!Array.isArray(ids)||!ids.length||ids.length>24)throw new Error('Invalid image list');
+  var allowed={};zipNotes_().forEach(function(r){r.images.forEach(function(id){allowed[id]=true;});});
+  var cache=null;try{cache=CacheService.getScriptCache();}catch(ignore){}
+  var images={};
+  ids.forEach(function(id){
+    id=String(id);
+    if(!/^[-\w]{10,200}$/.test(id)||!allowed[id]||images[id])return;
+    var key='thumb-v1:'+id;
+    try{var hit=cache&&cache.get(key);if(hit){images[id]=JSON.parse(hit);return;}}catch(ignore){}
+    try{
+      var file=DriveApp.getFileById(id),type=file.getMimeType();
+      if(!ZIP_THUMB_TYPES.test(type))return;
+      var blob=file.getThumbnail(),mime=blob&&blob.getContentType();
+      if(!blob||!ZIP_THUMB_TYPES.test(mime)){if(file.getSize()>300*1024)return;blob=file.getBlob();mime=type;}
+      var value={mime:mime,base64:Utilities.base64Encode(blob.getBytes())};
+      images[id]=value;
+      if(cache&&value.base64.length<95000)try{cache.put(key,JSON.stringify(value),21600);}catch(ignore){}
+    }catch(ignore){}
+  });
+  return {ok:true,images:images};
 }
 
 function zipChecklistSheet_() {

@@ -11,8 +11,10 @@
     category: "",
     subcategory: "",
     page: 1,
+    sort: readSort(),
     currentRecordId: null
   };
+  function readSort(){try{const v=localStorage.getItem('chae-note-sort');return ['sheet','recent','title'].includes(v)?v:'sheet';}catch{return 'sheet';}}
 
   const el = {
     list: document.querySelector("#knowledge-list"),
@@ -120,7 +122,7 @@
       images: Array.isArray(record.images) ? record.images.map(normalizeImageUrl).filter(Boolean) : splitImages(String(record.images || record["이미지"] || "")),
       imageText: String(record.imageText || record["이미지"] || "").trim(),
       updatedAt: String(record.updatedAt || record["수정일"] || "").trim()
-    })).filter((record) => record.title !== "제목 없음" || record.content);
+    })).filter((record) => record.title !== "제목 없음" || record.content).map(record => Object.assign(record, {search: searchable(record)}));
   }
 
   function splitImages(value) {
@@ -146,14 +148,28 @@
       .toLocaleLowerCase("ko");
   }
 
+  // Every word must match somewhere ("서초 3층" finds notes containing both words in any field).
+  const sorters = {
+    recent: (a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "") || a.id - b.id,
+    title: (a, b) => a.title.localeCompare(b.title, "ko") || a.id - b.id
+  };
   function visibleRecords() {
-    const query = state.query.trim().toLocaleLowerCase("ko");
-    return state.records.filter((record) => {
-      const queryMatch = !query || searchable(record).includes(query);
-      const categoryMatch = !state.category || record.category === state.category;
-      const subcategoryMatch = !state.subcategory || record.subcategory === state.subcategory;
-      return queryMatch && categoryMatch && subcategoryMatch;
+    const words = state.query.trim().toLocaleLowerCase("ko").split(/\s+/).filter(Boolean);
+    const records = state.records.filter((record) => {
+      if (state.category && record.category !== state.category) return false;
+      if (state.subcategory && record.subcategory !== state.subcategory) return false;
+      const text = record.search ?? searchable(record);
+      return words.every((word) => text.includes(word));
     });
+    return sorters[state.sort] ? records.sort(sorters[state.sort]) : records;
+  }
+  function pageButtons(current, count) {
+    if (count <= 9) return Array.from({ length: count }, (_, index) => index + 1);
+    const pages = new Set([1, count, current - 1, current, current + 1]);
+    if (current <= 4) [2, 3, 4, 5].forEach((page) => pages.add(page));
+    if (current >= count - 3) [count - 4, count - 3, count - 2, count - 1].forEach((page) => pages.add(page));
+    const sorted = [...pages].filter((page) => page >= 1 && page <= count).sort((a, b) => a - b);
+    return sorted.flatMap((page, index) => index && page - sorted[index - 1] > 1 ? ["gap", page] : [page]);
   }
 
   function renderCategories() {
@@ -204,7 +220,7 @@
             ${record.address ? `<p class="card-address"><span aria-hidden="true">⌖</span>${escapeHTML(record.address)}</p>` : ""}
             <p class="card-preview">${escapeHTML(record.content)}</p>
           </div>
-          ${image ? `<img class="card-image" data-private-image="${escapeHTML(image)}" alt="메모 참고 이미지" loading="lazy" />` : ""}
+          ${image ? `<img class="card-image" data-private-image="${escapeHTML(image)}" data-thumb alt="메모 참고 이미지" loading="lazy" decoding="async" />` : ""}
         </button>
         ${canEdit && record.noteId ? `<button class="card-edit-icon" type="button" data-edit-id="${record.id}" aria-label="${escapeHTML(record.title)} 수정" title="메모 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4" /></svg></button>` : ""}
         <div class="card-actions">
@@ -218,7 +234,7 @@
     el.pagination.innerHTML = records.length <= pageSize ? "" : `
       <button class="page-arrow" type="button" data-page="${state.page - 1}" ${state.page === 1 ? "disabled" : ""} aria-label="이전 페이지">‹</button>
 
-      ${Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => `<button type="button" data-page="${page}" class="page-number ${page === state.page ? "active" : ""}" ${page === state.page ? 'aria-current="page"' : ""}>${page}</button>`).join("")}
+      ${pageButtons(state.page, pageCount).map((page) => page === "gap" ? '<span class="page-gap" aria-hidden="true">…</span>' : `<button type="button" data-page="${page}" class="page-number ${page === state.page ? "active" : ""}" ${page === state.page ? 'aria-current="page"' : ""}>${page}</button>`).join("")}
       <button class="page-arrow" type="button" data-page="${state.page + 1}" ${state.page === pageCount ? "disabled" : ""} aria-label="다음 페이지">›</button>`;
     hydrateImages(el.list);
   }
@@ -376,11 +392,18 @@
     submit.disabled = true;
     el.noteEditorMessage.textContent = "Google 시트에 저장하고 있어요.";
     try {
-      while (pendingImages.length) {
-        el.noteEditorMessage.textContent = `사진을 올리고 있어요. 남은 사진 ${pendingImages.length}장`;
-        const result = await window.ZIP_API.request("uploadNoteImage", await imagePayload(pendingImages[0]));
-        el.noteImageIds.value=[el.noteImageIds.value,result.fileId].filter(Boolean).join('|');
-        pendingImages.shift();renderImagePreview();
+      if (pendingImages.length) {
+        const queue = [...pendingImages], uploaded = new Map();
+        const progress = () => { el.noteEditorMessage.textContent = `사진을 올리고 있어요. 남은 사진 ${pendingImages.length - uploaded.size}장`; };
+        progress();
+        const worker = async () => { while (queue.length) { const file = queue.shift(); const result = await window.ZIP_API.request("uploadNoteImage", await imagePayload(file)); uploaded.set(file, result.fileId); progress(); } };
+        try { const failed = (await Promise.allSettled([worker(), worker()])).find((result) => result.status === "rejected"); if (failed) throw failed.reason; }
+        finally {
+          // Keep the original order and remember finished uploads even when another photo failed.
+          const ids = pendingImages.filter((file) => uploaded.has(file)).map((file) => uploaded.get(file));
+          el.noteImageIds.value = [el.noteImageIds.value, ...ids].filter(Boolean).join('|');
+          pendingImages = pendingImages.filter((file) => !uploaded.has(file)); renderImagePreview();
+        }
       }
       payload.imageText = el.noteImageIds.value;
       const signature=JSON.stringify(payload);
@@ -467,7 +490,7 @@
   const imageObserver = new IntersectionObserver(entries => {
     entries.filter(entry => entry.isIntersecting).forEach(entry => {
       imageObserver.unobserve(entry.target);
-      window.ZIP_API.image(entry.target.dataset.privateImage).then(url => {
+      window.ZIP_API.image(entry.target.dataset.privateImage, {thumb: entry.target.hasAttribute('data-thumb')}).then(url => {
         if (url && entry.target.isConnected && window.CHAE_AUTH.user?.status === 'approved') entry.target.src = url;
       }).catch(() => { entry.target.alt = '이미지를 불러오지 못했어요'; });
     });
@@ -613,9 +636,22 @@
     }
   }
 
+  let searchTimer = 0;
   el.search.addEventListener("input", (event) => {
     state.query = event.target.value;
     state.page = 1;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderCards, state.records.length > 300 ? 140 : 60);
+  });
+  const sortBox = document.createElement("div");
+  sortBox.className = "select-box note-sort";
+  sortBox.innerHTML = '<label class="sr-only" for="note-sort">메모 정렬</label><select id="note-sort" aria-label="메모 정렬"><option value="sheet">시트 순서</option><option value="recent">최근 수정순</option><option value="title">제목순</option></select><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>';
+  document.querySelector(".search-panel").append(sortBox);
+  const sortSelect = sortBox.querySelector("select");
+  sortSelect.value = state.sort;
+  sortSelect.addEventListener("change", () => {
+    state.sort = sortSelect.value; state.page = 1;
+    try { localStorage.setItem("chae-note-sort", state.sort); } catch {}
     renderCards();
   });
 

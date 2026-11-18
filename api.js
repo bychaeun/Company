@@ -99,7 +99,13 @@
     }
     return data;
   }
-  function clearImages() { generation++; imageCache.forEach(p => p.then(url => { if(url)URL.revokeObjectURL(url); }).catch(()=>{})); imageCache.clear(); }
+  // Private images are cached on this device (like the notes snapshot) and dropped on logout or access change.
+  const imageStore='chae-private-images-v1',imageTypes=/^image\/(png|jpeg|webp|gif)$/;
+  const storeKey=key=>new URL('__private-image/'+encodeURIComponent(key),location.href).href;
+  async function storedImage(key){try{if(!window.caches)return null;const hit=await (await caches.open(imageStore)).match(storeKey(key));if(!hit)return null;const blob=await hit.blob();return imageTypes.test(blob.type)?blob:null;}catch{return null;}}
+  function storeImage(key,blob,version){if(!window.caches||version!==generation||!token)return;caches.open(imageStore).then(cache=>version===generation&&cache.put(storeKey(key),new Response(blob,{headers:{'content-type':blob.type}}))).catch(()=>{});}
+  function toBlob(data){if(!data||!imageTypes.test(data.mime)||typeof data.base64!=='string')return null;const bytes=Uint8Array.from(atob(data.base64),c=>c.charCodeAt(0));return new Blob([bytes],{type:data.mime});}
+  function clearImages() { generation++; thumbQueue.clear(); imageCache.forEach(p => p.then(url => { if(url)URL.revokeObjectURL(url); }).catch(()=>{})); imageCache.clear(); try{window.caches?.delete(imageStore).catch(()=>{});}catch{} }
   function setToken(value) { sessionVersion++;clearReads(true);token=value;rememberUser(null);if(value)localStorage.setItem(sessionKey,value); else localStorage.removeItem(sessionKey); sessionStorage.removeItem(sessionKey); clearImages(); }
   window.addEventListener('storage', event => {
     if (event.key !== sessionKey && event.key !== null) return;
@@ -107,18 +113,35 @@
     window.dispatchEvent(new Event(token ? 'session-restored' : 'access-expired'));
   });
   window.addEventListener('access-change',event=>{if(event.detail?.status!=='approved')clearReads(true);});
-  async function image(fileId) {
-    if(!/^[-\w]{10,200}$/.test(fileId))return '';
-    if(!imageCache.has(fileId)) {
-      const version = generation;
-      const promise = request('image',{fileId}).then(data=>{
-        if(!/^image\/(png|jpeg|webp|gif)$/.test(data.mime)||version!==generation)return '';
-        const bytes=Uint8Array.from(atob(data.base64),c=>c.charCodeAt(0));
-        return URL.createObjectURL(new Blob([bytes],{type:data.mime}));
-      }).catch(error=>{imageCache.delete(fileId);throw error;});
-      imageCache.set(fileId,promise);
+  // Card previews are batched: a page of 20 cards becomes a few small requests instead of 20 full-size ones.
+  const thumbQueue=new Map();let thumbTimer=null,thumbsSupported=true;
+  function queueThumb(fileId){return new Promise((resolve,reject)=>{if(!thumbQueue.has(fileId))thumbQueue.set(fileId,[]);thumbQueue.get(fileId).push({resolve,reject});if(!thumbTimer)thumbTimer=setTimeout(flushThumbs,30);});}
+  function flushThumbs(){
+    thumbTimer=null;const entries=[...thumbQueue.entries()];thumbQueue.clear();
+    for(let i=0;i<entries.length;i+=6){
+      const chunk=entries.slice(i,i+6);
+      const settle=(id,waiters,data)=>waiters.forEach(w=>w.resolve(data||null));
+      (thumbsSupported?request('thumbs',{fileIds:chunk.map(([id])=>id)}):Promise.reject(Object.assign(new Error('unsupported'),{code:'UNSUPPORTED'})))
+        .then(data=>chunk.forEach(([id,waiters])=>settle(id,waiters,data.images?.[id])))
+        .catch(error=>{if(error.code==='REQUEST_FAILED')thumbsSupported=false;chunk.forEach(([,waiters])=>waiters.forEach(w=>w.reject(error)));});
     }
-    return imageCache.get(fileId);
+  }
+  async function image(fileId,options={}) {
+    if(!/^[-\w]{10,200}$/.test(fileId))return '';
+    const thumb=!!options.thumb,key=(thumb?'t:':'f:')+fileId;
+    if(!imageCache.has(key)) {
+      const version = generation;
+      const promise=(async()=>{
+        let blob=await storedImage(key);
+        if(!blob&&thumb)blob=await storedImage('f:'+fileId);
+        if(!blob&&thumb){try{blob=toBlob(await queueThumb(fileId));}catch(error){if(['AUTH_REQUIRED','FORBIDDEN','STALE_SESSION'].includes(error.code))throw error;}if(blob)storeImage(key,blob,version);}
+        if(!blob){const full=thumb?await image(fileId):null;if(thumb)return full;blob=toBlob(await request('image',{fileId}));if(blob)storeImage(key,blob,version);}
+        if(!blob||version!==generation)return '';
+        return URL.createObjectURL(blob);
+      })().catch(error=>{imageCache.delete(key);throw error;});
+      imageCache.set(key,promise);
+    }
+    return imageCache.get(key);
   }
   window.ZIP_API = { request, image, setToken, clearImages, rememberUser,cached,get hasCachedNotes(){return !!stored('notes');},get rememberedUser(){return rememberedUser();},get hasSession(){return !!token;},
     async config(){ const response=await fetch(endpoint+'?action=config',{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)}); if(!response.ok)throw new Error(); return response.json(); } };
