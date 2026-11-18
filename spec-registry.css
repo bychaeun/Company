@@ -100,3 +100,12 @@
 .registry-guide ul {display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none;}
 .registry-guide li {display:inline-flex;gap:6px;align-items:center;padding:5px 9px;border-radius:999px;background:#f1f4f5;font-size:12px;}
 .registry-guide li strong {font-weight:600;color:#315661;}.registry-guide li span {color:#5f6b73;font-variant-numeric:tabular-nums;}
+
+/* 팝업 이미지 넘기기 */
+.registry-photo-gallery.registry-carousel {position:relative;display:block;outline:none;}
+.registry-carousel > figure[hidden] {display:none;}
+.registry-carousel img {max-height:60dvh;}
+.registry-carousel-nav {position:absolute;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:40px;height:40px;min-height:40px;padding:0;border:0;border-radius:50%;background:#2a2a2eb3;color:#fff;font-size:26px;line-height:1;cursor:pointer;z-index:1;}
+.registry-carousel-nav.prev {left:8px;}.registry-carousel-nav.next {right:8px;}
+.registry-carousel-nav:hover,.registry-carousel-nav:focus-visible {background:#2a2a2ee6;}
+.registry-carousel-count {position:absolute;right:10px;bottom:10px;padding:3px 9px;border-radius:999px;background:#2a2a2eb3;color:#fff;font-size:12px;}

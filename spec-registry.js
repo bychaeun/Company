@@ -35,9 +35,26 @@
   function specCategory(spec){const m=String(spec||'').trim().match(/^([A-Za-z]+)(\d+)/);if(!m)return '';const n=Number(m[2]);return guideRanges().find(r=>r.prefix===m[1].toUpperCase()&&n>=r.from&&n<=r.to)?.label||'';}
   function renderGuide(){const rows=(data?.guide||[]).filter(r=>r.some(Boolean));guideBox.hidden=active!=='numbers'||!rows.length;if(guideBox.hidden)return;guideBox.innerHTML='<h3>스펙번호 규칙</h3><ul>'+rows.map(r=>`<li>${r.filter(Boolean).map((v,i)=>i?`<span>${esc(v)}</span>`:`<strong>${esc(v)}</strong>`).join('')}</li>`).join('')+'</ul>';}
   function parsePhotoUrls(value){const urls=String(value||'').split(/[\r\n]+/).map(v=>v.trim()).filter(Boolean);if(urls.length>12||urls.some(url=>url.length>2000||!/^https:\/\/[^\s<>"']+$/i.test(url)))throw Error('HTTPS 이미지 URL을 한 줄에 하나씩, 최대 12장 입력해 주세요.');return urls;}
+  // 팝업 이미지가 여러 장이면 한 장씩 보여 주고 ‹ › 버튼·키보드 ←→·손가락 밀기로 넘긴다.
+  function makeCarousel(container,label){
+    const figures=[...container.querySelectorAll(':scope > figure')];if(figures.length<2)return;
+    container.classList.add('registry-carousel');let index=0;
+    const prev=Object.assign(document.createElement('button'),{type:'button',className:'registry-carousel-nav prev',textContent:'‹'});prev.setAttribute('aria-label','이전 이미지');
+    const next=Object.assign(document.createElement('button'),{type:'button',className:'registry-carousel-nav next',textContent:'›'});next.setAttribute('aria-label','다음 이미지');
+    const count=Object.assign(document.createElement('span'),{className:'registry-carousel-count'});count.setAttribute('aria-live','polite');
+    const show=i=>{index=(i+figures.length)%figures.length;figures.forEach((f,j)=>{f.hidden=j!==index;});count.textContent=`${index+1} / ${figures.length}`;const img=figures[index].querySelector('img');if(img)img.loading='eager';};
+    prev.onclick=()=>show(index-1);next.onclick=()=>show(index+1);
+    container.tabIndex=0;container.setAttribute('aria-label',`${label} ${figures.length}장 · 화살표로 넘기기`);
+    container.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'){e.preventDefault();show(index-1);}else if(e.key==='ArrowRight'){e.preventDefault();show(index+1);}});
+    let startX=null;container.addEventListener('touchstart',e=>{startX=e.touches.length===1?e.touches[0].clientX:null;},{passive:true});
+    container.addEventListener('touchend',e=>{if(startX==null)return;const dx=e.changedTouches[0].clientX-startX;startX=null;if(Math.abs(dx)>40)show(index+(dx<0?1:-1));});
+    container.append(prev,next,count);show(0);
+  }
   function renderPhotos(container,urls,label='현장 이미지'){
+    container.classList.remove('registry-carousel');container.removeAttribute('tabindex');
     container.replaceChildren();if(!urls.length){const empty=document.createElement('p');empty.className='registry-photo-empty';empty.textContent='등록된 이미지가 없어요.';container.append(empty);return;}
     urls.forEach((url,index)=>{const figure=document.createElement('figure'),image=document.createElement('img');image.alt=`${label} ${index+1}`;image.loading=index?'lazy':'eager';image.decoding='async';image.referrerPolicy='no-referrer';image.onerror=()=>{const error=document.createElement('p');error.className='registry-photo-error';error.textContent=`이미지 ${index+1}을 불러올 수 없어요. 이미지 주소와 공유 권한을 확인해 주세요.`;figure.replaceChildren(error);};figure.append(image);container.append(figure);setImage(image,url);});
+    if(urls.length>1)makeCarousel(container,label);
   }
   function paperImageCell(item){const urls=(item.imageUrls||[]).filter(url=>/^https:\/\/[^\s<>"']+$/i.test(url));return `<td class="registry-image-column"><button type="button" class="registry-paper-preview${urls.length?'':' is-empty'}" data-paper-images="${esc(item.id)}" aria-label="${esc(item.values[0])} 종이 이미지 ${urls.length?'보기':'추가'}">${urls.length?`<img data-src="${esc(urls[0])}" alt="${esc(item.values[0])} 종이 미리보기" loading="lazy" decoding="async" referrerpolicy="no-referrer"><span class="registry-paper-fallback" hidden>이미지 보기</span>${urls.length>1?`<span class="registry-paper-count">${urls.length}</span>`:''}`:'<span aria-hidden="true">＋</span>'}</button></td>`;}
   function normalizeNumbers(result){
