@@ -117,13 +117,29 @@
 .registry-category-field {align-self:start;}
 .registry-category-field output {display:block;min-height:40px;margin-top:4px;padding:9px 12px;border:1px dashed #d5dde0;border-radius:8px;background:#f5f7f8;color:#2d3c42;font-weight:600;}
 .registry-category-field output .registry-blank {font-weight:400;font-size:13px;}
-.registry-guide-toggle {display:none;}
-.registry-guide-dialog {width:min(420px,calc(100vw - 32px));}
-.registry-guide-dialog .registry-guide {border:0;padding:4px 0 0;margin:0;}
 @media(max-width:600px){
-  .registry-guide {border:0;background:none;padding:0;margin:0 0 10px;}
-  .registry-guide > h3,.registry-guide > ul {display:none;}
-  .registry-guide-toggle {display:inline-flex;align-items:center;font-size:13px;}
-  .registry-guide-dialog .registry-guide > ul {display:flex;}
+  /* 모바일: '스펙번호' 제목과 분류 칩을 한 줄에 붙여 세로 공간을 아낀다 */
+  .registry-guide {display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;margin:0 0 10px;}
+  .registry-guide h3 {margin:0;}
+  .registry-guide li {padding:3px 8px;font-size:11px;}
   #registry-table .registry-col-desktop {display:none;}
+}
+/* 팝업 비고 아래: 이미지 내보내기 · 저장하기 */
+.registry-photo-actions {display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid #e8ecef;}
+.registry-photo-actions button {display:grid;place-items:center;width:40px;height:40px;padding:0;border:1px solid #dfe5e8;border-radius:10px;background:#fff;color:#426d79;cursor:pointer;}
+.registry-photo-actions button:hover {background:#f0f5f6;}
+.registry-photo-actions button:disabled {opacity:.5;cursor:progress;}
+.registry-photo-actions svg {width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+.registry-photo-actions [role=status] {font-size:12px;color:#64757e;}
+/* 분류 칩 = 필터 버튼 (#specs-view button 전역 스타일보다 우선) */
+.registry-guide li:has(> button) {padding:0;background:none;}
+#specs-view .registry-guide li > button {display:inline-flex;gap:6px;align-items:center;min-height:0;padding:5px 10px;border:1px solid transparent;border-radius:999px;background:#f1f4f5;font:inherit;font-size:12px;color:inherit;box-shadow:none;cursor:pointer;}
+#specs-view .registry-guide li > button:hover {background:#e3eaec;}
+#specs-view .registry-guide li > button[aria-pressed=true] {background:#426d79;border-color:#426d79;}
+#specs-view .registry-guide li > button[aria-pressed=true] strong,#specs-view .registry-guide li > button[aria-pressed=true] span {color:#fff;}
+@media(max-width:600px){
+  .registry-guide {flex-wrap:nowrap;}
+  .registry-guide h3 {flex:0 0 auto;white-space:nowrap;}
+  .registry-guide ul {flex:1 1 auto;min-width:0;}
+  #specs-view .registry-guide li > button {padding:4px 9px;font-size:11px;}
 }

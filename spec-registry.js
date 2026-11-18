@@ -5,7 +5,7 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const tabs=['map','sites','numbers'],pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>';
   const clipboardIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="6" width="12" height="15" rx="2"/><path d="M16 6V3H4v14h4"/></svg>';
-  let active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
+  let categoryFilter='',active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
   const editor=document.createElement('dialog');editor.id='registry-editor';editor.className='board-editor registry-editor';editor.setAttribute('aria-labelledby','registry-editor-title');
   editor.innerHTML='<h2 id="registry-editor-title"></h2><form><div data-fields class="registry-fields"></div><p data-message role="status"></p><footer><button type="button" class="install-button" data-remove>삭제</button><button type="button" class="install-button" data-cancel>취소</button><button type="submit" class="install-button">시트에 저장</button></footer></form>';document.body.append(editor);
   const form=editor.querySelector('form');
@@ -31,22 +31,20 @@
   }
   let uploading=0;
   // '스펙번호 규칙' table typed next to the list in the sheet (e.g. 우드 | HS20-HS49).
-  const guideBox=document.createElement('section');guideBox.className='registry-guide';guideBox.setAttribute('aria-label','스펙번호 규칙');guideBox.hidden=true;
+  const guideBox=document.createElement('section');guideBox.className='registry-guide';guideBox.setAttribute('aria-label','스펙번호 분류');guideBox.hidden=true;
   $('spec-registry-panel').querySelector('.registry-summary').after(guideBox);
-  const guideDialog=document.createElement('dialog');guideDialog.className='specs-dialog registry-guide-dialog';guideDialog.setAttribute('aria-labelledby','registry-guide-title');
-  guideDialog.innerHTML='<header class="registry-detail-heading"><h2 id="registry-guide-title">스펙번호 규칙</h2><button type="button" data-guide-close aria-label="닫기">×</button></header><div class="registry-guide" data-guide-list></div>';document.body.append(guideDialog);
-  guideDialog.querySelector('[data-guide-close]').onclick=()=>guideDialog.close();
-  guideDialog.addEventListener('click',e=>{if(e.target!==guideDialog)return;const r=guideDialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)guideDialog.close();});
+  guideBox.addEventListener('click',e=>{const b=e.target.closest('[data-category]');if(!b)return;categoryFilter=categoryFilter===b.dataset.category?'':b.dataset.category;page=1;render();guideBox.querySelector(`[data-category="${CSS.escape(categoryFilter||b.dataset.category)}"]`)?.focus();});
   // 규칙 표는 동기화 때만 바뀌므로 한 번만 해석해 두고, 행마다 다시 정규식을 돌리지 않는다.
   let guideCache=null,guideSource=null;
   function guideRanges(){const source=data?.guide||[];if(source===guideSource)return guideCache;guideSource=source;return guideCache=source.map(row=>{const cells=row.filter(Boolean),range=cells.map(v=>String(v).match(/^([A-Za-z]+)(\d+)\s*[-~–]\s*([A-Za-z]*)(\d+)$/)).find(Boolean);return range?{label:cells.filter(v=>!/^[A-Za-z]+\d+\s*[-~–]/.test(v)).join(' ')||cells[0],prefix:range[1].toUpperCase(),from:Number(range[2]),to:Number(range[4])}:null;}).filter(Boolean);}
   // 효산 LPM 시트의 ProductName / PreviousNames를 종이넘버로 찾는다(서버와 같은 키 규칙).
   function productNames(paper){const key=String(paper||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();return (key&&data?.hyosanNames?.[key])||['',''];}
   function specCategory(spec){const m=String(spec||'').trim().match(/^([A-Za-z]+)(\d+)/);if(!m)return '';const n=Number(m[2]);return guideRanges().find(r=>r.prefix===m[1].toUpperCase()&&n>=r.from&&n<=r.to)?.label||'';}
-  function renderGuide(){const rows=(data?.guide||[]).filter(r=>r.some(Boolean));guideBox.hidden=active!=='numbers'||!rows.length;if(guideBox.hidden)return;const list='<ul>'+rows.map(r=>`<li>${r.filter(Boolean).map((v,i)=>i?`<span>${esc(v)}</span>`:`<strong>${esc(v)}</strong>`).join('')}</li>`).join('')+'</ul>';
-    // 모바일에서는 규칙 표 대신 버튼만 두고, 누르면 규칙만 팝업으로 띄운다.
-    guideBox.innerHTML='<h3>스펙번호 규칙</h3>'+list+'<button type="button" class="install-button registry-guide-toggle" aria-haspopup="dialog">스펙번호 규칙 보기</button>';
-    guideBox.querySelector('.registry-guide-toggle').onclick=()=>{guideDialog.querySelector('[data-guide-list]').innerHTML=list;guideDialog.showModal();};}
+  function renderGuide(){const rows=(data?.guide||[]).filter(r=>r.some(Boolean));guideBox.hidden=active!=='numbers'||!rows.length;if(guideBox.hidden)return;// 분류 칩을 누르면 그 분류만 보이고, 한 번 더 누르면 전체로 돌아간다.
+    const labelOf=r=>{const cells=r.filter(Boolean);return cells.some(v=>/^[A-Za-z]+\d+\s*[-~–]/.test(v))?cells.filter(v=>!/^[A-Za-z]+\d+\s*[-~–]/.test(v)).join(' ')||cells[0]:'';};
+    if(categoryFilter&&!rows.some(r=>labelOf(r)===categoryFilter))categoryFilter='';
+    const list='<ul>'+rows.map(r=>{const label=labelOf(r),inner=r.filter(Boolean).map((v,i)=>i?`<span>${esc(v)}</span>`:`<strong>${esc(v)}</strong>`).join('');return `<li>${label?`<button type="button" data-category="${esc(label)}" aria-pressed="${categoryFilter===label}">${inner}</button>`:inner}</li>`;}).join('')+'</ul>';
+    guideBox.innerHTML='<h3>스펙번호</h3>'+list;}
   function parsePhotoUrls(value){const urls=String(value||'').split(/[\r\n]+/).map(v=>v.trim()).filter(Boolean);if(urls.length>12||urls.some(url=>url.length>2000||!/^https:\/\/[^\s<>"']+$/i.test(url)))throw Error('HTTPS 이미지 URL을 한 줄에 하나씩, 최대 12장 입력해 주세요.');return urls;}
   // 팝업 이미지가 여러 장이면 한 장씩 보여 주고 ‹ › 버튼·키보드 ←→·손가락 밀기로 넘긴다.
   function makeCarousel(container,label){
@@ -69,6 +67,35 @@
     urls.forEach((url,index)=>{const figure=document.createElement('figure'),image=document.createElement('img');image.alt=`${label} ${index+1}`;image.loading=index?'lazy':'eager';image.decoding='async';image.referrerPolicy='no-referrer';image.onerror=()=>{const error=document.createElement('p');error.className='registry-photo-error';error.textContent=`이미지 ${index+1}을 불러올 수 없어요. 이미지 주소와 공유 권한을 확인해 주세요.`;figure.replaceChildren(error);};figure.append(image);container.append(figure);setImage(image,url);});
     if(urls.length>1)makeCarousel(container,label);
   }
+  // 팝업에 보이는 그대로(4:5, 가장자리 6% 확대 크롭) 잘라 JPG로 만든다. 세로로 긴 사진은 위아래가 같이 잘린다.
+  async function imageBlobFor(img,url){
+    if(img?.src?.startsWith('blob:'))return (await fetch(img.src)).blob();
+    const id=driveId(url)||(String(url).match(/^https:\/\/drive\.google\.com\/thumbnail\?id=([-\w]{10,200})(?:&|$)/)||[])[1];
+    if(id){const src=await api.image(id,{action:'registryImage'});if(src)return (await fetch(src)).blob();}
+    const response=await fetch(url,{mode:'cors',referrerPolicy:'no-referrer'});if(!response.ok)throw Error();return response.blob();
+  }
+  async function croppedPhoto(img,url,name){
+    const source=await imageBlobFor(img,url),bitmap=await createImageBitmap(source).catch(async()=>{const u=URL.createObjectURL(source),el=new Image();el.src=u;try{await el.decode();return Object.assign(el,{width:el.naturalWidth,height:el.naturalHeight});}finally{setTimeout(()=>URL.revokeObjectURL(u),0);}}),zoom=1.06,ratio=4/5;
+    let w=bitmap.width,h=bitmap.height;if(w/h>ratio)w=h*ratio;else h=w/ratio;w/=zoom;h/=zoom;
+    const scale=Math.min(1,2000/Math.max(w,h)),canvas=document.createElement('canvas');canvas.width=Math.round(w*scale);canvas.height=Math.round(h*scale);
+    const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,(bitmap.width-w)/2,(bitmap.height-h)/2,w,h,0,0,canvas.width,canvas.height);bitmap.close?.();
+    const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.92));if(!blob)throw Error();return new File([blob],name,{type:'image/jpeg'});
+  }
+  function photoActions(detail,urls,baseName){
+    if(!urls.length)return;const bar=document.createElement('div');bar.className='registry-photo-actions';
+    const icon={share:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>',save:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/></svg>'};
+    bar.innerHTML=`<button type="button" data-photo-share aria-label="이미지 내보내기" title="이미지 내보내기">${icon.share}</button><button type="button" data-photo-save aria-label="이미지 저장하기" title="이미지 저장하기">${icon.save}</button><span role="status"></span>`;
+    detail.querySelector('.registry-detail-fields').after(bar);const status=bar.querySelector('[role=status]');
+    const current=async()=>{const figures=[...detail.querySelectorAll('.registry-photo-gallery > figure')],index=Math.max(0,figures.findIndex(f=>!f.hidden));const safe=String(baseName||'종이').replace(/[\\/:*?"<>|\s]+/g,'_');return croppedPhoto(figures[index]?.querySelector('img'),urls[index],`${safe}${urls.length>1?'_'+(index+1):''}.jpg`);};
+    const run=async(button,share)=>{if(button.disabled)return;button.disabled=true;status.textContent='이미지를 준비하고 있어요…';
+      try{const file=await current();
+        if(share&&navigator.canShare?.({files:[file]})){try{await navigator.share({files:[file],title:file.name});}catch(e){if(e.name!=='AbortError')throw e;}status.textContent='';return;}
+        const link=Object.assign(document.createElement('a'),{href:URL.createObjectURL(file),download:file.name});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),4000);
+        status.textContent=share?'이 기기는 바로 공유가 안 돼서 저장했어요.':'저장했어요.';}
+      catch{status.textContent='이 이미지는 내보낼 수 없어요. 원본 공유 권한을 확인해 주세요.';}
+      finally{button.disabled=false;}};
+    bar.querySelector('[data-photo-share]').onclick=e=>run(e.currentTarget,true);bar.querySelector('[data-photo-save]').onclick=e=>run(e.currentTarget,false);
+  }
   function paperImageCell(item){const urls=(item.imageUrls||[]).filter(url=>/^https:\/\/[^\s<>"']+$/i.test(url));return `<td class="registry-image-column"><button type="button" class="registry-paper-preview${urls.length?'':' is-empty'}" data-paper-images="${esc(item.id)}" aria-label="${esc(item.values[0])} 종이 이미지 ${urls.length?'보기':'추가'}">${urls.length?`<img data-src="${esc(urls[0])}" alt="${esc(item.values[0])} 종이 미리보기" loading="lazy" decoding="async" referrerpolicy="no-referrer"><span class="registry-paper-fallback" hidden>이미지 보기</span>`:'<span aria-hidden="true">＋</span>'}</button></td>`;}
   function normalizeNumbers(result){
     const list=result.lists.numbers;
@@ -77,7 +104,7 @@
   }
   function numberWrite(item){return item.kind==='numbers'&&data.legacyNumberColumns?{...item,values:[item.values[0],item.values[1],item.legacyMirror||'',item.values[2]]}:item;}
   function selectTab(kind,focus=false){
-    if(!tabs.includes(kind))return;detail.close();active=kind;page=1;sortColumn=-1;$('registry-search').value='';
+    if(!tabs.includes(kind))return;detail.close();active=kind;page=1;categoryFilter='';sortColumn=-1;$('registry-search').value='';
     $('spec-tab-map').parentElement.style.setProperty('--active-tab',String(tabs.indexOf(kind)));
     tabs.forEach(k=>{const b=$('spec-tab-'+k);b.setAttribute('aria-selected',String(k===kind));b.tabIndex=k===kind?0:-1;});
     $('spec-map-panel').hidden=kind!=='map';$('spec-registry-panel').hidden=kind==='map';
@@ -102,14 +129,14 @@
     // 모바일 스펙 목록은 세로 공간이 좁아 분류·비고 칸을 숨긴다(팝업에서는 모두 보인다).
     const mobileHidden=h=>active==='numbers'&&(h==='분류'||h==='비고');
     const cols=r=>active==='numbers'?[r.values[0],r.values[1],specCategory(r.values[1]),...productNames(r.values[0]),...r.values.slice(2)]:r.values;
-    let filtered=rows().filter(r=>fold(cols(r).join(' ')).includes(query));
+    let filtered=rows().filter(r=>fold(cols(r).join(' ')).includes(query)&&(active!=='numbers'||!categoryFilter||specCategory(r.values[1])===categoryFilter));
     if(sortColumn>=0)filtered.sort((a,b)=>sortDirection*String(cols(a)[sortColumn]).localeCompare(String(cols(b)[sortColumn]),'ko',{numeric:true}));
     const pages=Math.max(1,Math.ceil(filtered.length/50));page=Math.min(page,pages);
     sites.innerHTML=active==='sites'?(filtered.length?filtered.slice((page-1)*50,page*50).map(r=>`<button type="button" class="registry-site-card" data-site-id="${esc(r.id)}" aria-label="${esc(r.values[0])} 현장 상세 보기"><strong>${esc(r.values[0])}</strong><span aria-hidden="true">›</span></button>`).join(''):`<p class="registry-empty">${query?'검색 결과가 없어요.':'등록된 현장이 없어요.'}</p>`):'';
     table.querySelector('thead').innerHTML='<tr>'+(active==='numbers'?'<th scope="col" class="registry-image-column">이미지</th>':'')+headers.map((h,i)=>`<th scope="col"${mobileHidden(h)?' class="registry-col-desktop"':''} aria-sort="${sortColumn===i?(sortDirection===1?'ascending':'descending'):'none'}"><button type="button" data-sort="${i}">${esc(h)}${sortColumn===i?(sortDirection===1?' ↑':' ↓'):''}</button></th>`).join('')+'</tr>';
     table.querySelector('tbody').innerHTML=filtered.length?filtered.slice((page-1)*50,page*50).map(r=>`<tr class="registry-row" data-row-id="${esc(r.id)}" tabindex="0" aria-label="${esc(r.values[0])} 상세 보기">`+(active==='numbers'?paperImageCell(r):'')+cols(r).map((v,i)=>`<td${mobileHidden(headers[i])?' class="registry-col-desktop"':''}>${v&&i===(active==='numbers'?0:1)?`<span class="registry-paper-number"><span>${esc(v)}</span><button type="button" class="registry-copy" data-copy="${esc(v)}" aria-label="종이넘버 ${esc(v)} 복사" title="종이넘버 복사">${clipboardIcon}</button></span>`:(v?`<span class="registry-cell-text">${esc(v)}</span>`:'<span class="registry-blank">—</span>')}</td>`).join('')+'</tr>').join(''):`<tr><td colspan="${headers.length+(active==='numbers'?1:0)}" class="registry-empty">${query?'검색 결과가 없어요.':'등록된 내역이 없어요. 추가 버튼으로 첫 내역을 작성하세요.'}</td></tr>`;
     table.querySelectorAll('.registry-paper-preview img').forEach(image=>{image.onerror=()=>{image.hidden=true;image.parentElement.querySelector('.registry-paper-fallback').hidden=false;};setImage(image,image.dataset.src);});
-    $('registry-count').textContent=`${filtered.length}개${query?' 검색됨':''}`;pager.hidden=pages<=1;
+    $('registry-count').textContent=`${filtered.length}개${query||(categoryFilter&&active==='numbers')?' 검색됨':''}`;pager.hidden=pages<=1;
     pager.innerHTML=`<button type="button" data-page="${page-1}" ${page===1?'disabled':''}>이전</button><span>${page} / ${pages}</span><button type="button" data-page="${page+1}" ${page===pages?'disabled':''}>다음</button>`;
   }
   async function refresh(force=false){
@@ -135,7 +162,7 @@
   function showPaperImages(item){
     if(!admin()||!item)return;const urls=(item.imageUrls||[]).filter(url=>/^https:\/\/[^\s<>"']+$/i.test(url));
     detail.innerHTML=`<header class="registry-detail-heading"><h2 id="registry-detail-title">${esc(item.values[0])} · ${esc(item.values[1])}</h2><div><button type="button" class="registry-detail-edit" aria-label="스펙 수정">${pencil}</button><button type="button" data-detail-close aria-label="닫기">×</button></div></header><div class="registry-photo-heading"><h3>종이 이미지</h3></div><div class="registry-photo-gallery"></div><dl class="registry-detail-fields">${specCategory(item.values[1])?`<dt>분류</dt><dd>${esc(specCategory(item.values[1]))}</dd>`:''}${productNames(item.values[0]).map((v,i)=>v?`<dt>${i?'이전 제품명':'제품명'}</dt><dd>${esc(v)}</dd>`:'').join('')}${data.lists.numbers.headers.map((label,i)=>`<dt>${esc(label)}</dt><dd>${esc(item.values[i])||'<span class="registry-blank">미입력</span>'}${i===0&&item.values[0]?` <button type="button" class="registry-copy" data-copy="${esc(item.values[0])}" aria-label="종이넘버 복사">${clipboardIcon}</button>`:''}</dd>`).join('')}</dl>`;
-    renderPhotos(detail.querySelector('.registry-photo-gallery'),urls,'종이 이미지');detail.querySelector('[data-detail-close]').onclick=()=>detail.close();const openEditor=()=>{detail.close();edit(item);editor.querySelector('[data-photo-source]')?.focus();};detail.querySelector('.registry-detail-edit').onclick=openEditor;detail.querySelector('[data-copy]')?.addEventListener('click',event=>copyPaperNumber(event.currentTarget));detail.showModal();
+    renderPhotos(detail.querySelector('.registry-photo-gallery'),urls,'종이 이미지');photoActions(detail,urls,item.values[0]);detail.querySelector('[data-detail-close]').onclick=()=>detail.close();const openEditor=()=>{detail.close();edit(item);editor.querySelector('[data-photo-source]')?.focus();};detail.querySelector('.registry-detail-edit').onclick=openEditor;detail.querySelector('[data-copy]')?.addEventListener('click',event=>copyPaperNumber(event.currentTarget));detail.showModal();
   }
   function edit(item){
     if(!admin()||saving||!data)return;
