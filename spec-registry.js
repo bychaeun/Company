@@ -5,13 +5,14 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const tabs=['map','sites','numbers'],pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>';
   const clipboardIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="6" width="12" height="15" rx="2"/><path d="M16 6V3H4v14h4"/></svg>';
-  let categoryFilter='',active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
+  let searchCache={},searchTimer=0,categoryFilter='',active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
   const editor=document.createElement('dialog');editor.id='registry-editor';editor.className='board-editor registry-editor';editor.setAttribute('aria-labelledby','registry-editor-title');
   editor.innerHTML='<h2 id="registry-editor-title"></h2><form><div data-fields class="registry-fields"></div><p data-message role="status"></p><footer><button type="button" class="install-button" data-remove>삭제</button><button type="button" class="install-button" data-cancel>취소</button><button type="submit" class="install-button">시트에 저장</button></footer></form>';document.body.append(editor);
   const form=editor.querySelector('form');
   const detail=document.createElement('dialog');detail.className='specs-dialog registry-detail';detail.setAttribute('aria-labelledby','registry-detail-title');document.body.append(detail);
   // 팝업 바깥(어두운 배경)을 누르면 닫는다.
   detail.addEventListener('click',e=>{if(e.target!==detail)return;const r=detail.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)detail.close();});
+  const collator=new Intl.Collator('ko',{numeric:true});
   const fold=v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ko').replace(/\s+/g,'');
   // Photos taken in the app are private Drive files; they are fetched through the admin API instead of a public URL.
   const driveId=url=>(String(url).match(/^https:\/\/drive\.google\.com\/file\/d\/([-\w]{10,200})(?:\/|$)/)||[])[1]||'';
@@ -129,8 +130,10 @@
     // 모바일 스펙 목록은 세로 공간이 좁아 분류·비고 칸을 숨긴다(팝업에서는 모두 보인다).
     const mobileHidden=h=>active==='numbers'&&(h==='분류'||h==='비고');
     const cols=r=>active==='numbers'?[r.values[0],r.values[1],specCategory(r.values[1]),...productNames(r.values[0]),...r.values.slice(2)]:r.values;
-    let filtered=rows().filter(r=>fold(cols(r).join(' ')).includes(query)&&(active!=='numbers'||!categoryFilter||specCategory(r.values[1])===categoryFilter));
-    if(sortColumn>=0)filtered.sort((a,b)=>sortDirection*String(cols(a)[sortColumn]).localeCompare(String(cols(b)[sortColumn]),'ko',{numeric:true}));
+    // 행마다 검색용 글자를 매번 다시 만들지 않고, 데이터가 바뀔 때까지 기억해 둔다.
+    if(searchCache.data!==data||searchCache.kind!==active)searchCache={data,kind:active,text:new Map()};const textOf=r=>{let t=searchCache.text.get(r.id);if(t===undefined)searchCache.text.set(r.id,t=fold(cols(r).join(' ')));return t;};
+    let filtered=rows().filter(r=>(!query||textOf(r).includes(query))&&(active!=='numbers'||!categoryFilter||specCategory(r.values[1])===categoryFilter));
+    if(sortColumn>=0){const keyed=filtered.map(r=>[String(cols(r)[sortColumn]),r]);keyed.sort((a,b)=>sortDirection*collator.compare(a[0],b[0]));filtered=keyed.map(k=>k[1]);}
     const pages=Math.max(1,Math.ceil(filtered.length/50));page=Math.min(page,pages);
     sites.innerHTML=active==='sites'?(filtered.length?filtered.slice((page-1)*50,page*50).map(r=>`<button type="button" class="registry-site-card" data-site-id="${esc(r.id)}" aria-label="${esc(r.values[0])} 현장 상세 보기"><strong>${esc(r.values[0])}</strong><span aria-hidden="true">›</span></button>`).join(''):`<p class="registry-empty">${query?'검색 결과가 없어요.':'등록된 현장이 없어요.'}</p>`):'';
     table.querySelector('thead').innerHTML='<tr>'+(active==='numbers'?'<th scope="col" class="registry-image-column">이미지</th>':'')+headers.map((h,i)=>`<th scope="col"${mobileHidden(h)?' class="registry-col-desktop"':''} aria-sort="${sortColumn===i?(sortDirection===1?'ascending':'descending'):'none'}"><button type="button" data-sort="${i}">${esc(h)}${sortColumn===i?(sortDirection===1?' ↑':' ↓'):''}</button></th>`).join('')+'</tr>';
@@ -242,7 +245,7 @@
     finally{saving=false;editor.querySelectorAll('button').forEach(b=>b.disabled=false);render();}
   };
   $('registry-add').onclick=()=>edit();$('registry-sync').onclick=()=>refresh(true);
-  $('registry-search').oninput=()=>{page=1;render();};
+  $('registry-search').oninput=()=>{page=1;clearTimeout(searchTimer);searchTimer=setTimeout(render,120);};   // 빠르게 입력할 때 글자마다 표를 다시 그리지 않는다
   async function copyPaperNumber(button){
     if(button.disabled||!admin())return;const value=button.dataset.copy;if(!value)return;button.disabled=true;let field;
     try{

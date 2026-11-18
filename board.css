@@ -89,3 +89,7 @@
 .board-node.is-photo header {border-bottom:0;padding:8px 6px 10px;}
 .board-node.is-photo h2 {font-size:14px;font-weight:600;}
 .board-node.is-photo header button {width:30px;height:30px;flex-basis:30px;}
+/* 선택 막대: 대지 이동 */
+.board-selection .board-move select {height:36px;max-width:160px;padding:0 28px 0 10px;border:1px solid #cfdbe0;border-radius:8px;background:#fff;color:#315661;font:inherit;font-size:13px;}
+.board-selection .board-move select:disabled {opacity:.55;}
+@media(max-width:600px){.board-selection {gap:8px;}.board-selection > span {flex:1 0 100%;}.board-selection .board-move select {max-width:130px;}}

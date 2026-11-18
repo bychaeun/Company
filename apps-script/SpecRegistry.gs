@@ -180,7 +180,7 @@ function zipDeleteRegistry_(body) {
     zipDeleteRows_(data.sheet,[index+2],Math.max.apply(null,data.columns.concat([photo])));SpreadsheetApp.flush();return {ok:true};
   }finally{lock.releaseLock();}
 }
-function syncSpecRegistryDaily() {var data=zipRegistryData_();PropertiesService.getScriptProperties().setProperty('registry-synced-at',data.syncedAt);if(typeof zipReadCache_==='function')zipReadCache_('registry',true,function(){return data;});if(typeof zipNotes_==='function')zipNotes_(true);}
+function syncSpecRegistryDaily() {try{if(typeof cleanupDeletedRows==='function')cleanupDeletedRows();}catch(ignore){}var data=zipRegistryData_();PropertiesService.getScriptProperties().setProperty('registry-synced-at',data.syncedAt);if(typeof zipReadCache_==='function')zipReadCache_('registry',true,function(){return data;});if(typeof zipNotes_==='function')zipNotes_(true);}
 function setupSpecRegistryDaily() {
   // Does not change existing note/checklist triggers.
   if(!ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='syncSpecRegistryDaily';}))ScriptApp.newTrigger('syncSpecRegistryDaily').timeBased().everyDays(1).atHour(7).create();

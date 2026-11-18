@@ -29,10 +29,13 @@
  }
  const linksHTML=(item,limit=20)=>urlsOf(item).slice(0,limit).map(u=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>`).join('');
  const selection=document.createElement('div');selection.className='board-selection note-selection-bar';selection.hidden=true;
- selection.innerHTML='<span aria-live="polite"></span><button type="button" class="install-button" data-delete>선택 삭제</button><button type="button" class="install-button" data-cancel>취소</button>';board.before(selection);
+ selection.innerHTML='<span aria-live="polite"></span><label class="board-move"><span class="sr-only">옮길 대지</span><select data-move-target aria-label="옮길 대지"></select></label><button type="button" class="install-button" data-move>대지 이동</button><button type="button" class="install-button" data-delete>선택 삭제</button><button type="button" class="install-button" data-cancel>취소</button>';board.before(selection);
  const confirmDialog=document.createElement('dialog');confirmDialog.className='board-editor';confirmDialog.innerHTML='<h2>메모지 삭제</h2><p></p><form method="dialog"><footer><button class="install-button" value="cancel">취소</button><button class="install-button" value="delete">삭제하기</button></footer></form>';document.body.append(confirmDialog);
  function confirmDelete(count){confirmDialog.querySelector('p').textContent=`선택한 메모지 ${count}개를 삭제할까요?`;confirmDialog.returnValue='cancel';confirmDialog.showModal();return new Promise(resolve=>confirmDialog.addEventListener('close',()=>resolve(confirmDialog.returnValue==='delete'),{once:true}));}
- function updateSelection(){selection.hidden=!selecting;selection.querySelector('span').textContent=`${selected.size}개 선택`;selection.querySelector('[data-delete]').disabled=deleting||!selected.size;selection.querySelector('[data-cancel]').disabled=deleting;}
+ function updateSelection(){selection.hidden=!selecting;selection.querySelector(':scope > span').textContent=`${selected.size}개 선택`;
+  const targets=artboards.filter(b=>b.id!==activeBoard),pick=selection.querySelector('[data-move-target]'),keep=pick.value;
+  pick.innerHTML=targets.length?targets.map(b=>`<option value="${esc(b.id)}">${esc(b.title)}</option>`).join(''):'<option value="">다른 대지 없음</option>';if(targets.some(b=>b.id===keep))pick.value=keep;
+  pick.disabled=deleting||busy||!targets.length;selection.querySelector('[data-move]').disabled=deleting||busy||!targets.length||!selected.size;selection.querySelector('[data-delete]').disabled=deleting||!selected.size;selection.querySelector('[data-cancel]').disabled=deleting;}
  function resetSelection(){selected.clear();selecting=false;updateSelection();}
  selection.querySelector('[data-cancel]').onclick=()=>{resetSelection();render();};
  async function remove(ids){
@@ -45,6 +48,26 @@
   finally{deleting=false;updateSelection();renderArtboards();}
  }
  selection.querySelector('[data-delete]').onclick=()=>remove([...selected]);
+ // 선택한 메모지를 다른 대지로 옮긴다. 대지를 넘나드는 연결선은 끊고, 옮긴 묶음은 대상 대지의 오른쪽 빈 곳에 배치한다.
+ async function moveSelected(){
+  const target=selection.querySelector('[data-move-target]').value,board=artboards.find(b=>b.id===target);if(!board||!selected.size||deleting||busy||!admin())return;
+  const version=epoch;busy=true;updateSelection();renderArtboards();status.textContent='옮기는 중…';
+  try{await flush();if(pending.size)throw Error('저장이 지연되고 있어요. 저장 완료 후 다시 옮겨 주세요.');if(version!==epoch)return;
+   const ids=new Set(selected),moving=items.filter(n=>ids.has(n.id)),there=items.filter(n=>(n.boardId||'default')===target);
+   const right=there.length?Math.max(...there.map(n=>n.x+(n.width||260)))+80:Math.min(...moving.map(n=>n.x)),top=there.length?Math.min(...there.map(n=>n.y)):Math.min(...moving.map(n=>n.y));
+   const dx=right-Math.min(...moving.map(n=>n.x)),dy=top-Math.min(...moving.map(n=>n.y));
+   // 남는 메모지가 옮기는 메모지를 가리키던 연결은 먼저 끊어 저장한다.
+   items=items.map(n=>!ids.has(n.id)&&n.link&&ids.has(n.link)?(queue({...n,link:''}),{...n,link:''}):n);
+   const moved=new Map(moving.map(n=>[n.id,{...n,boardId:target,x:Math.round(n.x+dx),y:Math.round(n.y+dy),link:n.link&&ids.has(n.link)?n.link:''}]));
+   // 서버는 연결 대상이 같은 대지에 있어야 저장하므로, 연결되는 쪽을 먼저 저장한다.
+   const order=[],left=new Set(moved.keys());while(left.size){const ready=[...left].filter(id=>!left.has(moved.get(id).link));(ready.length?ready:[...left]).forEach(id=>{left.delete(id);order.push(id);});}
+   order.forEach(id=>queue(moved.get(id)));items=items.map(n=>moved.get(n.id)||n);
+   await flush();if(version!==epoch)return;if(pending.size)throw Error('일부 메모지를 옮기지 못했어요. 다시 저장을 눌러 주세요.');
+   activeBoard=target;resetSelection();renderArtboards();render();fit();status.textContent=`${moved.size}개를 '${board.title}' 대지로 옮겼어요`;
+  }catch(e){if(version===epoch){status.textContent=e.message;render();}}
+  finally{busy=false;updateSelection();renderArtboards();}
+ }
+ selection.querySelector('[data-move]').onclick=moveSelected;
  const editor=document.createElement('dialog');editor.className='board-editor';
  editor.innerHTML='<h2 data-editor-title>디자인 자료</h2><form><label>제목<input name="title" maxlength="200" required></label><label data-memo-only>메모<textarea name="content" maxlength="8000"></textarea></label><fieldset class="board-url-fields" data-memo-only><legend>사이트</legend><div data-url-rows></div><button type="button" class="install-button" data-add-url>＋ 사이트 추가</button></fieldset><fieldset class="board-image-fields" data-media hidden><legend>이미지 <span>(최대 12장)</span></legend><div class="registry-photo-sources" role="group" aria-label="이미지 추가 방법"><button type="button" class="install-button" data-photo-source="gallery">🖼 사진첩</button><button type="button" class="install-button" data-photo-source="camera">📷 촬영하기</button><button type="button" class="install-button" data-photo-source="url" aria-expanded="false">🔗 URL</button></div><input type="file" accept="image/*" multiple data-photo-gallery hidden><input type="file" accept="image/*" capture="environment" data-photo-camera hidden><div class="board-image-url" data-image-url hidden><input type="url" maxlength="2000" placeholder="https://example.com/image.jpg" aria-label="이미지 URL"><button type="button" class="install-button" data-image-url-add>추가</button></div><div class="registry-photo-preview" data-image-preview aria-label="이미지 미리보기"></div></fieldset><label data-memo-only>메모지 색<select name="color"><option value="cream">흰색 (기본)</option><option value="pink">핑크</option><option value="mint">민트</option><option value="lavender">라벤더</option></select></label><label>연결할 자료<select name="link"></select></label><button type="button" class="install-button board-size-reset" data-reset-size hidden>메모지 크기 기본값으로</button><p role="status" data-message></p><footer><button class="install-button" type="button" data-remove>삭제</button><button class="install-button" type="button" data-cancel>취소</button><button class="install-button" type="submit">저장</button></footer></form>';
  document.body.append(editor);const form=editor.querySelector('form');
@@ -103,9 +126,11 @@
  $('artboard-add').onclick=()=>editArtboard(false);$('artboard-rename').onclick=()=>editArtboard(true);
  $('artboard-select').onchange=()=>{activeBoard=$('artboard-select').value;resetSelection();renderArtboards();render();fit();};
  function transform(){world.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;world.style.setProperty('--board-inv',String(1/scale));}
- function lines(){const rows=currentItems();$('board-links').innerHTML=rows.filter(n=>n.link&&rows.some(i=>i.id===n.link)).map(n=>{const end=rows.find(i=>i.id===n.link),card=nodes.querySelector(`[data-node="${n.id}"]`),height=card?.offsetHeight||140,width=card?.offsetWidth||260;return `<path d="M${n.x+width} ${n.y+height/2} C${n.x+width+90} ${n.y+height/2},${end.x-90} ${end.y+60},${end.x} ${end.y+60}"/>`;}).join('');}
+ function lines(){const rows=currentItems(),byId=new Map(rows.map(n=>[n.id,n])),cards=new Map([...nodes.children].map(c=>[c.dataset.node,c]));$('board-links').innerHTML=rows.filter(n=>n.link&&byId.has(n.link)).map(n=>{const end=byId.get(n.link),card=cards.get(n.id),height=card?.offsetHeight||140,width=card?.offsetWidth||260;return `<path d="M${n.x+width} ${n.y+height/2} C${n.x+width+90} ${n.y+height/2},${end.x-90} ${end.y+60},${end.x} ${end.y+60}"/>`;}).join('');}
  function render(){nodes.innerHTML=currentItems().map(n=>`<article class="board-node ${selected.has(n.id)?'is-selected':''} ${n.height?'is-sized':''} ${isPhoto(n)?'is-photo':''}" data-node="${esc(n.id)}" data-color="${esc(n.color)}" style="left:${Number(n.x)||0}px;top:${Number(n.y)||0}px;${n.width?`width:${n.width}px;`:''}${n.height?`height:${n.height}px;`:''}">${selected.has(n.id)?'<span class="board-selected-mark" aria-label="선택됨">✓</span>':''}<header tabindex="0" role="button" aria-label="${esc(n.title)} ${selecting?'선택':'열기, 방향키로 이동'+(media?', Alt+방향키로 크기 조절':'')}" ${selecting?`aria-pressed="${selected.has(n.id)}"`:''}><h2>${esc(n.title)}</h2><button data-edit="${esc(n.id)}" aria-label="${esc(n.title)} 수정">${pencil}</button></header><div class="board-node-body">${imagesHTML(n)}${!isPhoto(n)&&(n.content||!imagesOf(n).length)?`<p>${esc(n.content)}</p>`:''}${linksHTML(n,2)}${urlsOf(n).length>2?`<button class="board-more-links" data-open="${esc(n.id)}">사이트 ${urlsOf(n).length}개 모두 보기</button>`:''}</div>${media&&!selecting?`<span class="board-resize" data-resize title="끌어서 크기 조절 · 두 번 눌러 기본 크기"></span>`:''}</article>`).join('');hydrate(nodes);lines();transform();updateSelection();}
- function toggle(id){if(deleting||!id)return;selecting=true;if(selected.has(id))selected.delete(id);else if(selected.size<100)selected.add(id);render();}
+ function toggle(id){if(deleting||!id)return;const wasSelecting=selecting;selecting=true;if(selected.has(id))selected.delete(id);else if(selected.size<100)selected.add(id);
+  // 이미 선택 모드면 카드 하나의 표시만 바꾼다(보드 전체를 다시 그리면 이미지까지 다시 불러와 느려진다).
+  const card=wasSelecting&&nodes.querySelector(`[data-node="${CSS.escape(id)}"]`);if(!card){render();return;}const on=selected.has(id);card.classList.toggle('is-selected',on);card.querySelector('header')?.setAttribute('aria-pressed',String(on));const mark=card.querySelector('.board-selected-mark');if(on&&!mark)card.prepend(Object.assign(document.createElement('span'),{className:'board-selected-mark',textContent:'✓'}));else if(!on)mark?.remove();updateSelection();}
  function queue(item){const copy={...item,urls:[...urlsOf(item)]};if(media)copy.images=imagesOf(item);else{delete copy.images;delete copy.width;delete copy.height;}pending.set(item.id,copy);status.textContent='저장 중…';clearTimeout(saveTimer);saveTimer=setTimeout(flush,450);}
  function flush(){
   clearTimeout(saveTimer);if(writeTask)return writeTask;if(!admin())return Promise.resolve();retry.hidden=true;const version=epoch;
@@ -143,15 +168,17 @@
   if(pointers.size===2){const [a,b]=[...pointers.values()];drag={pinch:Math.hypot(a.x-b.x,a.y-b.y),moved:true};return;}
   if(drag.id)holdTimer=setTimeout(()=>{if(!drag?.id||drag.moved||pointers.size!==1)return;drag.held=true;selecting=true;if(selected.size<100)selected.add(drag.id);skipOpenUntil=Date.now()+800;render();},500);
  });
+ // 포인터 이동은 1초에 수백 번 올 수 있어, 화면 반영은 한 프레임에 한 번만 한다.
+ let frame=0,frameJob=null;const paint=job=>{frameJob=job;if(!frame)frame=requestAnimationFrame(()=>{frame=0;const run=frameJob;frameJob=null;run?.();});};
  board.addEventListener('pointermove',e=>{
   if(!pointers.has(e.pointerId)||!drag)return;const old=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pointers.size===2){clearTimeout(holdTimer);const [a,b]=[...pointers.values()],distance=Math.hypot(a.x-b.x,a.y-b.y);if(drag.pinch)zoom(scale*distance/drag.pinch);drag.pinch=distance;return;}
   if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>6){drag.moved=true;clearTimeout(holdTimer);}
   if(drag.resize){const n=items.find(n=>n.id===drag.id),card=nodes.querySelector(`[data-node="${drag.id}"]`);if(!n||!card)return;n.width=clampSize(drag.resize.w+(e.clientX-drag.x)/scale,MIN_W,MAX_W);n.height=clampSize(drag.resize.h+(e.clientY-drag.y)/scale,MIN_H,MAX_H);card.style.width=n.width+'px';card.style.height=n.height+'px';card.classList.add('is-sized');lines();return;}
   if(drag.held||selecting&&drag.id)return;
-  const dx=e.clientX-old.x,dy=e.clientY-old.y;if(drag.id){const n=items.find(n=>n.id===drag.id);if(!n)return;n.x=Math.max(-100000,Math.min(100000,n.x+dx/scale));n.y=Math.max(-100000,Math.min(100000,n.y+dy/scale));const card=nodes.querySelector(`[data-node="${n.id}"]`);card.style.left=n.x+'px';card.style.top=n.y+'px';lines();}else{tx+=dx;ty+=dy;transform();}
+  const dx=e.clientX-old.x,dy=e.clientY-old.y;if(drag.id){const n=drag.node||(drag.node=items.find(n=>n.id===drag.id));if(!n)return;n.x=Math.max(-100000,Math.min(100000,n.x+dx/scale));n.y=Math.max(-100000,Math.min(100000,n.y+dy/scale));drag.card??=nodes.querySelector(`[data-node="${CSS.escape(n.id)}"]`);paint(()=>{if(!drag.card)return;drag.card.style.left=n.x+'px';drag.card.style.top=n.y+'px';lines();});}else{tx+=dx;ty+=dy;paint(transform);}
  });
- function release(e){clearTimeout(holdTimer);skipOpenUntil=Date.now()+500;if(drag?.resize){const n=items.find(n=>n.id===drag.id);nodes.querySelector(`[data-node="${drag.id}"]`)?.classList.remove('is-resizing');if(n&&drag.moved)queue(n);pointers.delete(e.pointerId);drag=null;return;}if(drag?.id){const n=items.find(n=>n.id===drag.id);if(n&&drag.moved&&!selecting)queue(n);if(n&&!drag.moved&&!drag.held&&e.type==='pointerup'){if(selecting)toggle(n.id);else showDetail(n);}}pointers.delete(e.pointerId);drag=null;}
+ function release(e){if(frame){cancelAnimationFrame(frame);frame=0;const run=frameJob;frameJob=null;run?.();}clearTimeout(holdTimer);skipOpenUntil=Date.now()+500;if(drag?.resize){const n=items.find(n=>n.id===drag.id);nodes.querySelector(`[data-node="${drag.id}"]`)?.classList.remove('is-resizing');if(n&&drag.moved)queue(n);pointers.delete(e.pointerId);drag=null;return;}if(drag?.id){const n=items.find(n=>n.id===drag.id);if(n&&drag.moved&&!selecting)queue(n);if(n&&!drag.moved&&!drag.held&&e.type==='pointerup'){if(selecting)toggle(n.id);else showDetail(n);}}pointers.delete(e.pointerId);drag=null;}
  board.addEventListener('pointerup',release);board.addEventListener('pointercancel',release);
  nodes.onkeydown=e=>{const card=e.target.closest('[data-node]');if(!card||e.target.tagName!=='HEADER')return;const n=items.find(i=>i.id===card.dataset.node),direction={ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]}[e.key];if(e.key==='Enter'||e.key===' '){e.preventDefault();if(e.shiftKey||selecting){toggle(n.id);nodes.querySelector(`[data-node="${n.id}"] header`)?.focus();}else showDetail(n);}if(direction&&!selecting&&e.altKey&&media){e.preventDefault();const card=nodes.querySelector(`[data-node="${n.id}"]`);n.width=clampSize((n.width||card.offsetWidth)+direction[0],MIN_W,MAX_W);n.height=clampSize((n.height||card.offsetHeight)+direction[1],MIN_H,MAX_H);queue(n);render();nodes.querySelector(`[data-node="${n.id}"] header`).focus();return;}
   if(direction&&!selecting){e.preventDefault();n.x+=direction[0];n.y+=direction[1];queue(n);render();nodes.querySelector(`[data-node="${n.id}"] header`).focus();}};

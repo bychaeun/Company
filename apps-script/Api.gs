@@ -578,9 +578,33 @@ function zipDeleteChecklist_(row,expectedTask) {
     var sh=zipChecklistSheet_();
     var task=row>sh.getLastRow()?'':String(sh.getRange(row,2).getDisplayValue()||'');
     if(!task||typeof expectedTask==='string'&&task.trim()!==expectedTask.trim())throw new Error('Unknown checklist item');
-    zipDeleteRows_(sh,[row]);SpreadsheetApp.flush();
+    // 체크박스 칸은 내용을 옮겨도 빈 줄에 FALSE로 남아 새 할 일이 그 아래에 쌓였다. 줄 자체를 지운다(옆에 다른 표가 없는 시트).
+    sh.deleteRow(row);SpreadsheetApp.flush();
     return {ok:true};
   }finally{lock.releaseLock();}
+}
+
+// 예전 버전이 '삭제일'만 적어 두고 남긴 줄과, 체크리스트의 빈 체크박스 줄을 시트에서 실제로 지운다.
+// 편집기에서 한 번 실행하면 되고, 매일 동기화 때도 함께 정리한다. 옆에 둔 표(스펙번호 규칙 등)는 건드리지 않는다.
+function cleanupDeletedRows() {
+  var lock=LockService.getScriptLock(),removed={};lock.waitLock(20000);
+  try{
+    var ss=zipSheet_();
+    ['디자인 보드','디자인 대지','내 스펙관리','현장별 관리','스펙번호 관리'].forEach(function(name){
+      var sh=ss.getSheetByName(name);if(!sh||sh.getLastRow()<2)return;
+      var width=zipRecordWidth_(sh),headers=sh.getRange(1,1,1,width).getDisplayValues()[0],col=-1;
+      headers.forEach(function(h,i){if(col<0&&/^(앱 )?삭제일(시)?$/.test(String(h).trim()))col=i;});if(col<0)return;
+      var values=sh.getRange(2,1,sh.getLastRow()-1,width).getDisplayValues(),rows=[];
+      values.forEach(function(r,i){if(String(r[col]).trim())rows.push(i+2);});
+      if(rows.length){zipDeleteRows_(sh,rows,width);removed[name]=rows.length;}
+    });
+    var check=ss.getSheetByName('체크리스트');
+    if(check&&check.getLastRow()>=2){var tasks=check.getRange(2,2,check.getLastRow()-1,1).getDisplayValues(),blank=[];tasks.forEach(function(r,i){if(!String(r[0]).trim())blank.push(i+2);});
+      blank.reverse().forEach(function(row){check.deleteRow(row);});if(blank.length)removed['체크리스트']=blank.length;}
+    SpreadsheetApp.flush();
+  }finally{lock.releaseLock();}
+  ['board','registry','specs','notes'].forEach(function(scope){try{PropertiesService.getScriptProperties().setProperty('read-version:'+scope,String(Date.now()));}catch(ignore){}});
+  console.log('정리한 줄: '+JSON.stringify(removed));return removed;
 }
 
 // Run once in the editor to create the required tabs and authorize Sheets, Drive and Calendar.
