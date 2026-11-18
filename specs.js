@@ -36,6 +36,7 @@
     api.image(drive,{action:'registryImage'}).then(src=>{if(src)image.src=src;else image.onerror();}).catch(()=>image.onerror());}
   $('specs-photo-urls').addEventListener('change',()=>{const box=$('specs-url-preview');box.replaceChildren();try{photoUrls($('specs-photo-urls').value).forEach(url=>urlImage(url,box));}catch(e){$('specs-save-message').textContent=e.message;}});
   const detail = document.createElement('dialog');detail.className = 'specs-dialog';detail.setAttribute('aria-label','현장 스펙 상세');document.body.append(detail);
+  detail.addEventListener('click',e=>{if(e.target!==detail)return;const r=detail.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)detail.close();});
   function clearPhotos() { imageUrls.forEach(url => URL.revokeObjectURL(url));imageUrls=[]; }
   detail.addEventListener('close',()=>{detailVersion++;clearPhotos();detail.replaceChildren();});
   function loadMapLibrary() {

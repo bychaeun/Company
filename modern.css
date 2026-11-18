@@ -123,7 +123,6 @@ dialog::backdrop,dialog.detail-dialog::backdrop,dialog.install-dialog::backdrop,
 #registry-table tbody tr:hover { background:#f0f5f6; }
 #registry-table .registry-row-edit,#registry-table .registry-copy { color:#687780; background:transparent; border-radius:6px; }
 #registry-table .registry-paper-preview { background:#edf1f3; color:#64757e; border-radius:6px; }
-.registry-paper-count { background:#3d5964e6; }
 .registry-editor footer { background:#fff; }
 .registry-photo-gallery img,.registry-photo-preview img,.registry-photo-empty,.registry-photo-error { background:#f0f3f5; color:var(--ink-soft); border-radius:8px; }
 .registry-blank { color:#919ba3; }.registry-empty { color:var(--ink-soft); }
