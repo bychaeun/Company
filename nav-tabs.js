@@ -13,7 +13,9 @@
     { view: '#board-view', open: '#board-nav-button', source: '#board-nav-button', label: '디자인 보드', short: '보드', icon: icon('M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z') },
   ];
 
-  const tabs = (cls, withIcons) => views.map((v, i) => `<button type="button" role="tab" class="${cls}" data-tab="${i}" aria-selected="false">${withIcons ? v.icon : ''}<span>${withIcons ? v.short : v.label}</span></button>`).join('');
+  const tabs = (cls, withIcons) => views.map((v, i) => withIcons
+    ? `<button type="button" role="tab" class="${cls}" data-tab="${i}" aria-selected="false" aria-label="${v.label}" title="${v.label}">${v.icon}</button>`
+    : `<button type="button" role="tab" class="${cls}" data-tab="${i}" aria-selected="false"><span>${v.label}</span></button>`).join('');
   const row = document.createElement('div');
   row.className = 'view-tabs-row';
   row.innerHTML = `<nav class="view-tabs" role="tablist" aria-label="화면 선택"><span class="view-tabs-indicator" aria-hidden="true"></span>${tabs('view-tab', false)}</nav><button type="button" class="view-tabs-add" data-add-note hidden><span aria-hidden="true">＋</span> 새 메모</button>`;

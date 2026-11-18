@@ -235,16 +235,16 @@ dialog::backdrop,dialog.detail-dialog::backdrop,dialog.install-dialog::backdrop,
   .view-tabs-row { position:absolute; z-index:5; top:18px; right:16px; margin:0; }   /* 'MY NOTES' 줄 오른쪽 빈자리에 */
   .view-tabs { display:none; }
   .view-tabs-add { min-height:38px; padding:0 14px; font-size:13px; }
-  body.has-view-tabs .main-content { padding-bottom:calc(110px + env(safe-area-inset-bottom)); }
+  body.has-view-tabs .main-content { padding-bottom:calc(100px + env(safe-area-inset-bottom)); }
   .bottom-tabs { position:fixed; z-index:60; left:12px; right:12px; bottom:calc(12px + env(safe-area-inset-bottom)); display:grid; grid-auto-flow:column; grid-auto-columns:1fr; padding:6px; background:#141a1d; border-radius:22px; box-shadow:0 10px 30px #0000003d; }
   .bottom-tabs-indicator { position:absolute; top:6px; bottom:6px; left:0; width:0; border-radius:16px; background:#2f3a3f; opacity:0; transition:transform .32s cubic-bezier(.3,.7,.2,1),width .32s cubic-bezier(.3,.7,.2,1); }
-  .bottom-tab { position:relative; z-index:1; display:grid; justify-items:center; gap:3px; min-height:52px; padding:7px 0 6px; border:0; border-radius:16px; background:transparent; color:#8d989d; font:inherit; font-size:11px; font-weight:600; cursor:pointer; }
-  .bottom-tab svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .bottom-tab { position:relative; z-index:1; display:grid; place-items:center; min-height:48px; padding:0; border:0; border-radius:16px; background:transparent; color:#8d989d; cursor:pointer; }
+  .bottom-tab svg { width:23px; height:23px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .bottom-tab[aria-selected=true] { color:#fff; }
   .bottom-tab[hidden] { display:none; }
   /* 하단 바와 겹치지 않게 떠 있는 버튼·알림을 위로 */
-  body.has-view-tabs #specs-view #specs-add { bottom:calc(92px + env(safe-area-inset-bottom)); right:16px; }
-  body.has-view-tabs .toast { bottom:calc(96px + env(safe-area-inset-bottom)); }
+  body.has-view-tabs #specs-view #specs-add { bottom:calc(86px + env(safe-area-inset-bottom)); right:16px; }
+  body.has-view-tabs .toast { bottom:calc(90px + env(safe-area-inset-bottom)); }
   .intro { padding-bottom:14px; }
   .intro-note { display:none; }
   .card-button,.knowledge-card.has-image .card-button { padding:14px; }
