@@ -151,7 +151,11 @@
         files=[...files].filter(Boolean);if(!files.length)return;const room=12-lines().length;if(room<=0){message().textContent='이미지는 최대 12장까지 추가할 수 있어요.';return;}
         if(files.length>room){files=files.slice(0,room);message().textContent=`최대 12장이라 ${room}장만 올려요.`;}
         const access=epoch;uploading++;form.querySelector('button[type="submit"]').disabled=true;let done=0;
-        try{for(const file of files){message().textContent=`사진을 올리고 있어요 (${done+1}/${files.length})…`;const {blob,payload}=await resizePhoto(file);const result=await api.request('uploadNoteImage',payload);if(access!==epoch||!editor.open)return;api.seedImage?.(result.fileId,blob,'registryImage');area.value=[...lines(),`https://drive.google.com/file/d/${result.fileId}/view`].join('\n');done++;preview();}
+        // 사진은 3장씩 동시에 올리고, 끝난 것부터 고른 순서대로 붙인다.
+        const results=[],queue=files.map((file,index)=>({file,index}));let next=0,stale=false;const live=()=>!stale&&access===epoch&&editor.open;
+        const flushReady=()=>{const ready=[];while(results[next]){ready.push(`https://drive.google.com/file/d/${results[next]}/view`);next++;}if(ready.length){area.value=[...lines(),...ready].join('\n');preview();}};
+        const worker=async()=>{while(queue.length){const {file,index}=queue.shift();const {blob,payload}=await resizePhoto(file);const result=await api.request('uploadNoteImage',payload);if(!live()){stale=true;return;}api.seedImage?.(result.fileId,blob,'registryImage');results[index]=result.fileId;done++;message().textContent=`사진을 올리고 있어요 (${done}/${files.length})…`;flushReady();}};
+        try{message().textContent=`사진을 올리고 있어요 (0/${files.length})…`;const failed=(await Promise.allSettled([worker(),worker(),worker()])).find(r=>r.status==='rejected');if(stale)return;if(failed)throw failed.reason;
           message().textContent=`사진 ${done}장을 추가했어요. 시트에 저장을 눌러 주세요.`;}
         catch(error){message().textContent=(done?`${done}장은 추가했어요. `:'')+(error.message||'사진을 올리지 못했어요.');}
         finally{uploading--;if(!uploading)form.querySelector('button[type="submit"]').disabled=false;}

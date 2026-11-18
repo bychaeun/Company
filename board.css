@@ -79,3 +79,13 @@
 .board-detail-images {display:grid;gap:12px;padding-top:20px;}
 .board-detail-images figure {margin:0;}
 .board-detail-images img {display:block;width:100%;height:auto;max-height:70dvh;object-fit:contain;border-radius:14px;background:#f4eff3;}
+/* 사진 카드: 사진이 위, 제목이 아래 캡션. 메모지와 똑같이 끌고 연결할 수 있다. */
+.board-photo-add {display:inline-grid;place-items:center;width:40px;padding:0;}
+.board-photo-add svg {display:block;}
+.board-node.is-photo {background:#fff;padding:8px 8px 0;}
+.board-node.is-photo .board-node-body {order:-1;border-radius:10px;}
+.board-node.is-photo .board-node-images {padding:0;}
+.board-node.is-photo .board-node-images figure {border-radius:10px;}
+.board-node.is-photo header {border-bottom:0;padding:8px 6px 10px;}
+.board-node.is-photo h2 {font-size:14px;font-weight:600;}
+.board-node.is-photo header button {width:30px;height:30px;flex-basis:30px;}

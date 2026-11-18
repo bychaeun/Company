@@ -53,7 +53,7 @@ var ZIP_BOARD_MIN_W=180,ZIP_BOARD_MAX_W=1600,ZIP_BOARD_MIN_H=120,ZIP_BOARD_MAX_H
 function zipBoard_(){var sh=zipBoardSheet_();if(sh.getLastRow()<2)return [];return sh.getRange(2,1,sh.getLastRow()-1,ZIP_BOARD_COLS).getDisplayValues().filter(function(r){return r[0]&&!r[9];}).map(zipBoardRow_);}
 function zipBoardInput_(b){
   var x={};['id','title','content','url','color','link'].forEach(function(k){x[k]=String(b[k]||'').trim();});x.boardId=String(b.boardId||'default');x.urls=zipBoardUrls_(b.urls,x.url);x.url=x.urls[0]||'';
-  if(!/^[a-zA-Z0-9-]{20,80}$/.test(x.id)||!x.title||x.title.length>200||x.content.length>8000||!zipArtboardId_(x.boardId)||['cream','pink','mint','lavender'].indexOf(x.color)<0||x.link&&!/^[a-zA-Z0-9-]{20,80}$/.test(x.link)||x.link===x.id)throw new Error('Invalid board note');
+  if(!/^[a-zA-Z0-9-]{20,80}$/.test(x.id)||!x.title||x.title.length>200||x.content.length>8000||!zipArtboardId_(x.boardId)||['cream','pink','mint','lavender','photo'].indexOf(x.color)<0||x.link&&!/^[a-zA-Z0-9-]{20,80}$/.test(x.link)||x.link===x.id)throw new Error('Invalid board note');
   x.x=Number(b.x);x.y=Number(b.y);if(!isFinite(x.x)||!isFinite(x.y)||Math.abs(x.x)>100000||Math.abs(x.y)>100000)throw new Error('Invalid board position');
   // Left undefined when an older app saves, so the stored size and images are kept.
   if(b.width!==undefined)x.width=zipBoardSize_(b.width,ZIP_BOARD_MIN_W,ZIP_BOARD_MAX_W);
