@@ -103,7 +103,7 @@
 
 /* 팝업 이미지: 크기를 4:5로 통일하고 넘치는 부분은 잘라서(크롭) 보여 준다 */
 .registry-photo-gallery figure {aspect-ratio:4/5;max-height:60dvh;margin:0 auto;overflow:hidden;border-radius:14px;background:#f4eff3;}
-.registry-photo-gallery img {width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0;}
+.registry-photo-gallery img {width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0;transform:scale(1.06);}   /* 스캔 가장자리 흰 띠를 살짝 잘라 낸다 */
 .registry-photo-gallery figure:has(.registry-photo-error) {aspect-ratio:auto;}
 .registry-photo-preview img {object-fit:cover;}
 /* 팝업 이미지 넘기기 */
