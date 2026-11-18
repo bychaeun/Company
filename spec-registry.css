@@ -105,7 +105,8 @@
 .registry-photo-gallery.registry-carousel {position:relative;display:block;outline:none;}
 .registry-carousel > figure[hidden] {display:none;}
 .registry-carousel img {max-height:60dvh;}
-.registry-carousel-nav {position:absolute;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:40px;height:40px;min-height:40px;padding:0;border:0;border-radius:50%;background:#2a2a2eb3;color:#fff;font-size:26px;line-height:1;cursor:pointer;z-index:1;}
-.registry-carousel-nav.prev {left:8px;}.registry-carousel-nav.next {right:8px;}
-.registry-carousel-nav:hover,.registry-carousel-nav:focus-visible {background:#2a2a2ee6;}
+.registry-photo-gallery.registry-carousel .registry-carousel-nav,.registry-photo-gallery.registry-carousel .registry-carousel-nav:hover,.registry-photo-gallery.registry-carousel .registry-carousel-nav:active {position:absolute;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0 0 3px;border:0;border-radius:50%;background:#2a2a2ebf;color:#fff;font-size:30px;font-weight:400;line-height:1;box-shadow:0 2px 8px #0003;cursor:pointer;z-index:1;}
+.registry-photo-gallery.registry-carousel .registry-carousel-nav:hover,.registry-photo-gallery.registry-carousel .registry-carousel-nav:focus-visible {background:#2a2a2ef2;}
+.registry-photo-gallery.registry-carousel .registry-carousel-nav.prev {left:10px;}
+.registry-photo-gallery.registry-carousel .registry-carousel-nav.next {right:10px;}
 .registry-carousel-count {position:absolute;right:10px;bottom:10px;padding:3px 9px;border-radius:999px;background:#2a2a2eb3;color:#fff;font-size:12px;}
