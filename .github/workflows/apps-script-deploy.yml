@@ -1,0 +1,89 @@
+name: Deploy Apps Script
+
+# main에 apps-script/ 변경이 올라오면 Google Apps Script 서버를 자동으로 새 버전 배포합니다.
+# 필요한 GitHub Secrets: CLASPRC_JSON, APPS_SCRIPT_ID  (설정 방법: DEPLOY-AUTO.md)
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps-script/**"
+      - "config.js"
+      - ".github/workflows/apps-script-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apps-script-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run tests before deploying
+        run: |
+          corepack enable && corepack prepare pnpm@11.19.0 --activate
+          pnpm --dir server install --frozen-lockfile --ignore-scripts
+          node --test tests/*.test.mjs
+
+      - name: Check secrets
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          APPS_SCRIPT_ID: ${{ secrets.APPS_SCRIPT_ID }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$APPS_SCRIPT_ID" ]; then
+            echo "::error::GitHub Secrets에 CLASPRC_JSON 과 APPS_SCRIPT_ID 를 먼저 등록하세요. (DEPLOY-AUTO.md 참고)"
+            exit 1
+          fi
+
+      - name: Install clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Write clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+
+      - name: Read deployment ID from config.js
+        id: ids
+        run: |
+          DEPLOYMENT_ID=$(grep -oE 'macros/s/[A-Za-z0-9_-]+/exec' config.js | head -n1 | cut -d/ -f3)
+          if [ -z "$DEPLOYMENT_ID" ]; then echo "::error::config.js에서 Apps Script 배포 주소를 찾지 못했습니다."; exit 1; fi
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+
+      # 원격 프로젝트를 먼저 내려받아 appsscript.json(권한·웹앱 설정)과
+      # 저장소에 없는 파일(예: onEdit 스크립트)을 그대로 유지한 채, 저장소의 .gs 파일만 덮어씁니다.
+      - name: Pull current project and overlay repository files
+        env:
+          APPS_SCRIPT_ID: ${{ secrets.APPS_SCRIPT_ID }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/gas"
+          cd "$RUNNER_TEMP/gas"
+          printf '{"scriptId":"%s","rootDir":".","fileExtension":"gs"}' "$APPS_SCRIPT_ID" > .clasp.json
+          clasp pull
+          test -f appsscript.json || { echo "::error::원격 프로젝트에서 appsscript.json을 받지 못했습니다."; exit 1; }
+          cp "$GITHUB_WORKSPACE"/apps-script/*.gs .
+          echo "업로드할 파일:"; ls -1
+
+      - name: Push and update the existing web app deployment
+        env:
+          DEPLOYMENT_ID: ${{ steps.ids.outputs.deployment_id }}
+        run: |
+          cd "$RUNNER_TEMP/gas"
+          clasp push --force
+          clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}"
+          clasp deployments
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"
