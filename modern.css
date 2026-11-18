@@ -250,3 +250,81 @@ dialog::backdrop,dialog.detail-dialog::backdrop,dialog.install-dialog::backdrop,
   .card-button,.knowledge-card.has-image .card-button { padding:14px; }
   .knowledge-card.has-image .card-image { height:80px; }
 }
+
+/* ── 둥근 모양 통일 ── */
+/* 제목 옆 메모 개수: "나의 기록 109" */
+#page-title .title-count { margin-left:6px; color:#8a969d; font-weight:500; font-variant-numeric:tabular-nums; }
+.intro-copy { grid-template-columns:1fr; }
+
+/* 하단 바: 완전한 알약 모양 */
+@media(max-width:600px){
+  .bottom-tabs { border-radius:999px; padding:6px; }
+  .bottom-tabs-indicator { border-radius:999px; }
+  .bottom-tab { border-radius:999px; }
+}
+
+/* 팝업의 닫기(×) 버튼: 둥근 배경 */
+.dialog-close,
+.registry-detail-heading [data-detail-close],
+.note-category-dialog [data-category-close],
+.board-detail [data-close],
+.sidebar-close {
+  display:grid; place-items:center; width:38px; height:38px; min-width:38px; min-height:38px; padding:0 0 2px;
+  border:0!important; border-radius:50%!important; background:#eef1f3!important; color:#4f5b65!important;
+  font-size:22px; line-height:1; box-shadow:none!important; cursor:pointer;
+}
+.dialog-close:hover,
+.registry-detail-heading [data-detail-close]:hover,
+.note-category-dialog [data-category-close]:hover,
+.board-detail [data-close]:hover,
+.sidebar-close:hover { background:#e2e7ea!important; color:#263943!important; }
+.registry-detail-edit,.dialog-edit-icon { border-radius:50%!important; }
+
+/* 글자가 들어간 길쭉한 버튼은 모두 알약 모양 */
+.install-button,
+.checklist-form-toggle,.checklist-form-cancel,.checklist-add,
+.note-save-button,.note-delete-button,
+.board-editor footer button,.board-editor .install-button,
+.registry-editor footer button,
+.specs-dialog .specs-actions button,
+.note-selection-bar button,
+.category-summary,.category-done,
+.registry-photo-sources button,
+.registry-match-options button,
+.board-more-links,
+#clear-filters,.menu-button,.google-login,
+#specs-view #specs-add,
+.pagination button,#registry-pagination button,#specs-pagination button,
+.board-selection .board-move select,
+.view-tabs-add { border-radius:999px!important; }
+/* 스펙관리 보기 전환(지도/현장/스펙)도 알약 모양 */
+#specs-view .spec-view-tabs,#specs-view .spec-view-tabs::before,#specs-view .spec-view-tabs button { border-radius:999px!important; }
+/* 검색창·정렬 선택도 알약 모양 */
+.search-box input,.search-panel select,.menu-button,#specs-search,#registry-search,#artboard-select { border-radius:999px!important; }
+.search-panel select { padding-left:20px; }
+#specs-search,#registry-search { padding-left:18px; padding-right:18px; }
+/* 메모 팝업: 저장 버튼은 배경 있는 알약, 연필은 ×처럼 둥근 배경 */
+.dialog-save { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 22px!important; border:0!important; border-radius:999px!important; background:#eef1f3!important; color:#33454d!important; font-weight:600; }
+.dialog-save:hover { background:#e2e7ea!important; color:#1d2d34!important; }
+.dialog-edit-icon,.registry-detail-edit { display:grid; place-items:center; width:38px; height:38px; padding:0; border:0!important; border-radius:50%!important; background:#eef1f3!important; color:#4f5b65!important; }
+.dialog-edit-icon:hover,.registry-detail-edit:hover { background:#e2e7ea!important; color:#263943!important; }
+/* 달력 이전/다음 달: 동그란 버튼 */
+.calendar-toolbar button { border-radius:50%!important; border:0!important; background:#eef1f3!important; color:#4f5b65!important; }
+.calendar-toolbar button:hover { background:#e2e7ea!important; color:#263943!important; }
+
+/* 보이지 않는 안내 글자가 화면 밖으로 밀려 페이지가 옆으로 넓어지지 않게(하단 바가 움직이던 원인) */
+.sr-only { left:0; top:0; }
+html,body { overflow-x:clip; }
+
+/* 나머지 길쭉한 버튼·선택칸도 알약 모양 */
+#specs-home,.board-editor select,.note-editor-form select,.registry-editor select,.specs-dialog select { border-radius:999px!important; }
+.board-editor select,.note-editor-form select,.registry-editor select,.specs-dialog select { padding-left:16px; }
+/* 메뉴 버튼: 아이콘만 */
+#open-sidebar { display:grid; place-items:center; width:44px; min-width:44px; padding:0; }
+#open-sidebar svg { margin:0; }
+
+/* 화면 확대 막기: 핀치·두 번 탭 확대는 끄고, 팝업 이미지(zoom.js)와 디자인 보드만 자체 확대 */
+html { touch-action:pan-x pan-y; }
+.registry-photo-gallery img,.board-detail-images img,.detail-dialog img,.specs-photos img { touch-action:pan-y; transform-origin:center; will-change:transform; cursor:zoom-in; }
+.registry-photo-gallery img.is-zoomed,.board-detail-images img.is-zoomed,.detail-dialog img.is-zoomed,.specs-photos img.is-zoomed { cursor:grab; touch-action:none; }   /* 확대 중에는 끌어서 이동 */
+.board-detail-images figure,.detail-dialog figure,.specs-photos figure { overflow:hidden; }

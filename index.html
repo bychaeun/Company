@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="CHAE EUN.ZIP — 일상, 업무, 디자인의 기록을 모아두는 채은 지식 저장소" />
     <meta name="theme-color" content="#f5f6f7" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="specs.css?v=31" />
     <link rel="stylesheet" href="spec-registry.css?v=46" />
     <link rel="stylesheet" href="board.css?v=27" />
-    <link rel="stylesheet" href="modern.css?v=46" />
+    <link rel="stylesheet" href="modern.css?v=50" />
   </head>
   <body class="auth-checking">
     <a class="skip-link" href="#knowledge-list">내용으로 바로가기</a>
@@ -90,12 +90,8 @@
         <section class="intro" aria-labelledby="page-title">
           <div class="intro-copy">
             <p class="eyebrow">MY NOTES</p>
-            <h1 id="page-title">나의 기록</h1>
+            <h1 id="page-title">나의 기록 <span id="result-count" class="title-count" aria-label="메모 개수">0</span></h1>
             <p class="intro-note">업무와 아이디어를 한곳에 기록하세요.</p>
-            <div class="result-summary" aria-live="polite">
-              <strong id="result-count">0</strong>
-              <span>개의 메모</span>
-            </div>
           </div>
 
         </section>
@@ -103,7 +99,6 @@
         <section class="search-panel" aria-label="메모 검색">
           <button class="menu-button" id="open-sidebar" type="button" aria-label="메뉴 열기">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-            <span>메뉴</span>
           </button>
           <div class="search-box">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
@@ -294,6 +289,7 @@
     <script src="spec-registry.js?v=50"></script>
     <script src="board.js?v=26"></script>
     <script src="nav-tabs.js?v=2"></script>
+    <script src="zoom.js?v=1"></script>
   </body>
 </html>
 
