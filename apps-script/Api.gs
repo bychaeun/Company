@@ -87,14 +87,16 @@ var ZIP_CACHE_CHUNK=90000,ZIP_CACHE_MAX_CHUNKS=40;
 // the CacheService maximum (6h) instead of expiring every 10 minutes and forcing a slow full sheet read.
 var ZIP_READ_CACHE_TTL=21600;
 function zipReadCache_(scope,force,loader) {
-  var cache,key;
+  var cache=null,key='';
   try {
     cache=CacheService.getScriptCache();
-    key='read-v10:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_();
-    if(!force){var packed=zipCacheGetChunks_(cache,key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
+    key='read-v11:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_();
   }catch(ignore){cache=null;}
+  // ungzip needs the gzip content type; without it every read silently failed and fell back to a full sheet read.
+  // A broken cache entry must not stop the fresh result from being stored below.
+  if(cache&&!force)try{var packed=zipCacheGetChunks_(cache,key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed),'application/x-gzip')).getDataAsString('UTF-8'));ZIP_CACHE_HIT=true;return value;}}catch(ignore){}
   var result=loader();
-  if(cache)try{zipCachePutChunks_(cache,key,Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(result))).getBytes()),ZIP_READ_CACHE_TTL);}catch(ignore){}
+  if(cache)try{zipCachePutChunks_(cache,key,Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(result),'application/json')).getBytes()),ZIP_READ_CACHE_TTL);}catch(ignore){}
   return result;
 }
 function zipCacheGetChunks_(cache,key) {
