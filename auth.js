@@ -80,7 +80,7 @@
     const version=authVersion;
     checking=(async()=>{
       try {
-        if(api.hasSession){const result=await api.request('me',{includeNotes:lastCheck===0});if(version!==authVersion)return currentUser;lastCheck=Date.now();clearTimeout(retryTimer);retryDelay=2000;window.ZIP_AUTH_PENDING=false;if(Array.isArray(result.records))window.ZIP_BOOTSTRAP=result;api.rememberUser?.(result.user);update(result.user);if(Array.isArray(result.records))window.dispatchEvent(new Event('notes-bootstrap-ready'));return result.user;}
+        if(api.hasSession){const initial=lastCheck===0,result=await api.request('me',{includeNotes:initial&&!api.hasCachedNotes});if(version!==authVersion)return currentUser;lastCheck=Date.now();clearTimeout(retryTimer);retryDelay=2000;window.ZIP_AUTH_PENDING=false;if(Array.isArray(result.records))window.ZIP_BOOTSTRAP=result;api.rememberUser?.(result.user);update(result.user);if(initial||Array.isArray(result.records))window.dispatchEvent(new Event('notes-bootstrap-ready'));return result.user;}
         update(null,configured?'Google 계정으로 로그인하고 메모를 만나보세요.':'Google 로그인 연결을 준비하고 있어요.');
         renderLogin().catch(error=>{if(!currentUser && !api.hasSession)update(null,error.message);});
       }catch(error){

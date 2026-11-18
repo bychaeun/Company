@@ -133,3 +133,15 @@ test('paper images persist independently of site images and retain paper/specifi
  const oldClient=c.zipSaveRegistry_({kind:'numbers',id:item.id,version:item.version,values:['001','SPEC-1','비고 수정']}).item;assert.deepEqual(Array.from(c.zipRegistryData_().lists.numbers.items[0].imageUrls),urls);
  assert.throws(()=>c.zipSaveRegistry_({kind:'numbers',...oldClient,imageUrls:[],photoVersion:'stale'}),e=>e.zipCode==='REGISTRY_CONFLICT');c.zipSaveRegistry_({kind:'numbers',...oldClient,imageUrls:[],photoVersion:item.photoVersion});assert.deepEqual(Array.from(c.zipRegistryData_().lists.numbers.items[0].imageUrls),[]);
 });
+test('sorting filter includes all record columns and preserves criteria without touching the reference table',()=>{
+ const {c}=setup();const criterion={kind:'existing'},ranges=[];let filter={getRange:()=>({getColumn:()=>1,getLastColumn:()=>3,getRow:()=>1,getNumRows:()=>20}),getColumnFilterCriteria:col=>col===2?criterion:null,remove(){filter=null;}};
+ const sheet={getMaxRows:()=>1000,getFilter:()=>filter,getRange(row,col,rows,cols){ranges.push({row,col,rows,cols});return {createFilter(){filter={getRange:()=>({getColumn:()=>1,getLastColumn:()=>cols,getRow:()=>1,getNumRows:()=>rows}),setColumnFilterCriteria(i,rule){assert.equal(i,2);assert.equal(rule,criterion);}};return filter;}};}};
+ c.zipRegistryFilter_(sheet,[1,2,0,3,4,5,6,7]);assert.deepEqual(ranges,[{row:1,col:1,rows:1000,cols:7}]);c.zipRegistryFilter_(sheet,[1,2,0,3,4,5,6,7]);assert.equal(ranges.length,1);
+});
+test('registry snapshot reads each site once and steady-state reads do not rewrite hidden columns',()=>{
+ const {c,numbers,sites}=setup();numbers.data.push(['001','SPEC-1','','note']);sites.data.push(['site','001','SPEC-1','','','','','','']);c.zipRegistryData_();let hides=0,reads=0;sites.hideColumns=numbers.hideColumns=()=>hides++;const original=c.zipRegistrySheet_;c.zipRegistrySheet_=function(kind,...args){if(kind==='sites')reads++;return original(kind,...args);};const result=c.zipRegistryData_();assert.equal(reads,1);assert.equal(hides,0);assert.equal(result.mapItems[0].name,'site');assert.equal(result.lists.sites.items[0].values[0],'site');
+});
+test('row sorting keeps paper image, specification, memo and stable ID attached together',()=>{
+ const {c,numbers}=setup();numbers.data.push(['001','B','','memo-b'],['002','A','','memo-a']);let list=c.zipRegistryData_().lists.numbers.items;
+ list.forEach(item=>c.zipSaveRegistry_({kind:'numbers',...item,imageUrls:['https://example.com/'+item.values[1]+'.jpg']}));const ids=Object.fromEntries(c.zipRegistryData_().lists.numbers.items.map(item=>[item.values[1],item.id]));[numbers.data[1],numbers.data[2]]=[numbers.data[2],numbers.data[1]];list=c.zipRegistryData_().lists.numbers.items;assert.deepEqual(Array.from(list,entry=>entry.values[1]),['A','B']);for(const item of list){assert.equal(item.id,ids[item.values[1]]);assert.equal(item.imageUrls[0],'https://example.com/'+item.values[1]+'.jpg');assert.equal(item.values[2],'memo-'+item.values[1].toLowerCase());}
+});

@@ -5,7 +5,7 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const tabs=['map','sites','numbers'],pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>';
   const clipboardIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="6" width="12" height="15" rx="2"/><path d="M16 6V3H4v14h4"/></svg>';
-  let active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing;
+  let active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
   const editor=document.createElement('dialog');editor.id='registry-editor';editor.className='board-editor registry-editor';editor.setAttribute('aria-labelledby','registry-editor-title');
   editor.innerHTML='<h2 id="registry-editor-title"></h2><form><div data-fields class="registry-fields"></div><p data-message role="status"></p><footer><button type="button" class="install-button" data-remove>삭제</button><button type="button" class="install-button" data-cancel>취소</button><button type="submit" class="install-button">시트에 저장</button></footer></form>';document.body.append(editor);
   const form=editor.querySelector('form');
@@ -56,12 +56,17 @@
     pager.innerHTML=`<button type="button" data-page="${page-1}" ${page===1?'disabled':''}>이전</button><span>${page} / ${pages}</span><button type="button" data-page="${page+1}" ${page===pages?'disabled':''}>다음</button>`;
   }
   async function refresh(force=false){
-    if(!admin()||loading||saving)return;if(data&&!force&&Date.now()-Date.parse(data.syncedAt)<86400000)return;
+    if(!admin()||saving)return;if(loading){if(force)forceQueued=true;return;}if(data&&!force&&Date.now()-loadedAt<30000)return;
+    if(!data){const cached=api.cached?.('specRegistry');if(cached)applyResult(cached);}
     loading=true;render();$('registry-sync').disabled=true;$('registry-message').textContent='시트에서 목록을 불러오는 중…';const access=epoch,start=revision;
-    try{const result=await api.request('specRegistry',{force});if(access!==epoch||start!==revision)return;data=normalizeNumbers(structuredClone(result));if(Array.isArray(result.mapItems))window.dispatchEvent(new CustomEvent('spec-map-data',{detail:result.mapItems}));render();$('registry-synced').textContent='최근 동기화 '+new Date(result.syncedAt).toLocaleString('ko-KR');$('registry-message').textContent='';}
+    try{const result=await api.request('specRegistry',{force});if(access!==epoch||start!==revision)return;applyResult(result);$('registry-message').textContent='';}
     catch(error){if(access===epoch)$('registry-message').textContent=error.message;}
-    finally{loading=false;$('registry-sync').disabled=false;render();}
+    finally{loading=false;$('registry-sync').disabled=false;render();if(forceQueued){forceQueued=false;refresh(true);}}
   }
+  function applyResult(result){if(!admin()||saving)return;data=normalizeNumbers(structuredClone(result));if(!result.clientSnapshot)loadedAt=Date.now();if(Array.isArray(result.mapItems))window.dispatchEvent(new CustomEvent('spec-map-data',{detail:result.mapItems}));render();$('registry-synced').textContent=(result.clientSnapshot?'저장된 자료 · ':'최근 동기화 ')+new Date(result.syncedAt).toLocaleString('ko-KR');}
+  window.addEventListener('spec-registry-data',event=>applyResult(event.detail));
+  window.addEventListener('spec-registry-refresh',()=>refresh(true));
+  window.addEventListener('spec-registry-invalidated',()=>{revision++;loadedAt=0;});
   function showSite(item){
     if(!admin()||!item)return;const mapped=item.source||data.mapItems?.find(row=>row.id===item.id),urls=(item.imageUrls||mapped?.imageUrls||[]).filter(url=>/^https:\/\/[^\s<>"']+$/i.test(url)),fields=data.lists.sites.headers.slice(1).map((label,i)=>[label,item.values[i+1]]);
     if(mapped)fields.push(['주소',mapped.address],['담당자',mapped.contact],['건설사',mapped.builder]);
@@ -139,6 +144,6 @@
   $('registry-table').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.paperImages!==undefined){showPaperImages(rows().find(r=>r.id===b.dataset.paperImages));return;}if(b.dataset.copy!==undefined){copyPaperNumber(b);return;}if(b.dataset.sort!==undefined){const col=Number(b.dataset.sort);sortDirection=sortColumn===col?-sortDirection:1;sortColumn=col;render();}else if(b.dataset.id)edit(rows().find(r=>r.id===b.dataset.id));};
   $('registry-pagination').onclick=e=>{const b=e.target.closest('[data-page]');if(b&&!b.disabled){page=Number(b.dataset.page);render();}};
   $('specs-nav-button').addEventListener('click',()=>{if(active!=='map')refresh();});
-  window.addEventListener('access-change',()=>{if(!admin()){epoch++;revision++;data=null;editing=null;detail.close();detail.replaceChildren();editor.close();editor.querySelector('[data-fields]').replaceChildren();$('registry-synced').textContent='';$('registry-count').textContent='';$('registry-message').textContent='';render();selectTab('map');}});
+  window.addEventListener('access-change',()=>{if(!admin()){epoch++;revision++;data=null;loadedAt=0;forceQueued=false;editing=null;detail.close();detail.replaceChildren();editor.close();editor.querySelector('[data-fields]').replaceChildren();$('registry-synced').textContent='';$('registry-count').textContent='';$('registry-message').textContent='';render();selectTab('map');}});
   setInterval(()=>{if(!document.hidden&&!$('specs-view').hidden&&active!=='map')refresh();},60000);
 })();

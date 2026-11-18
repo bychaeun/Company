@@ -573,6 +573,7 @@
   async function loadData(manual) {
     if(window.ZIP_AUTH_PENDING&&!window.ZIP_BOOTSTRAP)return;
     if(notesLoading)return;
+    if(!manual&&!state.records.length){const cached=window.ZIP_API.cached?.('notes');if(cached){state.records=jsonToRecords(cached);render();el.syncLabel.dataset.cache='snapshot';el.syncLabel.textContent='저장된 자료 표시 · 최신 자료 확인 중';}}
     notesLoading=true;
     const revision=notesRevision;
     el.syncDot.className = "sync-dot loading";
@@ -580,7 +581,7 @@
     el.refresh.disabled = true;
     try {
       if (!window.CHAE_AUTH?.user || window.CHAE_AUTH.user.status !== 'approved') return;
-      const payload = window.ZIP_BOOTSTRAP || await window.ZIP_API.request('notes',{force:!!manual});
+      const payload = (!manual&&window.ZIP_BOOTSTRAP) || await window.ZIP_API.request('notes',{force:!!manual});
       window.ZIP_BOOTSTRAP=null;
       if(revision!==notesRevision)return;
       if (window.CHAE_AUTH?.user?.status !== 'approved') return;
@@ -771,7 +772,7 @@
   el.noteDelete.addEventListener("click", deleteNote);
   document.querySelector("#note-editor-close").addEventListener("click", () => {if(!noteSaving)el.noteEditor.close();});
   el.noteEditor.addEventListener("click", (event) => { if (event.target === el.noteEditor) el.noteEditor.close(); });
-  el.refresh.addEventListener("click", () => loadData(true));
+  el.refresh.addEventListener("click", () => {if(!document.getElementById('specs-view').hidden)window.dispatchEvent(new Event('spec-registry-refresh'));else loadData(true);});
 
   let deferredInstallPrompt = null;
   window.addEventListener("beforeinstallprompt", (event) => {

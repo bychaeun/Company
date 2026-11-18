@@ -8,7 +8,9 @@ function zipSpecSheet_() {
   return sh;
 }
 function zipSpecs_() {
-  var data=zipUnifiedSiteSheet_();
+  return zipSpecItems_(zipUnifiedSiteSheet_());
+}
+function zipSpecItems_(data) {
   return data.rows.filter(function(r){return r[9]&&!r[11]&&r[0];}).map(function(r){
     return {id:r[9],name:r[0],address:r[12],designer:r[6],contact:r[13],builder:r[14],openMonth:r[4].slice(0,7),completionMonth:r[5].slice(0,7),lat:r[15]===''?null:Number(r[15]),lng:r[16]===''?null:Number(r[16]),images:r[17].split('|').filter(Boolean),imageUrls:zipReadablePhotoUrls_(r[20]),photoVersion:zipHash_(r[20]||''),papers:zipSitePapers_(r),updatedAt:r[10]};
   });
@@ -26,10 +28,8 @@ function zipSitePapers_(r){
   return Array.from({length:length},function(_,i){return {number:numbers[i]||'',spec:specs[i]||numbers[i]||'',mirror:mirrors.length===1?mirrors[0]:mirrors[i]||'',area:old[i]?.area||'',specMode:true};});
 }
 function zipUnifiedSiteSheet_(setup){
-  var data=zipRegistrySheet_('sites',setup),sheet=data.sheet,names=data.definition.headers.concat(ZIP_REGISTRY_META,ZIP_SITE_EXTRA);
-  data.columns=zipColumns_(sheet,names,['사진 ID'],setup?names:ZIP_SITE_EXTRA);
-  data.rows=zipMappedRows_(sheet,data.columns,2,Math.max(0,sheet.getLastRow()-1));
-  [17,18,19].forEach(function(i){if(data.columns[i])sheet.hideColumns(data.columns[i]);});
+  var data=zipRegistrySheet_('sites',setup,ZIP_SITE_EXTRA),sheet=data.sheet;
+  if(setup)[17,18,19].forEach(function(i){if(data.columns[i])sheet.hideColumns(data.columns[i]);});
   return data;
 }
 function migrateUnifiedSites(){

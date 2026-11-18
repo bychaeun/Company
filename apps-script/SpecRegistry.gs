@@ -19,16 +19,15 @@ function zipColumns_(sheet,names,optional,create){
     if(!columns[i]&&(optional||[]).indexOf(name)<0){if((create||[]).indexOf(name)<0)throw zipRegistryError_('REGISTRY_HEADERS');missing.push(i);}
   });
   // Validate the whole schema before appending; never overwrite user columns.
-  missing.forEach(function(i){var col=++width;if(col>sheet.getMaxColumns())sheet.insertColumnsAfter(sheet.getMaxColumns(),col-sheet.getMaxColumns());sheet.getRange(1,col).setValue(names[i]);columns[i]=col;});
-  // Sorting with the sheet's filter must move image URLs together with their record IDs.
-  var filter=missing.length?sheet.getFilter():null;
-  if(filter&&typeof filter.getRange==='function'){
-    var filtered=filter.getRange();if(filtered.getLastColumn()<width){
-      var criteria=[];for(var c=filtered.getColumn();c<=filtered.getLastColumn();c++)criteria[c]=filter.getColumnFilterCriteria(c);
-      filter.remove();var expanded=sheet.getRange(filtered.getRow(),1,filtered.getNumRows(),width).createFilter();criteria.forEach(function(rule,i){if(rule)expanded.setColumnFilterCriteria(i,rule);});
-    }
-  }
+  missing.forEach(function(i){var col=++width;if(col>sheet.getMaxColumns())sheet.insertColumnsAfter(sheet.getMaxColumns(),col-sheet.getMaxColumns());sheet.getRange(1,col).setValue(names[i]);columns[i]=col;if(ZIP_REGISTRY_META.indexOf(names[i])>=0)sheet.hideColumns(col);});
   return columns;
+}
+// Sort the record block together, leaving unrelated reference tables to its right alone.
+function zipRegistryFilter_(sheet,columns){
+  var end=Math.max.apply(null,columns),rows=sheet.getMaxRows(),filter=sheet.getFilter(),criteria=[];
+  if(filter){if(typeof filter.getRange!=='function')return;var range=filter.getRange();if(range.getColumn()===1&&range.getLastColumn()===end&&range.getRow()===1&&range.getNumRows()===rows)return;
+    for(var c=range.getColumn();c<=Math.min(end,range.getLastColumn());c++)criteria[c]=filter.getColumnFilterCriteria(c);filter.remove();}
+  var full=sheet.getRange(1,1,rows,end).createFilter();criteria.forEach(function(rule,i){if(rule)full.setColumnFilterCriteria(i,rule);});
 }
 function zipMappedRows_(sheet,columns,start,length){
   if(!length)return [];var raw=sheet.getRange(start,1,length,Math.max.apply(null,columns)).getDisplayValues();
@@ -39,12 +38,11 @@ function zipWriteMapped_(sheet,columns,row,values){
   values.forEach(function(value,i){if(!columns[i]||String(value)===before[i])return;var cell=sheet.getRange(row,columns[i]);if(cell.getFormulas()[0][0])throw zipRegistryError_('REGISTRY_FORMULA');changes.push({cell:cell,value:String(value)});});
   changes.forEach(function(change){change.cell.setNumberFormat('@').setValue(/^[=+@-]/.test(change.value)?"'"+change.value:change.value);});
 }
-function zipRegistrySheet_(kind,setup) {
+function zipRegistrySheet_(kind,setup,extras) {
   var def=zipRegistryDefinition_(kind),sheet=zipSheet_().getSheetByName(def.name);
   if(!sheet)throw zipRegistryError_('REGISTRY_SETUP');
-  var count=def.headers.length,names=def.headers.concat(ZIP_REGISTRY_META),columns=zipColumns_(sheet,names,kind==='numbers'?['경면']:[],setup?names:ZIP_REGISTRY_META);
-  if(kind==='numbers'&&columns[2])sheet.hideColumns(columns[2]);
-  ZIP_REGISTRY_META.forEach(function(_,i){sheet.hideColumns(columns[count+i]);});
+  var count=def.headers.length,names=def.headers.concat(ZIP_REGISTRY_META,extras||[]),optional=kind==='numbers'?['경면']:['사진 ID'],columns=zipColumns_(sheet,names,optional,setup?names:ZIP_REGISTRY_META.concat(extras||[]));
+  if(setup){if(kind==='numbers'&&columns[2])sheet.hideColumns(columns[2]);ZIP_REGISTRY_META.forEach(function(_,i){sheet.hideColumns(columns[count+i]);});}
   if(sheet.getLastRow()>10001)throw zipRegistryError_('REGISTRY_LIMIT');
   var length=Math.max(0,sheet.getLastRow()-1),rows=zipMappedRows_(sheet,columns,2,length),seen={};
   rows.forEach(function(row,i){
@@ -61,14 +59,13 @@ function zipRegistryData_() {
   var lock=LockService.getScriptLock();lock.waitLock(10000);
   try {
     var result={ok:true,syncedAt:new Date().toISOString(),lists:{},statuses:[]};
-    Object.keys(ZIP_REGISTRY).forEach(function(kind){var data=zipRegistrySheet_(kind);result.lists[kind]={headers:kind==='numbers'?['종이넘버','스펙넘버','비고']:data.definition.headers,items:data.rows.filter(function(r){return r[data.count]&&!r[data.count+2]&&r.slice(0,data.count).some(function(v){return v!=='';});}).map(function(r){return zipRegistryItem_(r,data.count);})};
+    var siteData;
+    Object.keys(ZIP_REGISTRY).forEach(function(kind){var data=kind==='sites'?zipUnifiedSiteSheet_():zipRegistrySheet_(kind,false,['종이 이미지 URL']);if(kind==='sites')siteData=data;result.lists[kind]={headers:kind==='numbers'?['종이넘버','스펙넘버','비고']:data.definition.headers,items:data.rows.filter(function(r){return r[data.count]&&!r[data.count+2]&&r.slice(0,data.count).some(function(v){return v!=='';});}).map(function(r){var item=zipRegistryItem_(r,data.count),raw=r[kind==='numbers'?7:20]||'';item.imageUrls=zipReadablePhotoUrls_(raw);item.photoVersion=zipHash_(raw);return item;})};
       if(kind==='sites'){var rule=data.sheet.getRange(2,data.columns[7]).getDataValidation();if(rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)result.statuses=rule.getCriteriaValues()[0];}
       if(kind==='numbers'){
-        var photoColumn=zipColumns_(data.sheet,['종이 이미지 URL'],[],['종이 이미지 URL'])[0],photoRows=data.rows.length?data.sheet.getRange(2,photoColumn,data.rows.length,1).getDisplayValues():[],photosById={};
-        data.rows.forEach(function(row,i){photosById[row[data.count]]=photoRows[i][0]||'';});
-        result.lists.numbers.items=result.lists.numbers.items.map(function(item){var raw=photosById[item.id]||'';item.imageUrls=zipReadablePhotoUrls_(raw);item.photoVersion=zipHash_(raw);return item;});
+        zipRegistryFilter_(data.sheet,data.columns);
       }
-    });result.mapItems=zipSpecs_();result.unifiedSites=true;result.registryPhotoUrls=true;result.paperPhotoUrls=true;return result;
+    });result.mapItems=zipSpecItems_(siteData);result.unifiedSites=true;result.registryPhotoUrls=true;result.paperPhotoUrls=true;return result;
   }finally{lock.releaseLock();}
 }
 function zipRegistryInput_(body) {

@@ -52,7 +52,12 @@
   const reads=new Map();
   const recentReads=new Map();let readRevision=0;
   const cacheable=['notes','specs','specRegistry','board','checklist'];
-  function clearReads(){readRevision++;recentReads.clear();reads.clear();}
+  const snapshotKey='chae-data-v1',snapshotAge=24*60*60*1000;
+  function snapshot(){try{const saved=JSON.parse(localStorage.getItem(snapshotKey)||'null');return token&&saved?.sessionTag===token.slice(-20)?saved:{sessionTag:token.slice(-20),entries:{}};}catch{return {sessionTag:token.slice(-20),entries:{}};}}
+  function stored(action){const entry=snapshot().entries?.[action];return entry&&Date.now()-entry.at<snapshotAge&&Date.now()>=entry.at?entry:null;}
+  function cached(action){const user=window.CHAE_AUTH?.user;if(window.ZIP_AUTH_PENDING||user?.status!=='approved'||action!=='notes'&&user.role!=='admin')return null;const entry=stored(action);return entry?{...JSON.parse(JSON.stringify(entry.data)),clientSnapshot:true}:null;}
+  function saveSnapshot(action,data){if(!token||!['notes','specs','specRegistry','board'].includes(action))return;try{const saved=snapshot();saved.entries[action]={at:Date.now(),data};const text=JSON.stringify(saved);if(text.length<=2000000)localStorage.setItem(snapshotKey,text);}catch{}}
+  function clearReads(dropSaved=false){readRevision++;recentReads.clear();reads.clear();if(dropSaved)try{localStorage.removeItem(snapshotKey);}catch{}}
   function rememberUser(user){try{if(user?.status==='approved'&&token)localStorage.setItem(userHintKey,JSON.stringify({sessionTag:token.slice(-20),user}));else localStorage.removeItem(userHintKey);}catch{}}
   function rememberedUser(){try{const hint=JSON.parse(localStorage.getItem(userHintKey)||'null');return token&&hint?.sessionTag===token.slice(-20)&&hint.user?.status==='approved'?hint.user:null;}catch{return null;}}
   function request(action,payload={},anonymous=false){
@@ -61,7 +66,7 @@
     }
     if(!['me',...cacheable].includes(action)){
       const mutation=/^(createNote|updateNote|deleteNote|deleteNotes|saveSpec|deleteSpec|saveSpecRegistry|deleteSpecRegistry|saveBoard|deleteBoard|deleteBoards|saveArtboard|addChecklist|toggleChecklist|deleteChecklist)$/.test(action);
-      if(mutation)clearReads();return send(action,payload,anonymous).finally(()=>{if(mutation)clearReads();});
+      if(mutation)clearReads(true);return send(action,payload,anonymous).finally(()=>{if(mutation)clearReads(true);});
     }
     if(payload.force)clearReads();
     const normalized={...payload};delete normalized.force;
@@ -70,8 +75,8 @@
     if(reads.has(key))return reads.get(key);
     const promise=send(action,payload,anonymous).then(data=>{
       if(version===sessionVersion&&revision===readRevision){
-        if(cacheable.includes(action))recentReads.set(key,{at:Date.now(),data});
-        if(action==='me'&&data.user?.status==='approved'&&Array.isArray(data.records))recentReads.set(JSON.stringify([version,revision,'notes',{},false]),{at:Date.now(),data});
+        if(cacheable.includes(action)){recentReads.set(key,{at:Date.now(),data});if(!anonymous)saveSnapshot(action,data);}
+        if(action==='me'&&data.user?.status==='approved'&&Array.isArray(data.records)){recentReads.set(JSON.stringify([version,revision,'notes',{},false]),{at:Date.now(),data});saveSnapshot('notes',data);}
       }return data;
     }).finally(()=>reads.delete(key));reads.set(key,promise);return promise;
   }
@@ -86,7 +91,7 @@
     if (!data.ok) {
       if (!anonymous && version === sessionVersion) {
         if (data.code === 'AUTH_REQUIRED') { setToken(''); window.dispatchEvent(new Event('access-expired')); }
-        if (data.code === 'FORBIDDEN') {clearReads();rememberUser(null);window.dispatchEvent(new Event('access-expired'));}
+        if (data.code === 'FORBIDDEN') {clearReads(true);rememberUser(null);window.dispatchEvent(new Event('access-expired'));}
       }
       const error = new Error(data.error || '요청에 실패했어요.');
       error.code = data.code;
@@ -95,13 +100,13 @@
     return data;
   }
   function clearImages() { generation++; imageCache.forEach(p => p.then(url => { if(url)URL.revokeObjectURL(url); }).catch(()=>{})); imageCache.clear(); }
-  function setToken(value) { sessionVersion++;clearReads();token=value;rememberUser(null);if(value)localStorage.setItem(sessionKey,value); else localStorage.removeItem(sessionKey); sessionStorage.removeItem(sessionKey); clearImages(); }
+  function setToken(value) { sessionVersion++;clearReads(true);token=value;rememberUser(null);if(value)localStorage.setItem(sessionKey,value); else localStorage.removeItem(sessionKey); sessionStorage.removeItem(sessionKey); clearImages(); }
   window.addEventListener('storage', event => {
     if (event.key !== sessionKey && event.key !== null) return;
-    token = localStorage.getItem(sessionKey) || ''; sessionVersion++;clearReads();clearImages();
+    token = localStorage.getItem(sessionKey) || ''; sessionVersion++;clearReads(true);clearImages();
     window.dispatchEvent(new Event(token ? 'session-restored' : 'access-expired'));
   });
-  window.addEventListener('access-change',event=>{if(event.detail?.status!=='approved')clearReads();});
+  window.addEventListener('access-change',event=>{if(event.detail?.status!=='approved')clearReads(true);});
   async function image(fileId) {
     if(!/^[-\w]{10,200}$/.test(fileId))return '';
     if(!imageCache.has(fileId)) {
@@ -115,7 +120,7 @@
     }
     return imageCache.get(fileId);
   }
-  window.ZIP_API = { request, image, setToken, clearImages, rememberUser,get rememberedUser(){return rememberedUser();},get hasSession(){return !!token;},
+  window.ZIP_API = { request, image, setToken, clearImages, rememberUser,cached,get hasCachedNotes(){return !!stored('notes');},get rememberedUser(){return rememberedUser();},get hasSession(){return !!token;},
     async config(){ const response=await fetch(endpoint+'?action=config',{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)}); if(!response.ok)throw new Error(); return response.json(); } };
 })();
 
