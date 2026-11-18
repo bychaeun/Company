@@ -84,20 +84,22 @@
   }
 
   function renderAgenda() {
-    const dayItems = items.filter(item => item.date === selectedDate);
+    // 하루 안에서는 안 끝낸 일 먼저, 시간 순(종일은 맨 앞).
+    const dayItems = items.filter(item => item.date === selectedDate).sort((a, b) => (a.done - b.done) || String(a.time || '').localeCompare(String(b.time || '')));
     selectedTitle.textContent = `${formatSelectedDate(selectedDate)} 일정`;
     if (!dayItems.length) {
       list.innerHTML = '<div class="checklist-empty">이 날짜에는 등록된 일정이 없어요. 위에서 새 할 일을 추가해 보세요.</div>';
       return;
     }
+    // 시간을 왼쪽에 크게, 할 일 제목을 그 옆에 보여 준다. 날짜는 위 제목에 이미 있어서 반복하지 않는다.
     list.innerHTML = dayItems.map((item) => `
       <div class="checklist-item ${item.done ? "done" : ""}" ${pendingRows.has(Number(item.row)) ? 'aria-busy="true"' : ''}>
+        <time class="checklist-when ${item.time ? "" : "all-day"}" datetime="${escapeHTML(item.date)}${item.time ? "T" + escapeHTML(item.time) : ""}">${item.time ? escapeHTML(item.time) : "종일"}</time>
         <label class="checklist-toggle">
           <input type="checkbox" data-checklist-row="${Number(item.row)}" ${item.done ? "checked" : ""} ${pendingRows.has(Number(item.row)) || saving ? 'disabled' : ''} />
-          <span><strong>${escapeHTML(item.task)}</strong><span>${escapeHTML(item.note || "Google 캘린더에 등록됨")}</span></span>
+          <span class="checklist-text"><strong>${escapeHTML(item.task)}</strong>${item.note ? `<span class="checklist-note">${escapeHTML(item.note)}</span>` : ""}</span>
         </label>
-        <time datetime="${escapeHTML(item.date)}">${escapeHTML(item.date)}${item.time ? ` · ${escapeHTML(item.time)}` : ""}</time>
-        <button type="button" data-delete-row="${Number(item.row)}" ${pendingRows.size || saving ? 'disabled' : ''} aria-label="${escapeHTML(item.task)} 삭제">삭제</button>
+        <button type="button" data-delete-row="${Number(item.row)}" ${pendingRows.size || saving ? 'disabled' : ''} aria-label="${escapeHTML(item.task)} 삭제" title="삭제"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button>
       </div>`).join("");
   }
 
