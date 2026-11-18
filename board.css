@@ -63,9 +63,12 @@
 .board-node.is-sized .board-node-images {flex:1 1 60px;min-height:60px;grid-auto-rows:minmax(0,1fr);}
 .board-node.is-sized .board-node-images figure,.board-node.is-sized .board-node-images[data-count="1"] figure {aspect-ratio:auto;}
 .board-node.is-sized .board-node-images img,.board-node.is-sized .board-node-images[data-count="1"] img {height:100%;max-height:none;}
-.board-resize {position:absolute;right:0;bottom:0;width:min(calc(30px * var(--board-inv,1)),64px);height:min(calc(30px * var(--board-inv,1)),64px);cursor:nwse-resize;touch-action:none;z-index:1;border-radius:0 0 14px 0;
-  background:linear-gradient(135deg,transparent 52%,#9a7f9580 52%,#9a7f9580 58%,transparent 58%,transparent 68%,#9a7f9580 68%,#9a7f9580 74%,transparent 74%,transparent 84%,#9a7f9580 84%,#9a7f9580 90%,transparent 90%);}
-.board-resize:hover,.board-node.is-resizing .board-resize {background-color:#de9dc626;}
+.board-resize {position:absolute;right:0;bottom:0;width:min(calc(26px * var(--board-inv,1)),40px);height:min(calc(26px * var(--board-inv,1)),40px);cursor:nwse-resize;touch-action:none;z-index:1;border-radius:0 0 14px 0;background:none;}
+/* 손잡이는 넓게 잡히되 보이는 표시는 모서리의 작은 두 줄만 */
+.board-resize::after {content:'';position:absolute;right:min(calc(4px * var(--board-inv,1)),7px);bottom:min(calc(4px * var(--board-inv,1)),7px);width:min(calc(9px * var(--board-inv,1)),14px);height:min(calc(9px * var(--board-inv,1)),14px);opacity:.55;pointer-events:none;
+  background:linear-gradient(135deg,transparent 46%,#9a7f95 46%,#9a7f95 56%,transparent 56%,transparent 72%,#9a7f95 72%,#9a7f95 82%,transparent 82%);}
+.board-resize:hover::after,.board-node.is-resizing .board-resize::after {opacity:.95;}
+@media (pointer:coarse){.board-resize::after {opacity:.4;}}
 .board-node.is-resizing {outline:2px dashed #de9dc6;outline-offset:2px;}
 .board-image-fields {border:1px solid #ecdbe6;border-radius:12px;padding:12px;min-width:0;}
 .board-image-fields legend span {font-size:12px;color:#998491;}
