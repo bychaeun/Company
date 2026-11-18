@@ -78,7 +78,7 @@ function zipRegistryData_() {
   try {
     var result={ok:true,syncedAt:new Date().toISOString(),lists:{},statuses:[]};
     var siteData;
-    Object.keys(ZIP_REGISTRY).forEach(function(kind){var data=kind==='sites'?zipUnifiedSiteSheet_():zipRegistrySheet_(kind,false,['종이 이미지 URL']);if(kind==='sites')siteData=data;result.lists[kind]={headers:kind==='numbers'?['종이넘버','스펙넘버','비고']:data.definition.headers,items:data.rows.filter(function(r){return r[data.count]&&!r[data.count+2]&&r.slice(0,data.count).some(function(v){return v!=='';});}).map(function(r){var item=zipRegistryItem_(r,data.count),raw=r[kind==='numbers'?7:20]||'';item.imageUrls=zipReadablePhotoUrls_(raw);item.photoVersion=zipHash_(raw);return item;})};
+    Object.keys(ZIP_REGISTRY).forEach(function(kind){var data=kind==='sites'?zipUnifiedSiteSheet_():zipRegistrySheet_(kind,false,['종이 이미지 URL']);if(kind==='sites')siteData=data;result.lists[kind]={headers:kind==='numbers'?['종이넘버','스펙넘버','비고']:data.definition.headers,items:data.rows.filter(function(r){return r[data.count]&&!r[data.count+2]&&r.slice(0,data.count).some(function(v){return v!=='';});}).map(function(r){var item=zipRegistryItem_(r,data.count),raw=r[kind==='numbers'?7:20]||'';item.imageUrls=zipReadablePhotoUrls_(raw);item.photoVersion=zipHash_(raw);if(kind==='numbers'&&!item.imageUrls.length){var auto=zipHyosanPaperUrls_(item.values[0]);if(auto.length){item.imageUrls=auto;item.autoImages=true;}}return item;})};
       if(kind==='sites'){var rule=data.sheet.getRange(2,data.columns[7]).getDataValidation();if(rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)result.statuses=rule.getCriteriaValues()[0];}
       if(kind==='numbers'){
         zipRegistryFilter_(data.sheet,data.columns);
@@ -114,6 +114,12 @@ function zipSaveRegistry_(body) {
       var photoHeader=body.kind==='numbers'?'종이 이미지 URL':'사진 URL',photoColumn=zipColumns_(data.sheet,[photoHeader],[],[photoHeader])[0],before=rowIndex<0?'':data.sheet.getRange(rowIndex+2,photoColumn).getDisplayValues()[0][0],after=urls.join('\n');
       if(previous&&after!==before&&body.photoVersion!==zipHash_(before))throw zipRegistryError_('REGISTRY_CONFLICT');
       photos={column:photoColumn,before:before,after:after,urls:urls};
+    }
+    if(body.kind==='numbers'&&(!photos||!photos.after)){
+      // 종이 이미지가 비어 있으면 효산 저장소 시트에서 같은 종이넘버의 이미지를 가져와 채운다(직접 지운 이미지는 다시 채우지 않음).
+      var autoUrls=zipHyosanPaperUrls_(values[0]);
+      if(autoUrls.length){var autoColumn=photos?photos.column:zipColumns_(data.sheet,['종이 이미지 URL'],[],['종이 이미지 URL'])[0],autoBefore=photos?photos.before:(rowIndex<0?'':data.sheet.getRange(rowIndex+2,autoColumn).getDisplayValues()[0][0]);
+        if(!autoBefore)photos={column:autoColumn,before:'',after:autoUrls.join('\n'),urls:autoUrls};}
     }
     if(previous&&previous[data.count+2])throw zipRegistryError_('REGISTRY_CONFLICT');
     // Safe response-loss retries: an identical write with the same UUID is a no-op.
@@ -179,4 +185,33 @@ function setupSpecRegistryDaily() {
   // Does not change existing note/checklist triggers.
   if(!ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='syncSpecRegistryDaily';}))ScriptApp.newTrigger('syncSpecRegistryDaily').timeBased().everyDays(1).atHour(7).create();
   syncSpecRegistryDaily();
+}
+
+// ── 효산 저장소 연동: 효산 LPM 시트(HYOSAN_LPM)의 PaperNumber → ImageURL ──
+// 같은 Google 계정의 효산 시트를 읽어 종이넘버별 Drive 이미지 ID를 만든다. 1시간 캐시.
+// 다른 시트를 쓰려면 스크립트 속성 HYOSAN_SPREADSHEET_ID에 시트 ID를 넣는다.
+var ZIP_HYOSAN_SHEET_DEFAULT='1RC-6ibPA86zaWOGt1rzgmQf9tLpT4OcgdI6K9XcUPTI',ZIP_HYOSAN_PAPERS=null;
+function zipPaperKey_(value){return String(value||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();}
+function zipHyosanPaperMap_(){
+  if(ZIP_HYOSAN_PAPERS)return ZIP_HYOSAN_PAPERS;
+  var cache=null,key='hyosan-papers-v1';
+  try{cache=CacheService.getScriptCache();var packed=zipCacheGetChunks_(cache,key);if(packed)return ZIP_HYOSAN_PAPERS=JSON.parse(packed);}catch(ignore){}
+  var map={};
+  try{
+    var id=PropertiesService.getScriptProperties().getProperty('HYOSAN_SPREADSHEET_ID')||ZIP_HYOSAN_SHEET_DEFAULT;
+    var sheet=SpreadsheetApp.openById(id).getSheetByName('HYOSAN_LPM'),values=sheet?sheet.getDataRange().getDisplayValues():[];
+    var headers=(values[0]||[]).map(function(h){return String(h).trim();}),pi=headers.indexOf('PaperNumber'),ii=headers.indexOf('ImageURL'),ai=headers.indexOf('Active');
+    if(pi>=0&&ii>=0)values.slice(1).forEach(function(row){
+      if(ai>=0&&String(row[ai]).trim().toUpperCase()==='FALSE')return;
+      var ids=[];String(row[ii]||'').split(/[\r\n]+/).forEach(function(url){var found=zipDriveId_(url.trim());if(found&&ids.indexOf(found)<0)ids.push(found);});
+      if(!ids.length)return;
+      String(row[pi]||'').split(/[\r\n,;|\/]+/).map(zipPaperKey_).filter(function(k){return k&&k!=='-';}).forEach(function(k){if(!map[k])map[k]=ids.slice(0,4);});
+    });
+  }catch(ignore){map={};}
+  if(cache)try{zipCachePutChunks_(cache,key,JSON.stringify(map),3600);}catch(ignore){}
+  return ZIP_HYOSAN_PAPERS=map;
+}
+function zipHyosanPaperUrls_(paper){
+  var key=zipPaperKey_(paper);if(!key)return [];
+  return (zipHyosanPaperMap_()[key]||[]).map(function(id){return 'https://drive.google.com/file/d/'+id+'/view';});
 }

@@ -481,8 +481,19 @@ function zipRegistryImage_(id) {
   (data.mapItems||[]).forEach(function(item){add(item.imageUrls);});
   if(!used[id])throw new Error('Unknown registry image');
   var file=DriveApp.getFileById(id),type=file.getMimeType();
-  if(!ZIP_THUMB_TYPES.test(type)||file.getSize()>4*1024*1024)throw new Error('Unsupported image');
+  // 큰 원본(효산 종이 스캔 등)은 Drive가 만든 미리보기 이미지로 보낸다.
+  if(!ZIP_THUMB_TYPES.test(type)||file.getSize()>4*1024*1024){var thumb=zipDrivePreview_(id);if(thumb)return thumb;throw new Error('Unsupported image');}
   return {ok:true,mime:type,base64:Utilities.base64Encode(file.getBlob().getBytes())};
+}
+function zipDrivePreview_(id){
+  try{
+    var auth={headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},muteHttpExceptions:true};
+    var meta=JSON.parse(UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(id)+'?fields=thumbnailLink&supportsAllDrives=true',auth).getContentText()||'{}');
+    if(!meta.thumbnailLink)return null;
+    var res=UrlFetchApp.fetch(String(meta.thumbnailLink).replace(/=s\d+$/,'=s1600'),auth);if(res.getResponseCode()!==200)return null;
+    var blob=res.getBlob(),bytes=blob.getBytes();if(!bytes.length||bytes.length>4*1024*1024)return null;
+    return {ok:true,mime:/^image\//.test(blob.getContentType()||'')?blob.getContentType():'image/jpeg',base64:Utilities.base64Encode(bytes)};
+  }catch(ignore){return null;}
 }
 
 function zipChecklistSheet_() {
