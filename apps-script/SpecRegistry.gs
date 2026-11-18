@@ -56,6 +56,9 @@ function zipRegistrySheet_(kind,setup,extras) {
   // Rows typed or pasted directly into the sheet get an ID here. A row copied together with the hidden
   // ID/삭제일 columns gets a fresh ID instead of breaking the whole list.
   rows.forEach(function(row,i){
+    // The sheet is the source of truth: deleting in the app now removes the row, so an old hidden
+    // '앱 삭제일' stamp from the previous soft-delete no longer hides a row that is still in the sheet.
+    row[count+2]='';
     if(!row.slice(0,count).some(function(v){return v!=='';}))return;
     if(!row[count]){row[count]=Utilities.getUuid();fixed.push(i);}
     else if(!/^[a-zA-Z0-9-]{20,80}$/.test(row[count])||seen[row[count]]){row[count]=Utilities.getUuid();fixed.push(i);if(row[count+2]){row[count+2]='';restored.push(i);}}
@@ -79,9 +82,17 @@ function zipRegistryData_() {
       if(kind==='sites'){var rule=data.sheet.getRange(2,data.columns[7]).getDataValidation();if(rule&&rule.getCriteriaType()===SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)result.statuses=rule.getCriteriaValues()[0];}
       if(kind==='numbers'){
         zipRegistryFilter_(data.sheet,data.columns);
+        result.guide=zipRegistryGuide_(data.sheet,Math.max.apply(null,data.columns));
       }
     });result.mapItems=zipSpecItems_(siteData);result.unifiedSites=true;result.registryPhotoUrls=true;result.paperPhotoUrls=true;return result;
   }finally{lock.releaseLock();}
+}
+// A small reference table typed to the right of the number list (e.g. 단색 | HS00-HS19) is shown in the app.
+function zipRegistryGuide_(sheet,width) {
+  var lastCol=sheet.getLastColumn(),lastRow=sheet.getLastRow();if(lastCol<=width||lastRow<1)return [];
+  var cols=Math.min(10,lastCol-width),values=sheet.getRange(1,width+1,Math.min(lastRow,100),cols).getDisplayValues();
+  var used=[];for(var c=0;c<cols;c++)if(values.some(function(r){return String(r[c]).trim();}))used.push(c);
+  return values.map(function(r){return used.map(function(c){return String(r[c]).trim();});}).filter(function(r){return r.some(Boolean);}).slice(0,50);
 }
 function zipRegistryInput_(body) {
   var def=zipRegistryDefinition_(body.kind);
@@ -159,7 +170,8 @@ function zipDeleteRegistry_(body) {
   // lost response finds nothing left to delete and succeeds.
   try{var data=zipRegistrySheet_(body.kind),index=data.rows.findIndex(function(r){return r[data.count]===body.id;});if(index<0)return {ok:true};var row=data.rows[index];
     if(!row[data.count+2]&&body.version!==zipRegistryVersion_(row,data.count))throw zipRegistryError_('REGISTRY_CONFLICT');
-    zipDeleteRows_(data.sheet,[index+2]);SpreadsheetApp.flush();return {ok:true};
+    var photo=zipColumns_(data.sheet,[body.kind==='numbers'?'종이 이미지 URL':'사진 URL'],[body.kind==='numbers'?'종이 이미지 URL':'사진 URL'],[])[0]||0;
+    zipDeleteRows_(data.sheet,[index+2],Math.max.apply(null,data.columns.concat([photo])));SpreadsheetApp.flush();return {ok:true};
   }finally{lock.releaseLock();}
 }
 function syncSpecRegistryDaily() {var data=zipRegistryData_();PropertiesService.getScriptProperties().setProperty('registry-synced-at',data.syncedAt);if(typeof zipReadCache_==='function')zipReadCache_('registry',true,function(){return data;});if(typeof zipNotes_==='function')zipNotes_(true);}

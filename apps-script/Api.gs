@@ -302,13 +302,19 @@ function zipNoteInput_(body) {
   imageText.split(/[|\n;]/).map(function(v){return v.trim();}).filter(Boolean).forEach(function(v){if(!zipDriveId_(v)&&!/^[-\w]{10,200}$/.test(v))throw new Error('Invalid note image');});
   return {category:category,subcategory:subcategory,title:title,address:address,content:content,imageText:imageText};
 }
-// Deleting in the app removes the row from the sheet itself (bottom-up so earlier row numbers stay valid).
-// Sheets cannot delete its last unfrozen row, so that single row is emptied instead.
-function zipDeleteRows_(sheet,rows) {
+// Deleting in the app removes the record from the sheet: the record columns below it move up one row
+// (bottom-up so earlier row numbers stay valid). Only the record block moves, so notes or reference
+// tables kept to the right of it (e.g. the 스펙번호 규칙 table) are never deleted or shifted.
+function zipRecordWidth_(sheet) {
+  var headers=sheet.getRange(1,1,1,Math.max(1,sheet.getLastColumn())).getDisplayValues()[0],width=0;
+  headers.forEach(function(h,i){if(String(h).trim())width=i+1;});return Math.max(1,width);
+}
+function zipDeleteRows_(sheet,rows,width) {
+  width=width||zipRecordWidth_(sheet);
   rows.filter(function(row,i){return row>=2&&rows.indexOf(row)===i;}).sort(function(a,b){return b-a;}).forEach(function(row){
-    if(row>sheet.getMaxRows())return;
-    if(sheet.getMaxRows()-Math.max(1,sheet.getFrozenRows())<=1)sheet.getRange(row,1,1,sheet.getMaxColumns()).clearContent();
-    else sheet.deleteRow(row);
+    var last=sheet.getLastRow();if(row>last)return;
+    if(row<last)sheet.getRange(row+1,1,last-row,width).moveTo(sheet.getRange(row,1));
+    else sheet.getRange(row,1,1,width).clearContent();
   });
 }
 function zipNoteError_(code){var error=new Error(code);error.zipCode=code;return error;}

@@ -9,11 +9,11 @@ function setup(){
  const store=new Map();let next=0;
  function sheet(name,headers){
   const data=[headers.slice()],formulas={},validations={};let filter=null;
-  const sh={data,formulas,validations,getName:()=>name,getLastColumn:()=>Math.max(...data.map(r=>r.length)),getLastRow:()=>data.length,getMaxColumns:()=>26,getMaxRows:()=>500,getFrozenRows:()=>1,deleteRow(row){data.splice(row-1,1);},insertColumnsAfter(){},insertRowsAfter(){},hideColumns(){},setColumnWidth(){},hideSheet(){sh.hidden=true;},getFilter:()=>filter,
+  const sh={data,formulas,validations,getName:()=>name,getLastColumn:()=>Math.max(...data.map(r=>r.length)),getLastRow:()=>{let k=data.length;while(k>1&&!(data[k-1]||[]).some(v=>v!==''&&v!=null))k--;return k;},getMaxColumns:()=>26,getMaxRows:()=>500,getFrozenRows:()=>1,deleteRow(row){data.splice(row-1,1);},insertColumnsAfter(){},insertRowsAfter(){},hideColumns(){},setColumnWidth(){},hideSheet(){sh.hidden=true;},getFilter:()=>filter,
    getRange(row,col,n=1,m=1){const range={
     getDisplayValues:()=>Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>String(data[row+i-1]?.[col+j-1]??''))),
     setValues(values){values.forEach((r,i)=>{data[row+i-1]??=[];r.forEach((v,j)=>data[row+i-1][col+j-1]=v);});return range;},
-    setValue(v){return range.setValues([[String(v).replace(/^'/,'')]]);},setNumberFormat(){return range;},
+    setValue(v){return range.setValues([[String(v).replace(/^'/,'')]]);},setNumberFormat(){return range;},moveTo(target){const src=Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>data[row-1+i]?.[col-1+j]??''));src.forEach((r,i)=>r.forEach((_,j)=>{if(data[row-1+i])data[row-1+i][col-1+j]='';}));target.setValues(src);},clearContent(){return range.setValues(Array.from({length:n},()=>Array(m).fill('')));},
     getFormulas:()=>[Array.from({length:m},(_,i)=>formulas[`${row}:${col+i}`]||'')],
     getDataValidation:()=>validations[col]||null,getDataValidations:()=>[Array.from({length:m},(_,i)=>validations[col+i]||null)],
     createFilter(){filter={getColumnFilterCriteria:()=>null,setColumnFilterCriteria(){},remove(){filter=null;}};return filter;}
@@ -44,12 +44,12 @@ test('invalid statuses are rejected before any values change; formulas are escap
  c.zipSaveRegistry_({kind:'numbers',id:'12345678-1234-1234-1234-123456789012',values:['001','=IMPORTXML(1)','','']});assert.equal(numbers.data[1][1],'=IMPORTXML(1)');
 });
 test('deletion removes the sheet row, retries succeed and stale writes cannot resurrect it',()=>{
- const {c,numbers}=setup();numbers.data.push(['001','A','',''],['002','B','','']);const item=c.zipRegistryData_().lists.numbers.items[0];c.zipDeleteRegistry_({kind:'numbers',...item});assert.equal(numbers.data.length,2);assert.equal(numbers.data[1][0],'002');assert.equal(c.zipDeleteRegistry_({kind:'numbers',...item}).ok,true);numbers.data.splice(1,1);assert.equal(c.zipRegistryData_().lists.numbers.items.length,0);assert.throws(()=>c.zipSaveRegistry_({kind:'numbers',...item}),e=>e.zipCode==='REGISTRY_CONFLICT');
+ const {c,numbers}=setup();numbers.data.push(['001','A','',''],['002','B','','']);const item=c.zipRegistryData_().lists.numbers.items[0];c.zipDeleteRegistry_({kind:'numbers',...item});assert.equal(numbers.getLastRow(),2);assert.equal(numbers.data[1][0],'002');assert.equal(c.zipDeleteRegistry_({kind:'numbers',...item}).ok,true);numbers.data.splice(1,1);assert.equal(c.zipRegistryData_().lists.numbers.items.length,0);assert.throws(()=>c.zipSaveRegistry_({kind:'numbers',...item}),e=>e.zipCode==='REGISTRY_CONFLICT');
 });
 test('unknown kinds fail safely and duplicated IDs from pasted rows are repaired',()=>{
  const {c,numbers}=setup();assert.throws(()=>c.zipRegistryInput_({kind:'__proto__'}));numbers.data.push(['1','a','',''],['2','b','','']);c.zipRegistryData_();numbers.data[2][4]=numbers.data[1][4];numbers.data[2][6]='2026-01-01';const first=numbers.data[1][4];
  // A row pasted together with hidden ID/삭제일 columns is kept visible under a fresh ID; the original keeps its ID.
- const items=c.zipRegistryData_().lists.numbers.items;assert.equal(items.length,2);assert.equal(numbers.data[1][4],first);assert.notEqual(numbers.data[2][4],first);assert.equal(numbers.data[2][6],'');
+ const items=c.zipRegistryData_().lists.numbers.items;assert.equal(items.length,2);assert.equal(numbers.data[1][4],first);assert.notEqual(numbers.data[2][4],first);
 });
 test('all registry reads and writes require approved admin sessions',()=>{
  const c={};vm.createContext(c);vm.runInContext(api,c);c.zipJson_=v=>v;
@@ -156,4 +156,16 @@ test('a number tab named without the space and typed rows without IDs still appe
 test('alternative headings such as 종이번호/스펙번호 are recognised',()=>{
  const {c,numbers}=setup();numbers.data[0][0]='종이번호';numbers.data[0][1]='스펙번호';numbers.data.push(['P-9','S-9','','']);
  assert.deepEqual(Array.from(c.zipRegistryData_().lists.numbers.items[0].values),['P-9','S-9','']);
+});
+test('deleting a spec keeps the rule table to the right intact and the table is sent to the app',()=>{
+ const {c,numbers}=setup();numbers.data.push(['P-1','HS20-CE01','',''],['P-2','HS01-CE01','','']);c.zipRegistryData_();
+ // rule table typed in columns J:K next to the list (no heading in row 1)
+ numbers.data[1][9]='단색';numbers.data[1][10]='HS00-HS19';numbers.data[2][9]='우드';numbers.data[2][10]='HS20-HS49';
+ const data=c.zipRegistryData_();assert.deepEqual(JSON.parse(JSON.stringify(data.guide)),[['단색','HS00-HS19'],['우드','HS20-HS49']]);
+ c.zipDeleteRegistry_({kind:'numbers',...data.lists.numbers.items[0]});
+ assert.equal(numbers.data[1][0],'P-2');assert.deepEqual([numbers.data[1][9],numbers.data[1][10],numbers.data[2][9],numbers.data[2][10]],['단색','HS00-HS19','우드','HS20-HS49']);
+});
+test('rows hidden by an old app delete stamp are shown again because the sheet is the source of truth',()=>{
+ const {c,numbers}=setup();numbers.data.push(['SM2003D','HS20-CE01','','N910']);c.zipRegistryData_();numbers.data[1][6]='2026-11-05T00:38:34.088Z';
+ assert.equal(c.zipRegistryData_().lists.numbers.items.length,1);
 });

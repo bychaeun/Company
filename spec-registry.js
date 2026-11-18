@@ -24,6 +24,12 @@
     }catch(error){throw error.message?.includes('사진')?error:Error('이 사진 형식은 열 수 없어요. JPG·PNG로 다시 시도해 주세요.');}finally{URL.revokeObjectURL(url);}
   }
   let uploading=0;
+  // '스펙번호 규칙' table typed next to the list in the sheet (e.g. 우드 | HS20-HS49).
+  const guideBox=document.createElement('section');guideBox.className='registry-guide';guideBox.setAttribute('aria-label','스펙번호 규칙');guideBox.hidden=true;
+  $('spec-registry-panel').querySelector('.registry-summary').after(guideBox);
+  function guideRanges(){return (data?.guide||[]).map(row=>{const cells=row.filter(Boolean),range=cells.map(v=>String(v).match(/^([A-Za-z]+)(\d+)\s*[-~–]\s*([A-Za-z]*)(\d+)$/)).find(Boolean);return range?{label:cells.filter(v=>!/^[A-Za-z]+\d+\s*[-~–]/.test(v)).join(' ')||cells[0],prefix:range[1].toUpperCase(),from:Number(range[2]),to:Number(range[4])}:null;}).filter(Boolean);}
+  function specCategory(spec){const m=String(spec||'').trim().match(/^([A-Za-z]+)(\d+)/);if(!m)return '';const n=Number(m[2]);return guideRanges().find(r=>r.prefix===m[1].toUpperCase()&&n>=r.from&&n<=r.to)?.label||'';}
+  function renderGuide(){const rows=(data?.guide||[]).filter(r=>r.some(Boolean));guideBox.hidden=active!=='numbers'||!rows.length;if(guideBox.hidden)return;guideBox.innerHTML='<h3>스펙번호 규칙</h3><ul>'+rows.map(r=>`<li>${r.filter(Boolean).map((v,i)=>i?`<span>${esc(v)}</span>`:`<strong>${esc(v)}</strong>`).join('')}</li>`).join('')+'</ul>';}
   function parsePhotoUrls(value){const urls=String(value||'').split(/[\r\n]+/).map(v=>v.trim()).filter(Boolean);if(urls.length>12||urls.some(url=>url.length>2000||!/^https:\/\/[^\s<>"']+$/i.test(url)))throw Error('HTTPS 이미지 URL을 한 줄에 하나씩, 최대 12장 입력해 주세요.');return urls;}
   function renderPhotos(container,urls,label='현장 이미지'){
     container.replaceChildren();if(!urls.length){const empty=document.createElement('p');empty.className='registry-photo-empty';empty.textContent='등록된 이미지가 없어요.';container.append(empty);return;}
@@ -56,8 +62,8 @@
   function render(){
     const table=$('registry-table'),pager=$('registry-pagination'),sites=$('registry-site-list');$('registry-add').disabled=!data||loading||saving;
     sites.hidden=active!=='sites';table.parentElement.hidden=active==='sites';
-    if(!data||active==='map'){sites.replaceChildren();table.querySelector('thead').replaceChildren();table.querySelector('tbody').replaceChildren();pager.hidden=true;return;}
-    const headers=data.lists[active].headers,query=fold($('registry-search').value);
+    if(!data||active==='map'){guideBox.hidden=true;sites.replaceChildren();table.querySelector('thead').replaceChildren();table.querySelector('tbody').replaceChildren();pager.hidden=true;return;}
+    renderGuide();const headers=data.lists[active].headers,query=fold($('registry-search').value);
     let filtered=rows().filter(r=>fold(r.values.join(' ')).includes(query));
     if(sortColumn>=0)filtered.sort((a,b)=>sortDirection*String(a.values[sortColumn]).localeCompare(String(b.values[sortColumn]),'ko',{numeric:true}));
     const pages=Math.max(1,Math.ceil(filtered.length/50));page=Math.min(page,pages);
@@ -91,7 +97,7 @@
   $('registry-site-list').onclick=event=>{const button=event.target.closest('[data-site-id]');if(button)showSite(rows().find(row=>row.id===button.dataset.siteId));};
   function showPaperImages(item){
     if(!admin()||!item)return;const urls=(item.imageUrls||[]).filter(url=>/^https:\/\/[^\s<>"']+$/i.test(url));
-    detail.innerHTML=`<header class="registry-detail-heading"><h2 id="registry-detail-title">${esc(item.values[0])} · ${esc(item.values[1])}</h2><div><button type="button" class="registry-detail-edit" aria-label="스펙 수정">${pencil}</button><button type="button" data-detail-close aria-label="닫기">×</button></div></header><div class="registry-photo-heading"><h3>종이 이미지${urls.length?' · '+urls.length+'장':''}</h3><button type="button" data-edit-photos>${urls.length?'이미지 수정':'＋ 이미지 추가'}</button></div><div class="registry-photo-gallery"></div><dl class="registry-detail-fields">${data.lists.numbers.headers.map((label,i)=>`<dt>${esc(label)}</dt><dd>${esc(item.values[i])||'<span class="registry-blank">미입력</span>'}${i===0&&item.values[0]?` <button type="button" class="registry-copy" data-copy="${esc(item.values[0])}" aria-label="종이넘버 복사">${clipboardIcon}</button>`:''}</dd>`).join('')}</dl>`;
+    detail.innerHTML=`<header class="registry-detail-heading"><h2 id="registry-detail-title">${esc(item.values[0])} · ${esc(item.values[1])}</h2><div><button type="button" class="registry-detail-edit" aria-label="스펙 수정">${pencil}</button><button type="button" data-detail-close aria-label="닫기">×</button></div></header><div class="registry-photo-heading"><h3>종이 이미지${urls.length?' · '+urls.length+'장':''}</h3><button type="button" data-edit-photos>${urls.length?'이미지 수정':'＋ 이미지 추가'}</button></div><div class="registry-photo-gallery"></div><dl class="registry-detail-fields">${specCategory(item.values[1])?`<dt>분류</dt><dd>${esc(specCategory(item.values[1]))}</dd>`:''}${data.lists.numbers.headers.map((label,i)=>`<dt>${esc(label)}</dt><dd>${esc(item.values[i])||'<span class="registry-blank">미입력</span>'}${i===0&&item.values[0]?` <button type="button" class="registry-copy" data-copy="${esc(item.values[0])}" aria-label="종이넘버 복사">${clipboardIcon}</button>`:''}</dd>`).join('')}</dl>`;
     renderPhotos(detail.querySelector('.registry-photo-gallery'),urls,'종이 이미지');detail.querySelector('[data-detail-close]').onclick=()=>detail.close();const openEditor=()=>{detail.close();edit(item);editor.querySelector('[data-photo-source]')?.focus();};detail.querySelector('.registry-detail-edit').onclick=openEditor;detail.querySelector('[data-edit-photos]').onclick=openEditor;detail.querySelector('[data-copy]')?.addEventListener('click',event=>copyPaperNumber(event.currentTarget));detail.showModal();
   }
   function edit(item){

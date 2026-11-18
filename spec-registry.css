@@ -93,3 +93,10 @@
 .registry-photo-editor [data-photo-url-field] {margin-bottom:6px;}
 .registry-photo-preview figure {position:relative;}
 .registry-photo-remove {position:absolute;top:6px;right:6px;display:grid;place-items:center;width:28px;height:28px;min-height:28px;padding:0;border:0;border-radius:50%;background:#2a2a2ecc;color:#fff;font-size:18px;line-height:1;cursor:pointer;}
+
+/* Spec number rules read from the sheet */
+.registry-guide {margin:0 0 14px;padding:12px 14px;border:1px solid #e3e8eb;border-radius:12px;background:#fff;}
+.registry-guide h3 {margin:0 0 8px;font-size:13px;color:#5f6b73;}
+.registry-guide ul {display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none;}
+.registry-guide li {display:inline-flex;gap:6px;align-items:center;padding:5px 9px;border-radius:999px;background:#f1f4f5;font-size:12px;}
+.registry-guide li strong {font-weight:600;color:#315661;}.registry-guide li span {color:#5f6b73;font-variant-numeric:tabular-nums;}
