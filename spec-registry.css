@@ -117,3 +117,13 @@
 .registry-category-field {align-self:start;}
 .registry-category-field output {display:block;min-height:40px;margin-top:4px;padding:9px 12px;border:1px dashed #d5dde0;border-radius:8px;background:#f5f7f8;color:#2d3c42;font-weight:600;}
 .registry-category-field output .registry-blank {font-weight:400;font-size:13px;}
+.registry-guide-toggle {display:none;}
+.registry-guide-dialog {width:min(420px,calc(100vw - 32px));}
+.registry-guide-dialog .registry-guide {border:0;padding:4px 0 0;margin:0;}
+@media(max-width:600px){
+  .registry-guide {border:0;background:none;padding:0;margin:0 0 10px;}
+  .registry-guide > h3,.registry-guide > ul {display:none;}
+  .registry-guide-toggle {display:inline-flex;align-items:center;font-size:13px;}
+  .registry-guide-dialog .registry-guide > ul {display:flex;}
+  #registry-table .registry-col-desktop {display:none;}
+}
