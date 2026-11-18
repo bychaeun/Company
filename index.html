@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="specs.css?v=31" />
     <link rel="stylesheet" href="spec-registry.css?v=46" />
     <link rel="stylesheet" href="board.css?v=27" />
-    <link rel="stylesheet" href="modern.css?v=50" />
+    <link rel="stylesheet" href="modern.css?v=51" />
   </head>
   <body class="auth-checking">
     <a class="skip-link" href="#knowledge-list">내용으로 바로가기</a>
@@ -190,9 +190,9 @@
           </div>
         </section>
         <section id="board-view" hidden aria-labelledby="board-title">
-          <header class="specs-heading board-heading"><div><p class="eyebrow">DESIGN RESOURCES</p><h1 id="board-title">디자인 보드</h1></div><div class="board-tools"><button id="board-add" class="install-button" type="button">＋ 메모지</button><button id="board-photo-add" class="install-button board-photo-add" type="button" aria-label="사진 카드 추가" title="사진 카드 추가"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5L20 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></button><button id="board-fit" class="install-button" type="button">전체보기</button></div></header>
+          <header class="specs-heading board-heading"><div><p class="eyebrow">DESIGN RESOURCES</p><h1 id="board-title">디자인 보드</h1></div><div class="board-tools"><button id="board-add" class="view-tabs-add board-add-note" type="button"><span aria-hidden="true">＋</span> 새 메모</button><button id="board-photo-add" class="install-button board-photo-add" type="button" aria-label="사진 카드 추가" title="사진 카드 추가"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5L20 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></button></div></header>
           <div class="artboard-toolbar"><label class="sr-only" for="artboard-select">대지</label><select id="artboard-select" aria-label="대지 선택" disabled><option value="default">기본 대지</option></select><button id="artboard-rename" class="install-button" type="button" aria-label="대지 제목 수정" disabled></button><button id="artboard-add" class="install-button" type="button" disabled>＋ 대지</button></div>
-          <h2 id="artboard-title" class="artboard-title">기본 대지</h2>
+          <div class="artboard-title-row"><h2 id="artboard-title" class="artboard-title">기본 대지</h2><button id="board-fit" class="board-fit-small" type="button">전체보기</button></div>
           <p id="board-status" role="status"></p>
           <div id="design-board" tabindex="0" aria-label="디자인 자료 보드" aria-keyshortcuts="+ -"><div id="board-world"><svg id="board-links" aria-hidden="true"></svg><div id="board-nodes"></div></div></div>
         </section>
