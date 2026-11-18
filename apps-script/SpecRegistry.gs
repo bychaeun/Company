@@ -84,7 +84,7 @@ function zipRegistryData_() {
         zipRegistryFilter_(data.sheet,data.columns);
         result.guide=zipRegistryGuide_(data.sheet,Math.max.apply(null,data.columns));
       }
-    });result.mapItems=zipSpecItems_(siteData);result.unifiedSites=true;result.registryPhotoUrls=true;result.paperPhotoUrls=true;return result;
+    });result.hyosanPapers=ZIP_HYOSAN_STATUS;result.mapItems=zipSpecItems_(siteData);result.unifiedSites=true;result.registryPhotoUrls=true;result.paperPhotoUrls=true;return result;
   }finally{lock.releaseLock();}
 }
 // A small reference table typed to the right of the number list (e.g. 단색 | HS00-HS19) is shown in the app.
@@ -190,25 +190,26 @@ function setupSpecRegistryDaily() {
 // ── 효산 저장소 연동: 효산 LPM 시트(HYOSAN_LPM)의 PaperNumber → ImageURL ──
 // 같은 Google 계정의 효산 시트를 읽어 종이넘버별 Drive 이미지 ID를 만든다. 1시간 캐시.
 // 다른 시트를 쓰려면 스크립트 속성 HYOSAN_SPREADSHEET_ID에 시트 ID를 넣는다.
-var ZIP_HYOSAN_SHEET_DEFAULT='1RC-6ibPA86zaWOGt1rzgmQf9tLpT4OcgdI6K9XcUPTI',ZIP_HYOSAN_PAPERS=null;
+var ZIP_HYOSAN_SHEET_DEFAULT='1RC-6ibPA86zaWOGt1rzgmQf9tLpT4OcgdI6K9XcUPTI',ZIP_HYOSAN_PAPERS=null,ZIP_HYOSAN_STATUS={count:0,error:''};
 function zipPaperKey_(value){return String(value||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();}
 function zipHyosanPaperMap_(){
   if(ZIP_HYOSAN_PAPERS)return ZIP_HYOSAN_PAPERS;
-  var cache=null,key='hyosan-papers-v1';
-  try{cache=CacheService.getScriptCache();var packed=zipCacheGetChunks_(cache,key);if(packed)return ZIP_HYOSAN_PAPERS=JSON.parse(packed);}catch(ignore){}
+  var cache=null,key='hyosan-papers-v2',failed=false;
+  try{cache=CacheService.getScriptCache();var packed=zipCacheGetChunks_(cache,key);if(packed){ZIP_HYOSAN_PAPERS=JSON.parse(packed);ZIP_HYOSAN_STATUS={count:Object.keys(ZIP_HYOSAN_PAPERS).length,error:'',cached:true};return ZIP_HYOSAN_PAPERS;}}catch(ignore){}
   var map={};
   try{
     var id=PropertiesService.getScriptProperties().getProperty('HYOSAN_SPREADSHEET_ID')||ZIP_HYOSAN_SHEET_DEFAULT;
     var sheet=SpreadsheetApp.openById(id).getSheetByName('HYOSAN_LPM'),values=sheet?sheet.getDataRange().getDisplayValues():[];
     var headers=(values[0]||[]).map(function(h){return String(h).trim();}),pi=headers.indexOf('PaperNumber'),ii=headers.indexOf('ImageURL'),ai=headers.indexOf('Active');
-    if(pi>=0&&ii>=0)values.slice(1).forEach(function(row){
+    if(!sheet)throw new Error('HYOSAN_LPM 시트를 찾지 못했어요');if(pi<0||ii<0)throw new Error('PaperNumber/ImageURL 열을 찾지 못했어요');
+    values.slice(1).forEach(function(row){
       if(ai>=0&&String(row[ai]).trim().toUpperCase()==='FALSE')return;
       var ids=[];String(row[ii]||'').split(/[\r\n]+/).forEach(function(url){var found=zipDriveId_(url.trim());if(found&&ids.indexOf(found)<0)ids.push(found);});
       if(!ids.length)return;
       String(row[pi]||'').split(/[\r\n,;|\/]+/).map(zipPaperKey_).filter(function(k){return k&&k!=='-';}).forEach(function(k){if(!map[k])map[k]=ids.slice(0,4);});
     });
-  }catch(ignore){map={};}
-  if(cache)try{zipCachePutChunks_(cache,key,JSON.stringify(map),3600);}catch(ignore){}
+  }catch(error){map={};failed=true;ZIP_HYOSAN_STATUS={count:0,error:String(error&&error.message||error).slice(0,200)};}
+  if(!failed){ZIP_HYOSAN_STATUS={count:Object.keys(map).length,error:''};if(cache)try{zipCachePutChunks_(cache,key,JSON.stringify(map),3600);}catch(ignore){}}   // 실패는 캐시하지 않고 다음 요청에서 다시 시도
   return ZIP_HYOSAN_PAPERS=map;
 }
 function zipHyosanPaperUrls_(paper){
