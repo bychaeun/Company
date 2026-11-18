@@ -36,6 +36,8 @@
   // 규칙 표는 동기화 때만 바뀌므로 한 번만 해석해 두고, 행마다 다시 정규식을 돌리지 않는다.
   let guideCache=null,guideSource=null;
   function guideRanges(){const source=data?.guide||[];if(source===guideSource)return guideCache;guideSource=source;return guideCache=source.map(row=>{const cells=row.filter(Boolean),range=cells.map(v=>String(v).match(/^([A-Za-z]+)(\d+)\s*[-~–]\s*([A-Za-z]*)(\d+)$/)).find(Boolean);return range?{label:cells.filter(v=>!/^[A-Za-z]+\d+\s*[-~–]/.test(v)).join(' ')||cells[0],prefix:range[1].toUpperCase(),from:Number(range[2]),to:Number(range[4])}:null;}).filter(Boolean);}
+  // 효산 LPM 시트의 ProductName / PreviousNames를 종이넘버로 찾는다(서버와 같은 키 규칙).
+  function productNames(paper){const key=String(paper||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();return (key&&data?.hyosanNames?.[key])||['',''];}
   function specCategory(spec){const m=String(spec||'').trim().match(/^([A-Za-z]+)(\d+)/);if(!m)return '';const n=Number(m[2]);return guideRanges().find(r=>r.prefix===m[1].toUpperCase()&&n>=r.from&&n<=r.to)?.label||'';}
   function renderGuide(){const rows=(data?.guide||[]).filter(r=>r.some(Boolean));guideBox.hidden=active!=='numbers'||!rows.length;if(guideBox.hidden)return;guideBox.innerHTML='<h3>스펙번호 규칙</h3><ul>'+rows.map(r=>`<li>${r.filter(Boolean).map((v,i)=>i?`<span>${esc(v)}</span>`:`<strong>${esc(v)}</strong>`).join('')}</li>`).join('')+'</ul>';}
   function parsePhotoUrls(value){const urls=String(value||'').split(/[\r\n]+/).map(v=>v.trim()).filter(Boolean);if(urls.length>12||urls.some(url=>url.length>2000||!/^https:\/\/[^\s<>"']+$/i.test(url)))throw Error('HTTPS 이미지 URL을 한 줄에 하나씩, 최대 12장 입력해 주세요.');return urls;}
@@ -75,7 +77,7 @@
     $('spec-registry-panel').setAttribute('aria-labelledby','spec-tab-'+kind);
     if(focus)$('spec-tab-'+kind).focus();
     if(kind==='map'){window.dispatchEvent(new Event('spec-map-visible'));return;}
-    $('registry-search').placeholder=kind==='numbers'?'종이넘버, 스펙넘버, 비고':'현장명, 종이넘버, 스펙넘버, 경면, 설계사';
+    $('registry-search').placeholder=kind==='numbers'?'종이넘버, 스펙넘버, 분류, 제품명, 비고':'현장명, 종이넘버, 스펙넘버, 경면, 설계사';
     $('registry-add').textContent=kind==='numbers'?'＋ 스펙 추가':'＋ 현장 내역';render();refresh();
   }
   tabs.forEach(kind=>{const b=$('spec-tab-'+kind);b.onclick=()=>selectTab(kind);b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const i=tabs.indexOf(active);selectTab(e.key==='Home'?tabs[0]:e.key==='End'?tabs[2]:tabs[(i+(e.key==='ArrowRight'?1:2))%3],true);};});
@@ -88,9 +90,9 @@
     const table=$('registry-table'),pager=$('registry-pagination'),sites=$('registry-site-list');$('registry-add').disabled=!data||loading||saving;
     sites.hidden=active!=='sites';table.parentElement.hidden=active==='sites';
     if(!data||active==='map'){guideBox.hidden=true;sites.replaceChildren();table.querySelector('thead').replaceChildren();table.querySelector('tbody').replaceChildren();pager.hidden=true;return;}
-    renderGuide();const listHeaders=data.lists[active].headers,headers=active==='numbers'?[listHeaders[0],listHeaders[1],'분류',...listHeaders.slice(2)]:listHeaders,query=fold($('registry-search').value);
+    renderGuide();const listHeaders=data.lists[active].headers,headers=active==='numbers'?[listHeaders[0],listHeaders[1],'분류','제품명','이전 제품명',...listHeaders.slice(2)]:listHeaders,query=fold($('registry-search').value);
     // 스펙목록은 스펙넘버로 '스펙번호 규칙' 표에서 분류(우드 등)를 찾아 스펙넘버 옆 칸에 자동으로 보여 준다.
-    const cols=r=>active==='numbers'?[r.values[0],r.values[1],specCategory(r.values[1]),...r.values.slice(2)]:r.values;
+    const cols=r=>active==='numbers'?[r.values[0],r.values[1],specCategory(r.values[1]),...productNames(r.values[0]),...r.values.slice(2)]:r.values;
     let filtered=rows().filter(r=>fold(cols(r).join(' ')).includes(query));
     if(sortColumn>=0)filtered.sort((a,b)=>sortDirection*String(cols(a)[sortColumn]).localeCompare(String(cols(b)[sortColumn]),'ko',{numeric:true}));
     const pages=Math.max(1,Math.ceil(filtered.length/50));page=Math.min(page,pages);
@@ -123,7 +125,7 @@
   $('registry-site-list').onclick=event=>{const button=event.target.closest('[data-site-id]');if(button)showSite(rows().find(row=>row.id===button.dataset.siteId));};
   function showPaperImages(item){
     if(!admin()||!item)return;const urls=(item.imageUrls||[]).filter(url=>/^https:\/\/[^\s<>"']+$/i.test(url));
-    detail.innerHTML=`<header class="registry-detail-heading"><h2 id="registry-detail-title">${esc(item.values[0])} · ${esc(item.values[1])}</h2><div><button type="button" class="registry-detail-edit" aria-label="스펙 수정">${pencil}</button><button type="button" data-detail-close aria-label="닫기">×</button></div></header><div class="registry-photo-heading"><h3>종이 이미지</h3></div><div class="registry-photo-gallery"></div><dl class="registry-detail-fields">${specCategory(item.values[1])?`<dt>분류</dt><dd>${esc(specCategory(item.values[1]))}</dd>`:''}${data.lists.numbers.headers.map((label,i)=>`<dt>${esc(label)}</dt><dd>${esc(item.values[i])||'<span class="registry-blank">미입력</span>'}${i===0&&item.values[0]?` <button type="button" class="registry-copy" data-copy="${esc(item.values[0])}" aria-label="종이넘버 복사">${clipboardIcon}</button>`:''}</dd>`).join('')}</dl>`;
+    detail.innerHTML=`<header class="registry-detail-heading"><h2 id="registry-detail-title">${esc(item.values[0])} · ${esc(item.values[1])}</h2><div><button type="button" class="registry-detail-edit" aria-label="스펙 수정">${pencil}</button><button type="button" data-detail-close aria-label="닫기">×</button></div></header><div class="registry-photo-heading"><h3>종이 이미지</h3></div><div class="registry-photo-gallery"></div><dl class="registry-detail-fields">${specCategory(item.values[1])?`<dt>분류</dt><dd>${esc(specCategory(item.values[1]))}</dd>`:''}${productNames(item.values[0]).map((v,i)=>v?`<dt>${i?'이전 제품명':'제품명'}</dt><dd>${esc(v)}</dd>`:'').join('')}${data.lists.numbers.headers.map((label,i)=>`<dt>${esc(label)}</dt><dd>${esc(item.values[i])||'<span class="registry-blank">미입력</span>'}${i===0&&item.values[0]?` <button type="button" class="registry-copy" data-copy="${esc(item.values[0])}" aria-label="종이넘버 복사">${clipboardIcon}</button>`:''}</dd>`).join('')}</dl>`;
     renderPhotos(detail.querySelector('.registry-photo-gallery'),urls,'종이 이미지');detail.querySelector('[data-detail-close]').onclick=()=>detail.close();const openEditor=()=>{detail.close();edit(item);editor.querySelector('[data-photo-source]')?.focus();};detail.querySelector('.registry-detail-edit').onclick=openEditor;detail.querySelector('[data-copy]')?.addEventListener('click',event=>copyPaperNumber(event.currentTarget));detail.showModal();
   }
   function edit(item){
@@ -162,6 +164,9 @@
     if(kind==='numbers'){
       const spec=form.elements['field-1'],cat=Object.assign(document.createElement('label'),{className:'registry-category-field'});cat.innerHTML='분류<output aria-live="polite"></output>';spec.closest('label').after(cat);
       const show=()=>{const v=specCategory(spec.value);cat.querySelector('output').innerHTML=v?esc(v):'<span class="registry-blank">스펙넘버를 입력하면 자동으로 채워져요</span>';};spec.addEventListener('input',show);show();
+      // 종이넘버를 입력하면 효산 시트의 제품명(현재·이전)이 자동으로 보인다.
+      const paper=form.elements['field-0'],names=['제품명','이전 제품명'].map(label=>{const f=Object.assign(document.createElement('label'),{className:'registry-category-field'});f.innerHTML=esc(label)+'<output aria-live="polite"></output>';return f;});cat.after(...names);
+      const showNames=()=>{const found=productNames(paper.value),known=found.some(Boolean);names.forEach((f,i)=>{f.querySelector('output').innerHTML=found[i]?esc(found[i]):`<span class="registry-blank">${known?'—':paper.value.trim()?'효산 시트에 없는 종이넘버예요':'종이넘버를 입력하면 자동으로 채워져요'}</span>`;});};paper.addEventListener('input',showNames);showNames();
     }
     if(kind==='sites'){
       const options=document.createElement('div');options.className='registry-match-options';options.setAttribute('aria-label','일치하는 스펙 선택');editor.querySelector('[data-fields]').after(options);editor.querySelectorAll('.registry-match-options').forEach((v,i)=>{if(v!==options)v.remove();});
