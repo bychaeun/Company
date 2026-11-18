@@ -14,7 +14,7 @@ function storage(){
 }
 test('legacy ten-column notes migrate without losing links, text, or placement',()=>{
  const {c,create,sheets}=storage();create('디자인 보드',[Array.from(c.ZIP_BOARD_HEADERS).slice(0,10),[valid.id,valid.title,valid.content,valid.url,'cream','300','-20','','','']]);
- const row=c.zipBoard_()[0];assert.equal(row.boardId,'default');assert.equal(row.urls[0],valid.url);assert.equal(row.content,valid.content);assert.equal(row.x,300);assert.equal(sheets.get('디자인 보드').data[0].length,12);assert.equal(c.zipArtboards_()[0].title,'기본 대지');
+ const row=c.zipBoard_()[0];assert.equal(row.boardId,'default');assert.equal(row.urls[0],valid.url);assert.equal(row.content,valid.content);assert.equal(row.x,300);assert.equal(sheets.get('디자인 보드').data[0].length,15);assert.equal(row.width,0);assert.equal(row.images.length,0);assert.equal(c.zipArtboards_()[0].title,'기본 대지');
 });
 test('multiple artboards and URLs persist, old clients cannot erase extra links or board membership',()=>{
  const {c}=storage(),boardId='artboard-12345678901234567890';c.zipSaveArtboard_({id:boardId,title:'브랜드 자료'});
@@ -28,3 +28,20 @@ test('bulk deletion validates all IDs before writing and prevents deleted notes 
  c.zipDeleteBoards_([valid.id]);assert.equal(c.zipBoard_().length,1);assert.equal(sheets.get('디자인 보드').getLastRow(),2,'row removed from the sheet');assert.equal(c.zipBoard_()[0].id,other);
 });
 test('site arrays reject unsupported protocols, oversized lists and preserve distinct URLs',()=>{const c=setup();assert.throws(()=>c.zipBoardInput_({...valid,urls:['javascript:alert(1)']}));assert.throws(()=>c.zipBoardInput_({...valid,urls:Array(21).fill(valid.url)}));assert.equal(c.zipBoardInput_({...valid,urls:[valid.url,valid.url]}).urls.length,1);});
+test('note size and images persist, and older apps cannot erase them',()=>{
+ const {c}=storage(),photo='https://drive.google.com/file/d/abcdefghijklmnop/view',web='https://example.com/a.jpg';
+ c.zipSaveBoard_({...valid,width:420,height:360.4,images:[photo,web,web]});
+ let row=c.zipBoard_()[0];assert.equal(row.width,420);assert.equal(row.height,360);assert.deepEqual(Array.from(row.images),[photo,web]);
+ c.zipSaveBoard_({...valid,x:10});row=c.zipBoard_()[0];assert.equal(row.width,420);assert.equal(row.images.length,2,'old clients keep size and images');
+ c.zipSaveBoard_({...valid,width:0,height:0,images:[]});row=c.zipBoard_()[0];assert.equal(row.width,0);assert.equal(row.height,0);assert.equal(row.images.length,0);
+});
+test('note size and image input is validated',()=>{const c=setup();
+ for(const b of [{width:100},{width:5000},{height:50},{width:'wide'},{images:['http://example.com/a.jpg']},{images:['javascript:alert(1)']},{images:Array.from({length:13},(_,i)=>'https://example.com/'+i+'.jpg')},{images:'https://example.com/a.jpg'}])assert.throws(()=>c.zipBoardInput_({...valid,...b}),JSON.stringify(b));
+ assert.equal(c.zipBoardInput_({...valid,width:180,height:120}).width,180);
+});
+test('board images are readable only while a note uses them, and only by admins',()=>{
+ const {c}=storage(),id='abcdefghijklmnop';c.zipSaveBoard_({...valid,images:['https://drive.google.com/file/d/'+id+'/view']});
+ c.DriveApp={getFileById:()=>({getMimeType:()=>'image/jpeg',getSize:()=>10,getBlob:()=>({getBytes:()=>[1]})})};c.Utilities={base64Encode:()=>'AQ=='};
+ assert.equal(c.zipBoardImage_(id).ok,true);assert.throws(()=>c.zipBoardImage_('zzzzzzzzzzzzzzzz'));
+ c.zipJson_=v=>v;c.zipSession_=()=>({status:'approved',role:'member'});assert.equal(c.doPost({postData:{contents:JSON.stringify({action:'boardImage',fileId:id})}}).code,'FORBIDDEN');
+});

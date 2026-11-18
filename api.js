@@ -5,6 +5,7 @@
     let records = [{noteId:'preview:2',category:'예시',subcategory:'사용 안내',title:'미리보기 메모',content:'이 항목은 화면 확인용 가상 예시입니다.',updatedAt:'',images:[],imageText:''}];
     let checklist = [{row:2,done:false,task:'로컬 미리보기 할 일',date:new Date().toISOString().slice(0,10),time:'09:00',note:'실제 캘린더에는 저장되지 않아요.',calendar:false}];
     const clone = value => JSON.parse(JSON.stringify(value));
+    const previewImages = new Map();
     let specs = [],board=[],artboards=[{id:'default',title:'기본 대지'}];
     const registry={numbers:{headers:['종이넘버','스펙넘버','비고'],items:[]},sites:{headers:['현장명','종이넘버','스펙넘버','경면','모델하우스 예정일','본납 예정일','설계사','진행상태','비고'],items:[]}};
     window.ZIP_API = {
@@ -12,7 +13,7 @@
         if(action==='specRegistry')return {ok:true,lists:clone(registry),mapItems:clone(specs),unifiedSites:false,registryPhotoUrls:true,paperPhotoUrls:true,statuses:['제안 중','스펙 확정','모델하우스 진행','본납 대기','본납 완료','보류'],syncedAt:new Date().toISOString()};
         if(action==='saveSpecRegistry'){const before=registry[payload.kind].items.find(r=>r.id===payload.id),urls=payload.imageUrls??before?.imageUrls??[];const item={id:payload.id,values:clone(payload.values),version:String(Date.now()),imageUrls:clone(urls),photoVersion:JSON.stringify(urls)};registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==item.id).concat(item);return {ok:true,item:clone(item)};}
         if(action==='deleteSpecRegistry'){registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==payload.id);return {ok:true};}
-        if(action==='board')return {ok:true,items:clone(board),artboards:clone(artboards)};
+        if(action==='board')return {ok:true,items:clone(board),artboards:clone(artboards),boardMedia:true};
         if(action==='saveBoard'){board=board.filter(n=>n.id!==payload.id).concat(clone(payload));return {ok:true};}
         if(action==='deleteBoard'){board=board.filter(n=>n.id!==payload.id);return {ok:true};}
         if(action==='deleteBoards'){board=board.filter(n=>!payload.ids.includes(n.id));return {ok:true};}
@@ -35,7 +36,8 @@
         if(action==='users')return {ok:true,users:[]};
         return {ok:true};
       },
-      async image(){return '';}, seedImage(){}, setToken(){}, clearImages(){}, get hasSession(){return true;},
+      // Photos picked in preview stay on this page only.
+      async image(fileId){return previewImages.get(fileId)||'';}, seedImage(fileId,blob){if(blob)previewImages.set(fileId,URL.createObjectURL(blob));}, setToken(){}, clearImages(){}, get hasSession(){return true;},
       async config(){return {ok:true,configured:true,clientId:'local-preview'};}
     };
     return;
@@ -126,7 +128,7 @@
         .catch(error=>{if(error.code==='REQUEST_FAILED')thumbsSupported=false;chunk.forEach(([,waiters])=>waiters.forEach(w=>w.reject(error)));});
     }
   }
-  const imageActions=['image','registryImage'];
+  const imageActions=['image','registryImage','boardImage'];
   function seedImage(fileId,blob,action='image'){if(!/^[-\w]{10,200}$/.test(fileId)||!imageActions.includes(action)||!imageTypes.test(blob?.type||''))return;const key=(action==='image'?'':action+':')+'f:'+fileId;imageCache.set(key,Promise.resolve(URL.createObjectURL(blob)));storeImage(key,blob,generation);}
   async function image(fileId,options={}) {
     if(!/^[-\w]{10,200}$/.test(fileId))return '';

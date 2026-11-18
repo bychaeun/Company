@@ -45,7 +45,7 @@ function doPost(e) {
     if (action === 'specRegistry') return zipJson_(zipReadCache_('registry',body.force,zipRegistryData_));
     if (action === 'saveSpecRegistry') return zipJson_(zipMutateRead_(['registry','specs'],function(){return zipSaveRegistry_(body);}));
     if (action === 'deleteSpecRegistry') return zipJson_(zipMutateRead_(['registry','specs'],function(){return zipDeleteRegistry_(body);}));
-    if (action === 'board') return zipJson_(zipReadCache_('board',body.force,function(){return {ok:true,items:zipBoard_(),artboards:zipArtboards_()};}));
+    if (action === 'board') return zipJson_(zipReadCache_('board',body.force,function(){return {ok:true,items:zipBoard_(),artboards:zipArtboards_(),boardMedia:true};}));
     if (action === 'saveBoard') return zipJson_(zipMutateRead_(['board'],function(){return zipSaveBoard_(body);}));
     if (action === 'deleteBoard') return zipJson_(zipMutateRead_(['board'],function(){return zipDeleteBoard_(body.id);}));
     if (action === 'deleteBoards') return zipJson_(zipMutateRead_(['board'],function(){return zipDeleteBoards_(body.ids);}));
@@ -56,6 +56,7 @@ function doPost(e) {
     if (action === 'geocodeSpec') return zipJson_(zipGeocodeSpec_(body.address));
     if (action === 'specImage') return zipJson_(zipSpecImage_(body.fileId));
     if (action === 'registryImage') return zipJson_(zipRegistryImage_(body.fileId));
+    if (action === 'boardImage') return zipJson_(zipBoardImage_(body.fileId));
     if (action === 'users') return zipJson_({ok:true,users:zipUsers_().map(function(row){return {sub:row[0],email:row[1],name:row[2],status:row[3],created:row[4],lastLogin:row[5],admin:zipAdmin_(row[0])};})});
     if (action === 'setStatus') return zipJson_(zipSetStatus_(body.sub,body.status));
     if (action === 'createNote') {body.requestOwner=user.sub;return zipJson_(zipMutateRead_(['notes'],function(){return zipCreateNote_(body);}));}
@@ -89,7 +90,7 @@ function zipReadCache_(scope,force,loader) {
   var cache,key;
   try {
     cache=CacheService.getScriptCache();
-    key='read-v9:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_();
+    key='read-v10:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_();
     if(!force){var packed=zipCacheGetChunks_(cache,key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
   }catch(ignore){cache=null;}
   var result=loader();
@@ -149,7 +150,7 @@ function warmAppReadCache() {
   zipNotes_(true);
   zipReadCache_('specs',true,function(){return {ok:true,siteSchemaVersion:2,items:zipSpecs_()};});
   zipReadCache_('registry',true,zipRegistryData_);
-  zipReadCache_('board',true,function(){return {ok:true,items:zipBoard_(),artboards:zipArtboards_()};});
+  zipReadCache_('board',true,function(){return {ok:true,items:zipBoard_(),artboards:zipArtboards_(),boardMedia:true};});
 }
 function zipAuthError_() { var e = new Error('Authentication required'); e.zipCode = 'AUTH_REQUIRED'; return e; }
 var ZIP_REQUEST_SPREADSHEET;

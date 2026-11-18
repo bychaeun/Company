@@ -139,7 +139,7 @@ dialog::backdrop,dialog.detail-dialog::backdrop,dialog.install-dialog::backdrop,
 .board-node header button { color:#7b8790; background:transparent; border-radius:6px; }
 .board-node header button:hover { background:#252b3208; }
 .board-more-links { color:#426d79!important; }
-.board-url-fields { border-color:var(--line); border-radius:8px; }
+.board-url-fields,.board-image-fields { border-color:var(--line); border-radius:8px; }
 .board-url-row button { color:var(--ink-soft); background:#f0f3f5; border-radius:6px; }
 .checklist-view { gap:20px; }
 .checklist-calendar,.checklist-form,.checklist-item,.checklist-empty { background:#fff; border-color:var(--line); border-radius:10px; box-shadow:none; }
