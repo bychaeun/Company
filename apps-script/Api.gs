@@ -515,7 +515,27 @@ function zipChecklistSheet_() {
   }
   return sh;
 }
+// 완료하고 7일이 지난 할 일은 시트에서 줄을 지운다. 구글 캘린더 일정은 그대로 둔다.
+// 완료일시가 비어 있는 예전 완료 항목은 지금 시각을 적어 7일 뒤에 지워지게 한다. 하루 한 번만 정리한다.
+function zipPurgeChecklist_(force) {
+  var props=PropertiesService.getScriptProperties(),today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
+  if(!force&&props.getProperty('checklist-purged-on')===today)return 0;
+  var lock=LockService.getScriptLock();if(!lock.tryLock(5000))return 0;
+  try{
+    var sh=zipChecklistSheet_(),last=sh.getLastRow();if(last<2){props.setProperty('checklist-purged-on',today);return 0;}
+    var values=sh.getRange(2,1,last-1,8).getValues(),now=Date.now(),remove=[];
+    values.forEach(function(r,i){
+      var row=i+2,task=String(r[1]||'').trim();
+      if(!task||r[7]){remove.push(row);return;}                      // 빈 줄, 예전 방식으로 삭제 표시된 줄
+      if(r[0]===true&&(!r[6]||!isFinite(new Date(r[6]).getTime()))){sh.getRange(row,7).setValue(new Date());return;}   // 날짜를 못 읽으면 오늘부터 7일
+      if(zipChecklistExpired_(r[0]===true,r[6],now))remove.push(row);
+    });
+    remove.sort(function(a,b){return b-a;}).forEach(function(row){sh.deleteRow(row);});
+    SpreadsheetApp.flush();props.setProperty('checklist-purged-on',today);return remove.length;
+  }finally{lock.releaseLock();}
+}
 function zipChecklist_() {
+  try{zipPurgeChecklist_(false);}catch(ignore){}
   var sh=zipChecklistSheet_();
   if(sh.getLastRow()<2)return [];
   var values=sh.getRange(2,1,sh.getLastRow()-1,8).getValues();
@@ -598,11 +618,9 @@ function cleanupDeletedRows() {
       values.forEach(function(r,i){if(String(r[col]).trim())rows.push(i+2);});
       if(rows.length){zipDeleteRows_(sh,rows,width);removed[name]=rows.length;}
     });
-    var check=ss.getSheetByName('체크리스트');
-    if(check&&check.getLastRow()>=2){var tasks=check.getRange(2,2,check.getLastRow()-1,1).getDisplayValues(),blank=[];tasks.forEach(function(r,i){if(!String(r[0]).trim())blank.push(i+2);});
-      blank.reverse().forEach(function(row){check.deleteRow(row);});if(blank.length)removed['체크리스트']=blank.length;}
     SpreadsheetApp.flush();
   }finally{lock.releaseLock();}
+  var purged=zipPurgeChecklist_(true);if(purged)removed['체크리스트']=purged;
   ['board','registry','specs','notes'].forEach(function(scope){try{PropertiesService.getScriptProperties().setProperty('read-version:'+scope,String(Date.now()));}catch(ignore){}});
   console.log('정리한 줄: '+JSON.stringify(removed));return removed;
 }
