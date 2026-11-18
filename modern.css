@@ -54,7 +54,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .knowledge-card,.knowledge-card:nth-child(n) { min-height:195px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:none; transition:border-color .15s ease,box-shadow .15s ease; }
 .knowledge-card:hover { transform:none; border-color:#bac8ce; box-shadow:0 3px 12px #18212b06; }
 .card-button { padding:20px 20px 56px; }
-.card-category { color:var(--ink-soft); font-size:11px; font-weight:500; margin-bottom:12px; padding-right:24px; }
+.card-category { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-soft); font-size:11px; font-weight:500; margin-bottom:12px; padding-right:24px; }
 .card-title { color:var(--ink); font-size:17px; font-weight:650; line-height:1.45; }
 .card-address,.card-preview { color:var(--ink-soft); font-weight:400; }
 .card-preview { font-size:13px; line-height:1.75; }
