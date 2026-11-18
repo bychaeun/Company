@@ -186,22 +186,22 @@ dialog::backdrop,dialog.detail-dialog::backdrop,dialog.install-dialog::backdrop,
 
 /* 체크리스트 일정: 시간 · 할 일 · 삭제 한 줄, 시간은 왼쪽에 크게 */
 .checklist-list { display:grid; gap:10px; }
-.checklist-list .checklist-item { grid-template-columns:76px minmax(0,1fr) auto; gap:16px; padding:16px 18px 16px 0; border-left:4px solid #426d79; }
+.checklist-list .checklist-item { grid-template-columns:76px minmax(0,1fr) auto; gap:16px; padding:16px 18px 16px 6px; border:1px solid var(--line); border-radius:16px; background:#fff; }
 .checklist-list .checklist-when { align-self:stretch; display:grid; place-items:center; padding-left:14px; border-right:1px solid var(--line); color:#263943; font-size:18px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .checklist-list .checklist-when.all-day { font-size:14px; color:#426d79; }
 .checklist-list .checklist-toggle { display:flex; align-items:center; gap:12px; min-width:0; cursor:pointer; }
-.checklist-list .checklist-toggle input { flex:0 0 22px; margin:0; }
+.checklist-list .checklist-toggle input { flex:0 0 18px; width:18px; height:18px; margin:0; }
 .checklist-list .checklist-text { margin:0; min-width:0; }
 .checklist-list .checklist-text strong { color:#1f2f36; font-size:16px; font-weight:650; line-height:1.4; overflow-wrap:anywhere; }
 .checklist-list .checklist-note { margin-top:4px; color:var(--ink-soft); font-size:13px; line-height:1.5; white-space:pre-line; }
 .checklist-list .checklist-item [data-delete-row] { min-width:0; min-height:0; width:38px; height:38px; padding:0; border:0; border-radius:8px; background:transparent; color:#a1abb2; }
 .checklist-list .checklist-item [data-delete-row]:hover:not(:disabled) { background:#f9efee; color:#9b514a; }
 .checklist-list .checklist-item [data-delete-row] svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-.checklist-list .checklist-item.done { border-left-color:#c8d0d5; background:#fafbfc; }
+.checklist-list .checklist-item.done { background:#fafbfc; }
 .checklist-list .checklist-item.done .checklist-when { color:#a1abb2; }
 .checklist-list .checklist-item.done .checklist-text strong { color:#9aa4ab; text-decoration:line-through; }
 @media(max-width:600px){
-  .checklist-list .checklist-item { grid-template-columns:62px minmax(0,1fr) auto; gap:10px; padding:14px 8px 14px 0; }
+  .checklist-list .checklist-item { grid-template-columns:62px minmax(0,1fr) auto; gap:10px; padding:14px 8px 14px 4px; border-radius:14px; }
   .checklist-list .checklist-item time,.checklist-list .checklist-item [data-delete-row] { grid-column:auto; grid-row:auto; padding-left:0; }
   .checklist-list .checklist-when { padding-left:8px; font-size:16px; }
   .checklist-list .checklist-text strong { font-size:15px; }
