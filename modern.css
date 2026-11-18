@@ -179,3 +179,8 @@ dialog::backdrop,dialog.detail-dialog::backdrop,dialog.install-dialog::backdrop,
 .search-panel .note-sort > svg { right:12px; width:16px; }
 .pagination .page-gap { display:grid; width:24px; place-items:center; color:var(--ink-soft); }
 @media(max-width:600px) { .search-panel { grid-template-columns:auto minmax(0,1fr) 100px; } .search-panel .note-sort select { font-size:12px; padding-right:28px; } .search-panel .note-sort > svg { right:9px; } .search-panel .note-sort { grid-column:auto; } }
+
+/* Popup photos: instant soft preview, then the sharp original */
+.dialog-images img { transition:filter .25s ease; }
+.dialog-images img.is-preview { filter:blur(6px); }
+.dialog-images img:not([src]) { min-height:180px; background:#eef1f3; }

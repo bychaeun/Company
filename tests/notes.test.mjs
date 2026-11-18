@@ -7,7 +7,7 @@ const source=readFileSync(new URL('../apps-script/Api.gs',import.meta.url),'utf8
 function setup(){
  const sheets=[];
  const makeSheet=name=>{
-  const data=[];const sh={getName:()=>name,getSheetId:()=>sheets.indexOf(sh)+1,getLastRow:()=>data.length,getLastColumn:()=>data[0]?.length||0,setFrozenRows(){},setColumnWidths(){},setColumnWidth(){},
+  const data=[];const sh={getName:()=>name,getSheetId:()=>sheets.indexOf(sh)+1,getLastRow:()=>data.length,getLastColumn:()=>data[0]?.length||0,setFrozenRows(){},getMaxRows:()=>1000,getMaxColumns:()=>26,getFrozenRows:()=>1,deleteRow(row){data.splice(row-1,1);},setColumnWidths(){},setColumnWidth(){},
    getRange(row,col,n=1,m=1){const range={getDisplayValues:()=>Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>String(data[row-1+i]?.[col-1+j]??''))),getValues:()=>range.getDisplayValues(),setValues(values){values.forEach((r,i)=>{data[row-1+i]??=[];r.forEach((v,j)=>data[row-1+i][col-1+j]=v);});return range;},setValue(v){return range.setValues([[v]]);},clearContent(){return range.setValues(Array.from({length:n},()=>Array(m).fill('')));},setFontWeight(){return range;},setBackground(){return range;},setNumberFormat(){return range;}};return range;},getDataRange(){return sh.getRange(1,1,data.length,sh.getLastColumn());}};
   sheets.push(sh);return sh;
  };
@@ -38,14 +38,19 @@ test('new Korean category and subcategory creates a sheet and persists note',()=
 test('invalid and reserved categories return specific validation codes',()=>{
  const c=setup();for(const category of ['', '업체/설계','접근관리','내 스펙관리'])assert.throws(()=>c.zipNoteInput_({...input,category}),e=>e.zipCode==='NOTE_CATEGORY');
 });
-test('bulk deletion keeps unrelated row IDs stable and validates all targets before deleting',()=>{
+test('bulk deletion removes the sheet rows and validates all targets before deleting',()=>{
  const c=setup();const a=c.zipCreateNote_(input),b=c.zipCreateNote_({...input,title:'남길 메모'}),d=c.zipCreateNote_(input);
  assert.throws(()=>c.zipDeleteNotes_([a.noteId,'999:2']));assert.equal(c.zipNotes_().length,3);
- c.zipDeleteNotes_([a.noteId,d.noteId]);assert.equal(c.zipNotes_().length,1);assert.equal(c.zipNotes_()[0].noteId,b.noteId);
+ c.zipDeleteNotes_([a.noteId,d.noteId]);const left=c.zipNotes_();assert.equal(left.length,1);assert.equal(left[0].title,'남길 메모');assert.equal(left[0].noteId,'1:2','rows below moved up in the sheet');
 });
-test('category move returns new ID without shifting other notes',()=>{
- const c=setup(),a=c.zipCreateNote_(input),b=c.zipCreateNote_(input);const result=c.zipUpdateNote_({...input,noteId:a.noteId,category:'다른 대분류'});
- assert.equal(result.noteId,'2:2');assert.ok(c.zipNotes_().some(n=>n.noteId===b.noteId));
+test('category move deletes the old row and returns the new ID',()=>{
+ const c=setup(),a=c.zipCreateNote_(input),b=c.zipCreateNote_({...input,title:'그대로'});const result=c.zipUpdateNote_({...input,noteId:a.noteId,category:'다른 대분류'});
+ assert.equal(result.noteId,'2:2');assert.ok(c.zipNotes_().some(n=>n.title==='그대로'&&n.noteId==='1:2'));
+});
+test('a stale row ID never edits or deletes the note that moved into its place',()=>{
+ const c=setup(),a=c.zipCreateNote_({...input,title:'첫째'}),b=c.zipCreateNote_({...input,title:'둘째'});c.zipDeleteNote_(a.noteId,'첫째');
+ assert.throws(()=>c.zipDeleteNote_(b.noteId,'둘째'));assert.throws(()=>c.zipUpdateNote_({...input,noteId:a.noteId,expectedTitle:'첫째'}),e=>e.zipCode==='NOTE_MOVED');
+ assert.equal(c.zipNotes_()[0].title,'둘째');c.zipDeleteNote_('1:2','둘째');assert.equal(c.zipNotes_().length,0);
 });
 test('startup bundles notes only for approved sessions and deletion requires admin',()=>{
  const c=setup();c.zipCreateNote_(input);

@@ -9,7 +9,7 @@ function setup(){
  const store=new Map();let next=0;
  function sheet(name,headers){
   const data=[headers.slice()],formulas={},validations={};let filter=null;
-  const sh={data,formulas,validations,getName:()=>name,getLastColumn:()=>Math.max(...data.map(r=>r.length)),getLastRow:()=>data.length,getMaxColumns:()=>26,getMaxRows:()=>500,insertColumnsAfter(){},insertRowsAfter(){},hideColumns(){},setColumnWidth(){},hideSheet(){sh.hidden=true;},getFilter:()=>filter,
+  const sh={data,formulas,validations,getName:()=>name,getLastColumn:()=>Math.max(...data.map(r=>r.length)),getLastRow:()=>data.length,getMaxColumns:()=>26,getMaxRows:()=>500,getFrozenRows:()=>1,deleteRow(row){data.splice(row-1,1);},insertColumnsAfter(){},insertRowsAfter(){},hideColumns(){},setColumnWidth(){},hideSheet(){sh.hidden=true;},getFilter:()=>filter,
    getRange(row,col,n=1,m=1){const range={
     getDisplayValues:()=>Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>String(data[row+i-1]?.[col+j-1]??''))),
     setValues(values){values.forEach((r,i)=>{data[row+i-1]??=[];r.forEach((v,j)=>data[row+i-1][col+j-1]=v);});return range;},
@@ -21,7 +21,7 @@ function setup(){
   };store.set(name,sh);return sh;
  }
  const numbers=sheet('스펙번호 관리',['종이넘버','스펙넘버','경면','비고']),sites=sheet('내 스펙관리',['현장명','종이넘버','스펙넘버','경면','모델하우스 예정일','본납 예정일','설계사','진행상태','비고']);
- const c={zipSheet_:()=>({getSheetByName:n=>store.get(n)}),zipHash_:s=>createHash('sha256').update(s).digest('hex'),Utilities:{getUuid:()=>`00000000-0000-0000-0000-${String(++next).padStart(12,'0')}`},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},SpreadsheetApp:{DataValidationCriteria:{VALUE_IN_LIST:'list'},flush(){}},console};vm.createContext(c);vm.runInContext(source,c);vm.runInContext(readFileSync(new URL('../apps-script/Specs.gs',import.meta.url),'utf8'),c);c.zipSpecs_=()=>[];return {c,numbers,sites,sheet};
+ const c={zipSheet_:()=>({getSheetByName:n=>store.get(n)}),zipHash_:s=>createHash('sha256').update(s).digest('hex'),Utilities:{getUuid:()=>`00000000-0000-0000-0000-${String(++next).padStart(12,'0')}`},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},SpreadsheetApp:{DataValidationCriteria:{VALUE_IN_LIST:'list'},flush(){}},console};vm.createContext(c);vm.runInContext(source,c);vm.runInContext(readFileSync(new URL('../apps-script/Specs.gs',import.meta.url),'utf8'),c);vm.runInContext(api.slice(api.indexOf('function zipDeleteRows_'),api.indexOf('function zipNoteError_')),c);c.zipSpecs_=()=>[];return {c,numbers,sites,sheet};
 }
 test('reads append stable IDs without changing leading-zero numbers or original columns',()=>{
  const {c,numbers}=setup();numbers.data.push(['0012','0007','HM','그대로']);const result=c.zipRegistryData_();
@@ -43,16 +43,18 @@ test('invalid statuses are rejected before any values change; formulas are escap
  assert.throws(()=>c.zipSaveRegistry_({kind:'sites',id:'12345678-1234-1234-1234-123456789012',values:['현장','001','','','','','','허용 안 함','']}),e=>e.zipCode==='REGISTRY_VALIDATION');assert.equal(sites.data.length,1);
  c.zipSaveRegistry_({kind:'numbers',id:'12345678-1234-1234-1234-123456789012',values:['001','=IMPORTXML(1)','','']});assert.equal(numbers.data[1][1],'=IMPORTXML(1)');
 });
-test('deletion is recoverable and stale writes cannot resurrect a deleted row',()=>{
- const {c,numbers}=setup();numbers.data.push(['001','A','','']);const item=c.zipRegistryData_().lists.numbers.items[0];c.zipDeleteRegistry_({kind:'numbers',...item});assert.ok(numbers.data[1][6]);assert.equal(c.zipRegistryData_().lists.numbers.items.length,0);assert.throws(()=>c.zipSaveRegistry_({kind:'numbers',...item}),e=>e.zipCode==='REGISTRY_CONFLICT');
+test('deletion removes the sheet row, retries succeed and stale writes cannot resurrect it',()=>{
+ const {c,numbers}=setup();numbers.data.push(['001','A','',''],['002','B','','']);const item=c.zipRegistryData_().lists.numbers.items[0];c.zipDeleteRegistry_({kind:'numbers',...item});assert.equal(numbers.data.length,2);assert.equal(numbers.data[1][0],'002');assert.equal(c.zipDeleteRegistry_({kind:'numbers',...item}).ok,true);numbers.data.splice(1,1);assert.equal(c.zipRegistryData_().lists.numbers.items.length,0);assert.throws(()=>c.zipSaveRegistry_({kind:'numbers',...item}),e=>e.zipCode==='REGISTRY_CONFLICT');
 });
-test('unknown kinds and duplicate IDs fail safely',()=>{
- const {c,numbers}=setup();assert.throws(()=>c.zipRegistryInput_({kind:'__proto__'}));numbers.data.push(['1','a','',''],['2','b','','']);c.zipRegistryData_();numbers.data[2][4]=numbers.data[1][4];assert.throws(()=>c.zipRegistryData_(),e=>e.zipCode==='REGISTRY_IDS');
+test('unknown kinds fail safely and duplicated IDs from pasted rows are repaired',()=>{
+ const {c,numbers}=setup();assert.throws(()=>c.zipRegistryInput_({kind:'__proto__'}));numbers.data.push(['1','a','',''],['2','b','','']);c.zipRegistryData_();numbers.data[2][4]=numbers.data[1][4];numbers.data[2][6]='2026-01-01';const first=numbers.data[1][4];
+ // A row pasted together with hidden ID/삭제일 columns is kept visible under a fresh ID; the original keeps its ID.
+ const items=c.zipRegistryData_().lists.numbers.items;assert.equal(items.length,2);assert.equal(numbers.data[1][4],first);assert.notEqual(numbers.data[2][4],first);assert.equal(numbers.data[2][6],'');
 });
 test('all registry reads and writes require approved admin sessions',()=>{
  const c={};vm.createContext(c);vm.runInContext(api,c);c.zipJson_=v=>v;
  for(const user of [{status:'pending',role:'admin'},{status:'approved',role:'member'}]){c.zipSession_=()=>user;for(const action of ['specRegistry','saveSpecRegistry','deleteSpecRegistry'])assert.equal(c.doPost({postData:{contents:JSON.stringify({action})}}).code,'FORBIDDEN');}
- assert.ok(api.includes("name !== '스펙번호 관리'"));assert.ok(api.includes("name !== '현장별 관리'"));
+ for(const name of ['스펙번호 관리','스펙번호관리','현장별 관리','내스펙관리'])assert.equal(c.zipReservedSheet_(name),true,name);assert.equal(c.zipReservedSheet_('회사 메모'),false);
 });
 test('number list exposes only paper, specification, memo and preserves legacy mirror values',()=>{
  const {c,numbers}=setup();numbers.data.push(['001','CE-001','HM','기존 비고']);let item=c.zipRegistryData_().lists.numbers.items[0];assert.deepEqual(Array.from(item.values),['001','CE-001','기존 비고']);assert.deepEqual(Array.from(c.zipRegistryData_().lists.numbers.headers),['종이넘버','스펙넘버','비고']);c.zipSaveRegistry_({kind:'numbers',...item,values:['001','CE-001','새 비고']});assert.equal(numbers.data[1][2],'HM');assert.equal(numbers.data[1][3],'새 비고');
@@ -144,4 +146,14 @@ test('registry snapshot reads each site once and steady-state reads do not rewri
 test('row sorting keeps paper image, specification, memo and stable ID attached together',()=>{
  const {c,numbers}=setup();numbers.data.push(['001','B','','memo-b'],['002','A','','memo-a']);let list=c.zipRegistryData_().lists.numbers.items;
  list.forEach(item=>c.zipSaveRegistry_({kind:'numbers',...item,imageUrls:['https://example.com/'+item.values[1]+'.jpg']}));const ids=Object.fromEntries(c.zipRegistryData_().lists.numbers.items.map(item=>[item.values[1],item.id]));[numbers.data[1],numbers.data[2]]=[numbers.data[2],numbers.data[1]];list=c.zipRegistryData_().lists.numbers.items;assert.deepEqual(Array.from(list,entry=>entry.values[1]),['A','B']);for(const item of list){assert.equal(item.id,ids[item.values[1]]);assert.equal(item.imageUrls[0],'https://example.com/'+item.values[1]+'.jpg');assert.equal(item.values[2],'memo-'+item.values[1].toLowerCase());}
+});
+test('a number tab named without the space and typed rows without IDs still appear in the app',()=>{
+ const {c,numbers}=setup();const renamed=numbers;const tabs=[renamed];renamed.getName=()=>'스펙번호관리';
+ const original=c.zipSheet_;c.zipSheet_=()=>({getSheetByName:n=>n==='스펙번호 관리'?null:original().getSheetByName(n),getSheets:()=>[...tabs,original().getSheetByName('내 스펙관리')]});
+ renamed.data.push(['A-1','SPEC-1','',''],['A-2','SPEC-2','','메모']);
+ const items=c.zipRegistryData_().lists.numbers.items;assert.equal(items.length,2);assert.deepEqual(Array.from(items[1].values),['A-2','SPEC-2','메모']);
+});
+test('alternative headings such as 종이번호/스펙번호 are recognised',()=>{
+ const {c,numbers}=setup();numbers.data[0][0]='종이번호';numbers.data[0][1]='스펙번호';numbers.data.push(['P-9','S-9','','']);
+ assert.deepEqual(Array.from(c.zipRegistryData_().lists.numbers.items[0].values),['P-9','S-9','']);
 });

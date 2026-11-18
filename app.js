@@ -50,6 +50,7 @@
   let pendingImages = [];
   let noteSaving=false;
   let noteRequest=null;
+  let editingTitle=null;
   let notesLoading=false, notesRevision=0, selecting=false, selectionBusy=false, suppressClickUntil=0;
   const selectedNotes=new Set();
   const categoryFilters=document.createElement('section');categoryFilters.className='note-filters';categoryFilters.setAttribute('aria-label','메모 분류');
@@ -85,9 +86,10 @@
     selectionBusy=true;updateSelection();
     const ids=[...selectedNotes];
     try {
-      await window.ZIP_API.request('deleteNotes',{noteIds:ids});
+      const titles=ids.map(id=>state.records.find(r=>r.noteId===id)?.title??'');
+      await window.ZIP_API.request('deleteNotes',{noteIds:ids,expectedTitles:titles});
       notesRevision++;state.records=state.records.filter(r=>!ids.includes(r.noteId));
-      selectedNotes.clear();selecting=false;render();showToast('선택한 메모를 삭제했어요');
+      selectedNotes.clear();selecting=false;render();showToast('선택한 메모를 시트에서도 삭제했어요');loadData(true);
     }catch(error){showToast(error.message);}
     finally{selectionBusy=false;updateSelection();}
   };
@@ -254,7 +256,7 @@
       <h2>${escapeHTML(record.title)}</h2>
       ${record.address ? `<div class="dialog-address"><span aria-hidden="true">⌖</span><span class="dialog-address-text">${escapeHTML(record.address)}</span><button class="address-copy-button" type="button" data-copy-address aria-label="주소 복사" title="주소 복사"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M15 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></svg></button><span class="address-copy-status" role="status" aria-live="polite"></span></div>` : ""}
       <div class="dialog-copy">${escapeHTML(record.content)}</div>
-      ${record.images.length ? `<div class="dialog-images">${record.images.map((url, index) => `<img data-private-image="${escapeHTML(url)}" alt="${escapeHTML(record.title)} 참고 이미지 ${index + 1}" loading="lazy" />`).join("")}</div>` : ""}
+      ${record.images.length ? `<div class="dialog-images">${record.images.map((url, index) => `<img data-private-image="${escapeHTML(url)}" alt="${escapeHTML(record.title)} 참고 이미지 ${index + 1}" decoding="async" />`).join("")}</div>` : ""}
       ${record.updatedAt ? `<p class="dialog-updated">마지막 수정 ${escapeHTML(record.updatedAt)}</p>` : ""}
       <button class="dialog-save" type="button" data-dialog-save>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
@@ -333,6 +335,7 @@
     renderEditorSubcategories(selectedCategory, record?.subcategory || "");
     document.querySelector("#note-editor-title").textContent = record ? "메모 수정" : "새 메모 작성";
     document.querySelector("#note-editor-id").value = record?.noteId || "";
+    editingTitle = record?.title ?? null;
     document.querySelector("#note-title").value = record?.title || "";
     el.noteAddress.value = record?.address || "";
     document.querySelector("#note-content").value = record?.content || "";
@@ -409,6 +412,7 @@
       const signature=JSON.stringify(payload);
       if(!noteRequest||noteRequest.signature!==signature)noteRequest={signature,id:crypto.randomUUID()};
       payload.requestId=noteRequest.id;
+      if(noteId&&typeof editingTitle==='string')payload.expectedTitle=editingTitle;
       el.noteEditorMessage.textContent = "Google 시트에 저장하고 있어요.";
       const result=await window.ZIP_API.request(noteId ? "updateNote" : "createNote", payload);
       notesRevision++;
@@ -419,7 +423,8 @@
       }
       el.noteEditor.close();
       state.page = 1;
-      if(!result.noteId)loadData(true);
+      // Moving a note to another category deletes its old row, so row-based IDs below it change.
+      if(!result.noteId||(noteId&&!noteId.startsWith(String(result.noteId).split(':')[0]+':')))loadData(true);
       showToast(noteId ? "메모와 시트를 수정했어요" : "새 메모를 시트에 저장했어요");
     } catch (error) {
       el.noteEditorMessage.textContent = error.name==='TimeoutError'||error.name==='AbortError'?'저장 응답이 늦어요. 입력 내용은 유지했어요. 시트에 이미 저장됐을 수 있으니 같은 내용으로 다시 저장해 확인해 주세요.':error.message;
@@ -436,10 +441,10 @@
     el.noteDelete.disabled = true;
     el.noteEditorMessage.textContent = "Google 시트에서 메모를 삭제하고 있어요.";
     try {
-      await window.ZIP_API.request("deleteNote", { noteId });
+      await window.ZIP_API.request("deleteNote", { noteId, expectedTitle: editingTitle });
       notesRevision++;state.records=state.records.filter(r=>r.noteId!==noteId);render();
       el.noteEditor.close();
-      showToast("메모를 삭제했어요");
+      showToast("메모를 시트에서도 삭제했어요");loadData(true);
     } catch (error) {
       el.noteEditorMessage.textContent = error.message;
     } finally {
@@ -490,11 +495,26 @@
   const imageObserver = new IntersectionObserver(entries => {
     entries.filter(entry => entry.isIntersecting).forEach(entry => {
       imageObserver.unobserve(entry.target);
-      window.ZIP_API.image(entry.target.dataset.privateImage, {thumb: entry.target.hasAttribute('data-thumb')}).then(url => {
-        if (url && entry.target.isConnected && window.CHAE_AUTH.user?.status === 'approved') entry.target.src = url;
-      }).catch(() => { entry.target.alt = '이미지를 불러오지 못했어요'; });
+      const target = entry.target, fileId = target.dataset.privateImage, thumb = target.hasAttribute('data-thumb');
+      let sharp = false;
+      // Popup: show the card preview at once (softly blurred) and swap in the full-quality image when it arrives.
+      if (!thumb) window.ZIP_API.image(fileId, {thumb: true, cachedOnly: true}).then(url => {
+        if (url && !sharp && target.isConnected && !target.getAttribute('src')) { target.src = url; target.classList.add('is-preview'); }
+      }).catch(() => {});
+      window.ZIP_API.image(fileId, {thumb}).then(url => {
+        sharp = true;
+        if (url && target.isConnected && window.CHAE_AUTH.user?.status === 'approved') { target.src = url; target.classList.remove('is-preview'); }
+      }).catch(() => { target.classList.remove('is-preview'); target.alt = '이미지를 불러오지 못했어요'; });
     });
   }, {rootMargin:'100px'});
+  // Start downloading full-quality photos while the mouse rests on a card, so the popup opens sharp.
+  let prefetchTimer = 0;
+  el.list.addEventListener('pointerover', event => {
+    if (event.pointerType !== 'mouse') return;
+    const card = event.target.closest('[data-id]'); clearTimeout(prefetchTimer); if (!card) return;
+    prefetchTimer = setTimeout(() => { const record = state.records.find(r => r.id === Number(card.dataset.id)); record?.images.slice(0, 4).forEach(id => window.ZIP_API.image(id).catch(() => {})); }, 150);
+  });
+  el.list.addEventListener('pointerout', () => clearTimeout(prefetchTimer));
   function hydrateImages(container) { container.querySelectorAll('[data-private-image]').forEach(img=>imageObserver.observe(img)); }
 
   function roundedRect(context, x, y, width, height, radius) {

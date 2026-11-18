@@ -68,3 +68,28 @@
 .registry-paper-preview [hidden] {display:none!important;}
 .registry-paper-count {position:absolute;right:3px;bottom:3px;min-width:18px;border-radius:8px;padding:0 4px;background:#705163dc;color:white;font-size:10px;line-height:18px;}
 .registry-paper-memo {white-space:pre-line;overflow-wrap:anywhere;font-size:14px;line-height:1.7;}
+
+/* Spec list: whole row opens the detail popup; on phones every column fits without sideways scrolling */
+#registry-table tbody tr.registry-row {cursor:pointer;}
+#registry-table tbody tr.registry-row:focus-visible {outline:2px solid #426d79;outline-offset:-2px;}
+@media(max-width:600px){
+  .registry-table-scroll {overflow-x:hidden;max-height:none;}
+  #registry-table {table-layout:fixed;font-size:12px;line-height:1.45;}
+  #registry-table th,#registry-table td {min-width:0;max-width:none;padding:8px 6px;}
+  #registry-table th {white-space:normal;font-size:11px;}
+  #registry-table .registry-image-column {width:54px;min-width:0;max-width:none;padding:6px 4px;}
+  #registry-table .registry-paper-preview,.registry-paper-preview img {width:44px;height:44px;min-height:44px;}
+  #registry-table .registry-paper-preview {font-size:10px;}
+  .registry-paper-number {display:flex;gap:4px;justify-content:space-between;}
+  #registry-table .registry-copy {width:24px;height:24px;min-height:24px;flex:0 0 24px;border-radius:7px;}
+  #registry-table .registry-copy svg {width:13px;height:13px;}
+  .registry-cell-text {display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
+}
+
+/* Image source picker: camera, photo library or URL */
+.registry-photo-title {margin:0 0 8px;font-weight:600;}.registry-photo-title span {font-size:12px;font-weight:400;color:#998491;}
+.registry-photo-sources {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;}
+.registry-photo-sources .install-button {justify-content:center;min-height:42px;padding:8px 6px;font-size:13px;white-space:nowrap;}
+.registry-photo-editor [data-photo-url-field] {margin-bottom:6px;}
+.registry-photo-preview figure {position:relative;}
+.registry-photo-remove {position:absolute;top:6px;right:6px;display:grid;place-items:center;width:28px;height:28px;min-height:28px;padding:0;border:0;border-radius:50%;background:#2a2a2ecc;color:#fff;font-size:18px;line-height:1;cursor:pointer;}

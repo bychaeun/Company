@@ -4,8 +4,8 @@ function onEdit(e) {
   const sheet = e.range.getSheet();
   const name = sheet.getName();
   try {
-    if(name===ZIP_REGISTRY.sites.name)zipAutofillRegistrySheet_(e);
-    if (name === '접근관리' || name === '체크리스트' || name.indexOf('메모_백업') === 0) return;
+    if(zipNameKey_(name)===zipNameKey_(ZIP_REGISTRY.sites.name))zipAutofillRegistrySheet_(e);
+    if (zipReservedSheet_(name)) return;
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     const dateColumn = headers.indexOf('수정일') + 1;
     if (!['소분류', '제목', '내용', '이미지', '수정일'].every(header => headers.includes(header))) return;

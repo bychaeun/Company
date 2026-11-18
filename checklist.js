@@ -209,7 +209,7 @@
     render();
     message.textContent = "체크를 반영했어요. Google 시트·캘린더에 저장 중이에요.";
     try {
-      await api.request("toggleChecklist", { row, done: item.done });
+      await api.request("toggleChecklist", { row, done: item.done, task: item.task });
       if (startedAccess !== accessVersion) return;
       message.textContent = pendingRows.size > 1 ? "나머지 체크를 저장 중이에요." : "체크 상태를 저장했어요.";
     } catch (error) {
@@ -235,10 +235,11 @@
   list.addEventListener('click', async event => {
     const button=event.target.closest('[data-delete-row]');
     if(!button || saving || loading || pendingRows.size || window.CHAE_AUTH.user?.role!=='admin')return;
-    if(!window.confirm('체크리스트에서 삭제할까요? 연결된 Google 캘린더 일정은 유지됩니다.'))return;
+    if(!window.confirm('체크리스트와 시트에서 삭제할까요? 연결된 Google 캘린더 일정은 유지됩니다.'))return;
     saving=true;
     list.querySelectorAll('input, button').forEach(control => { control.disabled = true; });
-    try {await api.request('deleteChecklist',{row:Number(button.dataset.deleteRow)});await load();}
+    const target=items.find(entry=>Number(entry.row)===Number(button.dataset.deleteRow));
+    try {await api.request('deleteChecklist',{row:Number(button.dataset.deleteRow),task:target?.task});await load();}
     catch(error){message.textContent=error.message;}
     finally{saving=false;list.querySelectorAll('input, button').forEach(control => { control.disabled = false; });}
   });

@@ -9,8 +9,8 @@ test('board rejects executable URLs and invalid positions or links',()=>{const c
 test('board routes require approved admin and board sheets are excluded from notes',()=>{const c=setup();c.zipJson_=v=>v;c.zipSheet_=()=>({getSheets:()=>['디자인 보드','디자인 대지','업무'].map(name=>({getName:()=>name}))});assert.equal(c.zipNoteSheets_().length,1);for(const action of ['board','saveBoard','deleteBoard','deleteBoards','saveArtboard']){for(const user of [{status:'pending',role:'admin'},{status:'approved',role:'member'}]){c.zipSession_=()=>user;assert.equal(c.doPost({postData:{contents:JSON.stringify({action})}}).code,'FORBIDDEN');}}});
 function storage(){
  const c=setup(),sheets=new Map();
- function create(name,data=[]){const sh={data,getName:()=>name,getLastRow:()=>data.length,getLastColumn:()=>Math.max(0,...data.map(r=>r.length)),setFrozenRows(){},appendRow:r=>data.push([...r]),getRange(row,col,n=1,m=1){const range={getDisplayValues:()=>Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>String(data[row-1+i]?.[col-1+j]??''))),setValues(values){values.forEach((r,i)=>{data[row-1+i]??=[];r.forEach((v,j)=>data[row-1+i][col-1+j]=v);});return range;},setNumberFormat(){return range;}};return range;},getRangeList(ranges){return {setValue(value){for(const ref of ranges)data[Number(ref.slice(1))-1][9]=value;}};}};sheets.set(name,sh);return sh;}
- c.zipSheet_=()=>({getSheetByName:name=>sheets.get(name),insertSheet:create});c.LockService={getScriptLock:()=>({waitLock(){},releaseLock(){}})};return {c,create,sheets};
+ function create(name,data=[]){const sh={data,getName:()=>name,getLastRow:()=>data.length,getLastColumn:()=>Math.max(0,...data.map(r=>r.length)),setFrozenRows(){},getMaxRows:()=>1000,getMaxColumns:()=>26,getFrozenRows:()=>1,deleteRow(row){data.splice(row-1,1);},appendRow:r=>data.push([...r]),getRange(row,col,n=1,m=1){const range={getDisplayValues:()=>Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>String(data[row-1+i]?.[col-1+j]??''))),setValues(values){values.forEach((r,i)=>{data[row-1+i]??=[];r.forEach((v,j)=>data[row-1+i][col-1+j]=v);});return range;},setNumberFormat(){return range;}};return range;},getRangeList(ranges){return {setValue(value){for(const ref of ranges)data[Number(ref.slice(1))-1][9]=value;}};}};sheets.set(name,sh);return sh;}
+ c.zipSheet_=()=>({getSheetByName:name=>sheets.get(name),insertSheet:create});c.LockService={getScriptLock:()=>({waitLock(){},releaseLock(){}})};c.SpreadsheetApp={flush(){}};return {c,create,sheets};
 }
 test('legacy ten-column notes migrate without losing links, text, or placement',()=>{
  const {c,create,sheets}=storage();create('디자인 보드',[Array.from(c.ZIP_BOARD_HEADERS).slice(0,10),[valid.id,valid.title,valid.content,valid.url,'cream','300','-20','','','']]);
@@ -23,8 +23,8 @@ test('multiple artboards and URLs persist, old clients cannot erase extra links 
  assert.throws(()=>c.zipSaveBoard_({...valid,id:'different-12345678901234567',boardId:'default',link:valid.id}));
 });
 test('bulk deletion validates all IDs before writing and prevents deleted notes from resurfacing',()=>{
- const {c}=storage(),other='different-12345678901234567';c.zipSaveBoard_(valid);c.zipSaveBoard_({...valid,id:other,title:'남길 메모'});
+ const {c,sheets}=storage(),other='different-12345678901234567';c.zipSaveBoard_(valid);c.zipSaveBoard_({...valid,id:other,title:'남길 메모'});
  assert.throws(()=>c.zipDeleteBoards_([valid.id,'unknown-123456789012345678']));assert.equal(c.zipBoard_().length,2);
- c.zipDeleteBoards_([valid.id]);assert.equal(c.zipBoard_().length,1);assert.equal(c.zipBoard_()[0].id,other);assert.throws(()=>c.zipSaveBoard_(valid));
+ c.zipDeleteBoards_([valid.id]);assert.equal(c.zipBoard_().length,1);assert.equal(sheets.get('디자인 보드').data.length,2,'row removed from the sheet');assert.equal(c.zipBoard_()[0].id,other);
 });
 test('site arrays reject unsupported protocols, oversized lists and preserve distinct URLs',()=>{const c=setup();assert.throws(()=>c.zipBoardInput_({...valid,urls:['javascript:alert(1)']}));assert.throws(()=>c.zipBoardInput_({...valid,urls:Array(21).fill(valid.url)}));assert.equal(c.zipBoardInput_({...valid,urls:[valid.url,valid.url]}).urls.length,1);});

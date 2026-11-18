@@ -35,7 +35,7 @@
         if(action==='users')return {ok:true,users:[]};
         return {ok:true};
       },
-      async image(){return '';}, setToken(){}, clearImages(){}, get hasSession(){return true;},
+      async image(){return '';}, seedImage(){}, setToken(){}, clearImages(){}, get hasSession(){return true;},
       async config(){return {ok:true,configured:true,clientId:'local-preview'};}
     };
     return;
@@ -126,16 +126,20 @@
         .catch(error=>{if(error.code==='REQUEST_FAILED')thumbsSupported=false;chunk.forEach(([,waiters])=>waiters.forEach(w=>w.reject(error)));});
     }
   }
+  const imageActions=['image','registryImage'];
+  function seedImage(fileId,blob,action='image'){if(!/^[-\w]{10,200}$/.test(fileId)||!imageActions.includes(action)||!imageTypes.test(blob?.type||''))return;const key=(action==='image'?'':action+':')+'f:'+fileId;imageCache.set(key,Promise.resolve(URL.createObjectURL(blob)));storeImage(key,blob,generation);}
   async function image(fileId,options={}) {
     if(!/^[-\w]{10,200}$/.test(fileId))return '';
-    const thumb=!!options.thumb,key=(thumb?'t:':'f:')+fileId;
+    const action=imageActions.includes(options.action)?options.action:'image',thumb=!!options.thumb&&action==='image',key=(action==='image'?'':action+':')+(thumb?'t:':'f:')+fileId;
+    // cachedOnly: answer from memory or this device only, never the network (used for instant placeholders).
+    if(options.cachedOnly){if(imageCache.has(key))return imageCache.get(key);const blob=await storedImage(key);if(!blob)return '';if(!imageCache.has(key))imageCache.set(key,Promise.resolve(URL.createObjectURL(blob)));return imageCache.get(key);}
     if(!imageCache.has(key)) {
       const version = generation;
       const promise=(async()=>{
         let blob=await storedImage(key);
         if(!blob&&thumb)blob=await storedImage('f:'+fileId);
         if(!blob&&thumb){try{blob=toBlob(await queueThumb(fileId));}catch(error){if(['AUTH_REQUIRED','FORBIDDEN','STALE_SESSION'].includes(error.code))throw error;}if(blob)storeImage(key,blob,version);}
-        if(!blob){const full=thumb?await image(fileId):null;if(thumb)return full;blob=toBlob(await request('image',{fileId}));if(blob)storeImage(key,blob,version);}
+        if(!blob){const full=thumb?await image(fileId):null;if(thumb)return full;blob=toBlob(await request(action,{fileId}));if(blob)storeImage(key,blob,version);}
         if(!blob||version!==generation)return '';
         return URL.createObjectURL(blob);
       })().catch(error=>{imageCache.delete(key);throw error;});
@@ -143,7 +147,7 @@
     }
     return imageCache.get(key);
   }
-  window.ZIP_API = { request, image, setToken, clearImages, rememberUser,cached,get hasCachedNotes(){return !!stored('notes');},get rememberedUser(){return rememberedUser();},get hasSession(){return !!token;},
+  window.ZIP_API = { request, image, seedImage, setToken, clearImages, rememberUser,cached,get hasCachedNotes(){return !!stored('notes');},get rememberedUser(){return rememberedUser();},get hasSession(){return !!token;},
     async config(){ const response=await fetch(endpoint+'?action=config',{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)}); if(!response.ok)throw new Error(); return response.json(); } };
 })();
 

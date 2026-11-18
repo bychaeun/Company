@@ -6,14 +6,22 @@ var ZIP_REGISTRY = {
 var ZIP_REGISTRY_META=['관리 ID','앱 수정일','앱 삭제일'];
 function zipRegistryError_(code) {var error=new Error(code);error.zipCode=code;return error;}
 function zipRegistryDefinition_(kind) {if(!Object.prototype.hasOwnProperty.call(ZIP_REGISTRY,kind))throw zipRegistryError_('REGISTRY_INPUT');return ZIP_REGISTRY[kind];}
-var ZIP_HEADER_ALIASES={'관리 ID':['ID'],'앱 수정일':['수정일'],'앱 삭제일':['삭제일'],'모델하우스 예정일':['M/H 오픈날'],'본납 예정일':['완공 연월'],'이전 스펙 상세(JSON)':['종이 목록(JSON)'],'건설사':['건설사 이름','건설사명']};
+var ZIP_HEADER_ALIASES={'종이넘버':['종이번호','종이No','종이넘버(No)'],'스펙넘버':['스펙번호','스펙No'],'관리 ID':['ID'],'앱 수정일':['수정일'],'앱 삭제일':['삭제일'],'모델하우스 예정일':['M/H 오픈날'],'본납 예정일':['완공 연월'],'이전 스펙 상세(JSON)':['종이 목록(JSON)'],'건설사':['건설사 이름','건설사명']};
+// Tab names are matched without spaces or case, so '스펙번호관리' and '스펙번호 관리' are the same tab.
+function zipFindSheet_(name){
+  var ss=zipSheet_(),exact=ss.getSheetByName(name);if(exact)return exact;
+  var key=zipHeaderKey_(name),found=ss.getSheets().filter(function(sh){return zipHeaderKey_(sh.getName())===key;});
+  return found.length===1?found[0]:null;
+}
 function zipHeaderKey_(value){return String(value||'').normalize('NFKC').replace(/\s+/g,'').toLowerCase();}
 // Resolve physical columns once; all row arrays below retain the stable logical field order.
 function zipColumns_(sheet,names,optional,create){
   var width=Math.max(1,sheet.getLastColumn()),headers=sheet.getRange(1,1,1,width).getDisplayValues()[0],columns=[],missing=[];
   names.forEach(function(name,i){
-    var keys=[name].concat(ZIP_HEADER_ALIASES[name]||[]).map(zipHeaderKey_),matches=[];
-    headers.forEach(function(h,j){if(h&&keys.indexOf(zipHeaderKey_(h))>=0)matches.push(j+1);});
+    // The exact title wins; alternative titles are only used when the exact one is absent.
+    var own=zipHeaderKey_(name),keys=(ZIP_HEADER_ALIASES[name]||[]).map(zipHeaderKey_),matches=[];
+    headers.forEach(function(h,j){if(h&&zipHeaderKey_(h)===own)matches.push(j+1);});
+    if(!matches.length)headers.forEach(function(h,j){if(h&&keys.indexOf(zipHeaderKey_(h))>=0)matches.push(j+1);});
     if(matches.length>1)throw zipRegistryError_('REGISTRY_HEADERS');
     columns[i]=matches[0]||0;
     if(!columns[i]&&(optional||[]).indexOf(name)<0){if((create||[]).indexOf(name)<0)throw zipRegistryError_('REGISTRY_HEADERS');missing.push(i);}
@@ -39,18 +47,25 @@ function zipWriteMapped_(sheet,columns,row,values){
   changes.forEach(function(change){change.cell.setNumberFormat('@').setValue(/^[=+@-]/.test(change.value)?"'"+change.value:change.value);});
 }
 function zipRegistrySheet_(kind,setup,extras) {
-  var def=zipRegistryDefinition_(kind),sheet=zipSheet_().getSheetByName(def.name);
+  var def=zipRegistryDefinition_(kind),sheet=zipFindSheet_(def.name);
   if(!sheet)throw zipRegistryError_('REGISTRY_SETUP');
   var count=def.headers.length,names=def.headers.concat(ZIP_REGISTRY_META,extras||[]),optional=kind==='numbers'?['경면']:['사진 ID'],columns=zipColumns_(sheet,names,optional,setup?names:ZIP_REGISTRY_META.concat(extras||[]));
   if(setup){if(kind==='numbers'&&columns[2])sheet.hideColumns(columns[2]);ZIP_REGISTRY_META.forEach(function(_,i){sheet.hideColumns(columns[count+i]);});}
   if(sheet.getLastRow()>10001)throw zipRegistryError_('REGISTRY_LIMIT');
-  var length=Math.max(0,sheet.getLastRow()-1),rows=zipMappedRows_(sheet,columns,2,length),seen={};
+  var length=Math.max(0,sheet.getLastRow()-1),rows=zipMappedRows_(sheet,columns,2,length),seen={},fixed=[],restored=[];
+  // Rows typed or pasted directly into the sheet get an ID here. A row copied together with the hidden
+  // ID/삭제일 columns gets a fresh ID instead of breaking the whole list.
   rows.forEach(function(row,i){
     if(!row.slice(0,count).some(function(v){return v!=='';}))return;
-    if(!row[count]){row[count]=Utilities.getUuid();sheet.getRange(i+2,columns[count]).setValue(row[count]);}
-    if(!/^[a-zA-Z0-9-]{20,80}$/.test(row[count])||seen[row[count]])throw zipRegistryError_('REGISTRY_IDS');
+    if(!row[count]){row[count]=Utilities.getUuid();fixed.push(i);}
+    else if(!/^[a-zA-Z0-9-]{20,80}$/.test(row[count])||seen[row[count]]){row[count]=Utilities.getUuid();fixed.push(i);if(row[count+2]){row[count+2]='';restored.push(i);}}
     seen[row[count]]=true;
   });
+  if(fixed.length){
+    var idCol=columns[count],delCol=columns[count+2];
+    sheet.getRange(2,idCol,rows.length,1).setValues(rows.map(function(r){return [r[count]];}));
+    if(delCol)restored.forEach(function(i){sheet.getRange(i+2,delCol).setValue('');});
+  }
   return {sheet:sheet,rows:rows,count:count,definition:def,columns:columns};
 }
 function zipRegistryVersion_(row,count) {return zipHash_(JSON.stringify(row.slice(0,count).concat(row[count+2]||'')));}
@@ -124,7 +139,7 @@ function zipValidateSiteLists_(values){
   if(mirrors.length>1&&mirrors.length!==Math.max(papers.length,specs.length))throw zipRegistryError_('REGISTRY_INPUT');
 }
 function zipAutofillRegistrySheet_(e) {
-  var sheet=e.range.getSheet();if(sheet.getName()!==ZIP_REGISTRY.sites.name||e.range.getRow()<2||e.range.getNumRows()>200)return;
+  var sheet=e.range.getSheet();if(zipHeaderKey_(sheet.getName())!==zipHeaderKey_(ZIP_REGISTRY.sites.name)||e.range.getRow()<2||e.range.getNumRows()>200)return;
   var columns=zipColumns_(sheet,ZIP_REGISTRY.sites.headers,[],[]),column=e.range.getColumn(),last=e.range.getLastColumn(),paperEdited=columns[1]>=column&&columns[1]<=last,specEdited=columns[2]>=column&&columns[2]<=last;
   if(!paperEdited&&!specEdited)return;
   var master=zipRegistrySheet_('numbers').rows;
@@ -140,9 +155,11 @@ function zipAutofillRegistrySheet_(e) {
 function zipDeleteRegistry_(body) {
   zipRegistryDefinition_(body.kind);if(!/^[a-zA-Z0-9-]{20,80}$/.test(body.id||''))throw zipRegistryError_('REGISTRY_INPUT');
   var lock=LockService.getScriptLock();lock.waitLock(10000);
-  try{var data=zipRegistrySheet_(body.kind),index=data.rows.findIndex(function(r){return r[data.count]===body.id;});if(index<0)throw zipRegistryError_('REGISTRY_CONFLICT');var row=data.rows[index];
-    if(row[data.count+2])return {ok:true};if(body.version!==zipRegistryVersion_(row,data.count))throw zipRegistryError_('REGISTRY_CONFLICT');
-    data.sheet.getRange(index+2,data.columns[data.count+2]).setValue(new Date().toISOString());return {ok:true};
+  // The row is removed from the sheet. IDs are stable UUIDs, so other rows are unaffected; a retry after a
+  // lost response finds nothing left to delete and succeeds.
+  try{var data=zipRegistrySheet_(body.kind),index=data.rows.findIndex(function(r){return r[data.count]===body.id;});if(index<0)return {ok:true};var row=data.rows[index];
+    if(!row[data.count+2]&&body.version!==zipRegistryVersion_(row,data.count))throw zipRegistryError_('REGISTRY_CONFLICT');
+    zipDeleteRows_(data.sheet,[index+2]);SpreadsheetApp.flush();return {ok:true};
   }finally{lock.releaseLock();}
 }
 function syncSpecRegistryDaily() {var data=zipRegistryData_();PropertiesService.getScriptProperties().setProperty('registry-synced-at',data.syncedAt);if(typeof zipReadCache_==='function')zipReadCache_('registry',true,function(){return data;});if(typeof zipNotes_==='function')zipNotes_(true);}

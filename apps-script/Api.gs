@@ -55,21 +55,22 @@ function doPost(e) {
     if (action === 'deleteSpec') return zipJson_(zipMutateRead_(['specs','registry'],function(){return zipDeleteSpec_(body.id);}));
     if (action === 'geocodeSpec') return zipJson_(zipGeocodeSpec_(body.address));
     if (action === 'specImage') return zipJson_(zipSpecImage_(body.fileId));
+    if (action === 'registryImage') return zipJson_(zipRegistryImage_(body.fileId));
     if (action === 'users') return zipJson_({ok:true,users:zipUsers_().map(function(row){return {sub:row[0],email:row[1],name:row[2],status:row[3],created:row[4],lastLogin:row[5],admin:zipAdmin_(row[0])};})});
     if (action === 'setStatus') return zipJson_(zipSetStatus_(body.sub,body.status));
     if (action === 'createNote') {body.requestOwner=user.sub;return zipJson_(zipMutateRead_(['notes'],function(){return zipCreateNote_(body);}));}
     if (action === 'updateNote') {body.requestOwner=user.sub;return zipJson_(zipMutateRead_(['notes'],function(){return zipUpdateNote_(body);}));}
-    if (action === 'deleteNote') return zipJson_(zipMutateRead_(['notes'],function(){return zipDeleteNote_(body.noteId);}));
-    if (action === 'deleteNotes') return zipJson_(zipMutateRead_(['notes'],function(){return zipDeleteNotes_(body.noteIds);}));
+    if (action === 'deleteNote') return zipJson_(zipMutateRead_(['notes'],function(){return zipDeleteNote_(body.noteId,body.expectedTitle);}));
+    if (action === 'deleteNotes') return zipJson_(zipMutateRead_(['notes'],function(){return zipDeleteNotes_(body.noteIds,body.expectedTitles);}));
     if (action === 'uploadNoteImage') return zipJson_(zipUploadNoteImage_(body));
     if (action === 'checklist') return zipJson_({ok:true,items:zipChecklist_()});
     if (action === 'addChecklist') return zipJson_(zipAddChecklist_(body));
-    if (action === 'toggleChecklist') return zipJson_(zipToggleChecklist_(body.row,body.done));
-    if (action === 'deleteChecklist') return zipJson_(zipDeleteChecklist_(body.row));
+    if (action === 'toggleChecklist') return zipJson_(zipToggleChecklist_(body.row,body.done,body.task));
+    if (action === 'deleteChecklist') return zipJson_(zipDeleteChecklist_(body.row,body.task));
     throw new Error('지원하지 않는 요청입니다.');
   } catch (error) {
     // No token, private note, raw upstream error or configuration secrets in public responses.
-    var messages={AUTH_REQUIRED:'로그인이 만료됐어요. 다시 로그인해 주세요.',NOTE_CATEGORY:'대분류 이름을 확인해 주세요. 관리용 이름이나 / \\ ? * [ ] : 문자는 사용할 수 없어요.',NOTE_FIELDS:'제목과 입력 길이를 확인해 주세요.',NOTE_HEADERS:'같은 이름의 시트가 있지만 메모 양식이 달라요. 다른 대분류 이름을 사용해 주세요.'};
+    var messages={AUTH_REQUIRED:'로그인이 만료됐어요. 다시 로그인해 주세요.',NOTE_CATEGORY:'대분류 이름을 확인해 주세요. 관리용 이름이나 / \\ ? * [ ] : 문자는 사용할 수 없어요.',NOTE_FIELDS:'제목과 입력 길이를 확인해 주세요.',NOTE_HEADERS:'같은 이름의 시트가 있지만 메모 양식이 달라요. 다른 대분류 이름을 사용해 주세요.',NOTE_MOVED:'시트에서 메모 위치가 바뀌었어요. 새로고침한 뒤 다시 시도해 주세요.'};
     Object.assign(messages,{REGISTRY_SETUP:'컴퍼니 시트의 관리 탭 연결을 확인해 주세요.',REGISTRY_HEADERS:'관리 시트의 제목행이 변경됐어요. 열 이름을 확인해 주세요.',REGISTRY_IDS:'중복된 관리 ID가 있어요. 시트의 ID 열을 확인해 주세요.',REGISTRY_INPUT:'필수 항목과 입력 길이를 확인해 주세요.',REGISTRY_CONFLICT:'시트에서 다른 수정이 확인됐어요. 입력 내용을 복사해 두고 목록을 동기화한 뒤 다시 열어 주세요.',REGISTRY_FORMULA:'수식으로 계산 중인 칸은 앱에서 덮어쓰지 않아요. 시트에서 수정해 주세요.',REGISTRY_VALIDATION:'시트에서 허용한 진행상태를 선택해 주세요.',REGISTRY_LIMIT:'관리 시트는 탭당 10,000개 내역까지 지원해요.'});
     return zipJson_({ok:false,code:error.zipCode || 'REQUEST_FAILED',error:messages[error.zipCode] || '요청을 완료하지 못했어요. 입력 내용은 유지됩니다. 설정과 시트 권한을 확인해 주세요.'});
   }
@@ -88,7 +89,7 @@ function zipReadCache_(scope,force,loader) {
   var cache,key;
   try {
     cache=CacheService.getScriptCache();
-    key='read-v8:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0');
+    key='read-v9:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_();
     if(!force){var packed=zipCacheGetChunks_(cache,key);if(packed){var value=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(packed))).getDataAsString());ZIP_CACHE_HIT=true;return value;}}
   }catch(ignore){cache=null;}
   var result=loader();
@@ -111,6 +112,18 @@ function zipCachePutChunks_(cache,key,encoded,ttl) {
   // The count is written last so a partially stored snapshot is never read.
   cache.put(key+':n',String(count),ttl);
 }
+// The workbook's last-modified time is part of every snapshot key, so edits that do not fire onEdit
+// (paste from another file, other scripts, formulas, imports) still show up on the next read.
+var ZIP_WORKBOOK_STAMP;
+function zipWorkbookStamp_() {
+  if(ZIP_WORKBOOK_STAMP!==undefined)return ZIP_WORKBOOK_STAMP;
+  try{ZIP_WORKBOOK_STAMP=String(DriveApp.getFileById(zipSheet_().getId()).getLastUpdated().getTime());}catch(ignore){ZIP_WORKBOOK_STAMP='';}
+  return ZIP_WORKBOOK_STAMP;
+}
+// Tab names are matched without spaces or case, so '스펙번호관리' and '스펙번호 관리' are the same tab.
+function zipNameKey_(value){return String(value||'').normalize('NFKC').replace(/\s+/g,'').toLowerCase();}
+var ZIP_RESERVED_SHEETS=['접근관리','체크리스트','내 스펙관리','스펙번호 관리','현장별 관리','디자인 보드','디자인 대지'];
+function zipReservedSheet_(name){var key=zipNameKey_(name);return key.indexOf('메모_백업')===0||ZIP_RESERVED_SHEETS.some(function(n){return zipNameKey_(n)===key;});}
 function zipInvalidateRead_(scopes) {
   if(typeof Utilities==='undefined'||typeof Utilities.getUuid!=='function')return;
   var props=PropertiesService.getScriptProperties();if(typeof props.setProperties!=='function')return;
@@ -122,6 +135,7 @@ function zipMutateRead_(scopes,write) {
 }
 function zipInvalidateSheetRead_(name) {
   if(name==='접근관리'){zipInvalidateUsers_();return;}
+  var canonical=ZIP_RESERVED_SHEETS.filter(function(n){return zipNameKey_(n)===zipNameKey_(name);})[0];if(canonical)name=canonical;
   var scopes=['내 스펙관리','현장별 관리'].indexOf(name)>=0?['specs','registry']:name==='스펙번호 관리'?['registry']:['디자인 보드','디자인 대지'].indexOf(name)>=0?['board']:name==='체크리스트'?['checklist']:['notes'];
   zipInvalidateRead_(scopes);
 }
@@ -264,8 +278,7 @@ function zipDriveId_(value) {
 }
 function zipNoteSheets_() {
   var sheets = zipSheet_().getSheets().filter(function(sh){
-    var name = sh.getName();
-    return name !== '접근관리' && name !== '체크리스트' && name !== '내 스펙관리' && name !== '스펙번호 관리' && name !== '현장별 관리' && name !== '디자인 보드' && name !== '디자인 대지' && name.indexOf('메모_백업') !== 0;
+    return !zipReservedSheet_(sh.getName());
   });
   var categorySheets = sheets.filter(function(sh){return sh.getName() !== '메모';});
   return categorySheets.length ? categorySheets : sheets;
@@ -284,10 +297,19 @@ function zipNotesUncached_() {
 
 function zipNoteInput_(body) {
   var category=String(body.category||'').trim(), subcategory=String(body.subcategory||'').trim(), title=String(body.title||'').trim(), address=String(body.address||'').trim(), content=String(body.content||'').trim(), imageText=String(body.imageText||'').trim();
-  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||['접근관리','체크리스트','내 스펙관리','스펙번호 관리','현장별 관리','디자인 보드','디자인 대지'].indexOf(category)>=0||category.indexOf('메모_백업')===0)throw zipNoteError_('NOTE_CATEGORY');
+  if(!category||category.length>100||/[\\\/\?\*\[\]:]/.test(category)||zipReservedSheet_(category))throw zipNoteError_('NOTE_CATEGORY');
   if(!title||title.length>200||subcategory.length>100||address.length>300||content.length>8000||imageText.length>2000)throw zipNoteError_('NOTE_FIELDS');
   imageText.split(/[|\n;]/).map(function(v){return v.trim();}).filter(Boolean).forEach(function(v){if(!zipDriveId_(v)&&!/^[-\w]{10,200}$/.test(v))throw new Error('Invalid note image');});
   return {category:category,subcategory:subcategory,title:title,address:address,content:content,imageText:imageText};
+}
+// Deleting in the app removes the row from the sheet itself (bottom-up so earlier row numbers stay valid).
+// Sheets cannot delete its last unfrozen row, so that single row is emptied instead.
+function zipDeleteRows_(sheet,rows) {
+  rows.filter(function(row,i){return row>=2&&rows.indexOf(row)===i;}).sort(function(a,b){return b-a;}).forEach(function(row){
+    if(row>sheet.getMaxRows())return;
+    if(sheet.getMaxRows()-Math.max(1,sheet.getFrozenRows())<=1)sheet.getRange(row,1,1,sheet.getMaxColumns()).clearContent();
+    else sheet.deleteRow(row);
+  });
 }
 function zipNoteError_(code){var error=new Error(code);error.zipCode=code;return error;}
 var ZIP_NOTE_HEADER_CACHE={};
@@ -311,7 +333,7 @@ function zipNoteSheet_(category) {
   ZIP_NOTE_HEADER_CACHE[sh.getSheetId()]=headers;
   return sh;
 }
-function zipFindNote_(noteId) {
+function zipFindNote_(noteId,expectedTitle) {
   var match=String(noteId||'').match(/^(\d+):(\d+)$/);
   if(!match)throw new Error('Invalid note id');
   var sheetId=Number(match[1]), row=Number(match[2]), sh=zipNoteSheets_().find(function(s){return s.getSheetId()===sheetId;});
@@ -319,6 +341,8 @@ function zipFindNote_(noteId) {
   var headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   var values=sh.getRange(row,1,1,headers.length).getDisplayValues()[0];
   if(!values[headers.indexOf('제목')]&&!values[headers.indexOf('내용')])throw new Error('Unknown note');
+  // Row numbers move after a row is deleted; a stale screen must not change the note that moved into its place.
+  if(typeof expectedTitle==='string'&&String(values[headers.indexOf('제목')]||'').trim()!==expectedTitle.trim())throw zipNoteError_('NOTE_MOVED');
   ZIP_NOTE_HEADER_CACHE[sh.getSheetId()]=headers;
   return {sheet:sh,row:row};
 }
@@ -372,23 +396,22 @@ function zipUpdateNote_(body) {
   var input=zipNoteInput_(body), lock=LockService.getScriptLock(); lock.waitLock(10000);
   try{
     var receipt=zipNoteReceipt_(body,'update');if(receipt.result)return receipt.result;
-    var found=zipFindNote_(body.noteId);
+    var found=zipFindNote_(body.noteId,body.expectedTitle);
     var noteId=body.noteId;
     if(found.sheet.getName()===input.category)zipWriteNote_(found.sheet,found.row,input);
-    else{var target=zipNoteSheet_(input.category), row=target.getLastRow()+1; zipWriteNote_(target,row,input); found.sheet.getRange(found.row,1,1,found.sheet.getLastColumn()).clearContent();noteId=target.getSheetId()+':'+row;}
+    else{var target=zipNoteSheet_(input.category), row=target.getLastRow()+1; zipWriteNote_(target,row,input); zipDeleteRows_(found.sheet,[found.row]);noteId=target.getSheetId()+':'+row;}
     SpreadsheetApp.flush();var result={ok:true,noteId:noteId};zipRememberNote_(receipt.key,result);return result;
   }finally{lock.releaseLock();}
 }
-function zipDeleteNote_(noteId) {
-  var lock=LockService.getScriptLock(); lock.waitLock(10000);
-  try{var found=zipFindNote_(noteId); found.sheet.getRange(found.row,1,1,found.sheet.getLastColumn()).clearContent(); SpreadsheetApp.flush(); return {ok:true};}finally{lock.releaseLock();}
-}
-function zipDeleteNotes_(ids) {
+function zipDeleteNote_(noteId,expectedTitle) {return zipDeleteNotes_([noteId],typeof expectedTitle==='string'?[expectedTitle]:null);}
+function zipDeleteNotes_(ids,titles) {
   if(!Array.isArray(ids)||!ids.length||ids.length>100||new Set(ids).size!==ids.length)throw new Error('Invalid selection');
+  if(titles!=null&&(!Array.isArray(titles)||titles.length!==ids.length))throw new Error('Invalid selection');
   var lock=LockService.getScriptLock();lock.waitLock(10000);
   try {
-    var found=ids.map(zipFindNote_);
-    found.forEach(function(item){item.sheet.getRange(item.row,1,1,item.sheet.getLastColumn()).clearContent();});
+    var found=ids.map(function(id,i){return zipFindNote_(id,titles?titles[i]:undefined);}),bySheet={};
+    found.forEach(function(item){var key=item.sheet.getSheetId();(bySheet[key]=bySheet[key]||{sheet:item.sheet,rows:[]}).rows.push(item.row);});
+    Object.keys(bySheet).forEach(function(key){zipDeleteRows_(bySheet[key].sheet,bySheet[key].rows);});
     SpreadsheetApp.flush();return {ok:true};
   }finally{lock.releaseLock();}
 }
@@ -437,6 +460,20 @@ function zipThumbs_(ids) {
     }catch(ignore){}
   });
   return {ok:true,images:images};
+}
+
+// Photos taken or picked in the spec editors are uploaded to the private image folder and saved as
+// Drive file links. They are only readable by admins and only while a registry row still uses them.
+function zipRegistryImage_(id) {
+  id=String(id||'');if(!/^[-\w]{10,200}$/.test(id))throw new Error('Invalid image');
+  var data=zipReadCache_('registry',false,zipRegistryData_),used={};
+  var add=function(urls){(urls||[]).forEach(function(url){var found=zipDriveId_(url);if(found)used[found]=true;});};
+  ['numbers','sites'].forEach(function(kind){((data.lists&&data.lists[kind]&&data.lists[kind].items)||[]).forEach(function(item){add(item.imageUrls);});});
+  (data.mapItems||[]).forEach(function(item){add(item.imageUrls);});
+  if(!used[id])throw new Error('Unknown registry image');
+  var file=DriveApp.getFileById(id),type=file.getMimeType();
+  if(!ZIP_THUMB_TYPES.test(type)||file.getSize()>4*1024*1024)throw new Error('Unsupported image');
+  return {ok:true,mime:type,base64:Utilities.base64Encode(file.getBlob().getBytes())};
 }
 
 function zipChecklistSheet_() {
@@ -488,7 +525,7 @@ function zipAddChecklist_(body) {
     return {ok:true,item:{row:sh.getLastRow(),done:false,task:item.task,date:item.date,time:item.time,note:item.note,calendar:true}};
   }finally{lock.releaseLock();}
 }
-function zipToggleChecklist_(row,done) {
+function zipToggleChecklist_(row,done,expectedTask) {
   row=Number(row);
   if(!Number.isInteger(row)||row<2||typeof done!=='boolean')throw new Error('Invalid checklist update');
   var lock=LockService.getScriptLock(); lock.waitLock(10000);
@@ -496,7 +533,7 @@ function zipToggleChecklist_(row,done) {
     var sh=zipChecklistSheet_();
     if(row>sh.getLastRow())throw new Error('Unknown checklist item');
     var values=sh.getRange(row,1,1,6).getDisplayValues()[0], task=values[1], eventId=values[5];
-    if(!task)throw new Error('Unknown checklist item');
+    if(!task||typeof expectedTask==='string'&&task.trim()!==expectedTask.trim())throw new Error('Unknown checklist item');
     if(sh.getRange(row,8).getValue())throw new Error('Deleted checklist item');
     var wasDone=sh.getRange(row,1).getValue()===true;
     sh.getRange(row,1).setValue(done);
@@ -513,14 +550,15 @@ function zipChecklistExpired_(done,completedAt,now) {
   return isFinite(stamp) && now-stamp>=7*24*60*60*1000;
 }
 
-function zipDeleteChecklist_(row) {
+function zipDeleteChecklist_(row,expectedTask) {
   row=Number(row);
   if(!Number.isInteger(row)||row<2)throw new Error('Invalid checklist row');
   var lock=LockService.getScriptLock();lock.waitLock(10000);
   try {
     var sh=zipChecklistSheet_();
-    if(row>sh.getLastRow() || !sh.getRange(row,2).getValue())throw new Error('Unknown checklist item');
-    if(!sh.getRange(row,8).getValue())sh.getRange(row,8).setValue(new Date());
+    var task=row>sh.getLastRow()?'':String(sh.getRange(row,2).getDisplayValue()||'');
+    if(!task||typeof expectedTask==='string'&&task.trim()!==expectedTask.trim())throw new Error('Unknown checklist item');
+    zipDeleteRows_(sh,[row]);SpreadsheetApp.flush();
     return {ok:true};
   }finally{lock.releaseLock();}
 }

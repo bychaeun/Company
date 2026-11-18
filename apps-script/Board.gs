@@ -57,6 +57,6 @@ function zipDeleteBoards_(ids){
   var lock=LockService.getScriptLock();lock.waitLock(10000);
   try{var sh=zipBoardSheet_(),rows=sh.getLastRow()<2?[]:sh.getRange(2,1,sh.getLastRow()-1,12).getDisplayValues();
     var indices=ids.map(function(id){var i=rows.findIndex(function(r){return r[0]===id&&!r[9];});if(i<0)throw new Error('Unknown board note');return i;});
-    sh.getRangeList(indices.map(function(i){return 'J'+(i+2);})).setValue(new Date().toISOString());return {ok:true};
+    zipDeleteRows_(sh,indices.map(function(i){return i+2;}));SpreadsheetApp.flush();return {ok:true};
   }finally{lock.releaseLock();}
 }
