@@ -214,5 +214,5 @@ function zipHyosanPaperMap_(){
 }
 function zipHyosanPaperUrls_(paper){
   var key=zipPaperKey_(paper);if(!key)return [];
-  return (zipHyosanPaperMap_()[key]||[]).map(function(id){return 'https://drive.google.com/file/d/'+id+'/view';});
+  return (zipHyosanPaperMap_()[key]||[]).map(function(id){return 'https://drive.google.com/thumbnail?id='+id+'&sz=w1000';});   // 공개 미리보기: 브라우저가 바로 받아 빠르다
 }

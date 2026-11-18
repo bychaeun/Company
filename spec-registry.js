@@ -13,7 +13,11 @@
   const fold=v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ko').replace(/\s+/g,'');
   // Photos taken in the app are private Drive files; they are fetched through the admin API instead of a public URL.
   const driveId=url=>(String(url).match(/^https:\/\/drive\.google\.com\/file\/d\/([-\w]{10,200})(?:\/|$)/)||[])[1]||'';
-  function setImage(image,url){const id=driveId(url);if(!id){image.src=url;return;}api.image(id,{action:'registryImage'}).then(src=>{if(src)image.src=src;else image.dispatchEvent(new Event('error'));}).catch(()=>image.dispatchEvent(new Event('error')));}
+  function setImage(image,url){
+    // 공개된 Drive 미리보기(효산 종이 이미지)는 서버를 거치지 않고 브라우저가 바로 받는다. 안 열리면 서버로 다시 받는다.
+    const thumb=(String(url).match(/^https:\/\/drive\.google\.com\/thumbnail\?id=([-\w]{10,200})(?:&|$)/)||[])[1];
+    if(thumb){const probe=new Image();probe.referrerPolicy='no-referrer';probe.onload=()=>{image.referrerPolicy='no-referrer';image.src=url;};probe.onerror=()=>setImage(image,`https://drive.google.com/file/d/${thumb}/view`);probe.src=url;return;}
+    const id=driveId(url);if(!id){image.src=url;return;}api.image(id,{action:'registryImage'}).then(src=>{if(src)image.src=src;else image.dispatchEvent(new Event('error'));}).catch(()=>image.dispatchEvent(new Event('error')));}
   async function resizePhoto(file){
     if(!/^image\//.test(file.type)||file.size>25*1024*1024)throw Error('사진 파일은 장당 25MB까지 올릴 수 있어요.');
     const url=URL.createObjectURL(file);
