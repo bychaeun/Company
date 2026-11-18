@@ -3,7 +3,7 @@
 
   const config = window.COMPANY_CONFIG || {};
   const syncMinutes = Number(config.SYNC_INTERVAL_MINUTES) || 30;
-  const pageSize = 20;
+  const pageSize = 24;   // 2·3·4열 어디서든 줄이 꽉 차게
 
   const state = {
     records: [],
@@ -225,11 +225,6 @@
           ${image ? `<img class="card-image" data-private-image="${escapeHTML(image)}" data-thumb alt="메모 참고 이미지" loading="lazy" decoding="async" />` : ""}
         </button>
         ${canEdit && record.noteId ? `<button class="card-edit-icon" type="button" data-edit-id="${record.id}" aria-label="${escapeHTML(record.title)} 수정" title="메모 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4" /></svg></button>` : ""}
-        <div class="card-actions">
-          <button class="card-save" type="button" data-save-id="${record.id}" aria-label="${escapeHTML(record.title)} 이미지로 저장">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
-          </button>
-        </div>
       </article>`;
     }).join("");
     el.pagination.hidden = records.length <= pageSize;
