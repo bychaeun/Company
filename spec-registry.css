@@ -101,12 +101,17 @@
 .registry-guide li {display:inline-flex;gap:6px;align-items:center;padding:5px 9px;border-radius:999px;background:#f1f4f5;font-size:12px;}
 .registry-guide li strong {font-weight:600;color:#315661;}.registry-guide li span {color:#5f6b73;font-variant-numeric:tabular-nums;}
 
+/* 팝업 이미지: 크기를 4:5로 통일하고 넘치는 부분은 잘라서(크롭) 보여 준다 */
+.registry-photo-gallery figure {aspect-ratio:4/5;max-height:60dvh;margin:0 auto;overflow:hidden;border-radius:14px;background:#f4eff3;}
+.registry-photo-gallery img {width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0;}
+.registry-photo-gallery figure:has(.registry-photo-error) {aspect-ratio:auto;}
+.registry-photo-preview img {object-fit:cover;}
 /* 팝업 이미지 넘기기 */
 .registry-photo-gallery.registry-carousel {position:relative;display:block;outline:none;}
 .registry-carousel > figure[hidden] {display:none;}
-.registry-carousel img {max-height:60dvh;}
-.registry-photo-gallery.registry-carousel .registry-carousel-nav,.registry-photo-gallery.registry-carousel .registry-carousel-nav:hover,.registry-photo-gallery.registry-carousel .registry-carousel-nav:active {position:absolute;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0 0 3px;border:0;border-radius:50%;background:#2a2a2ebf;color:#fff;font-size:30px;font-weight:400;line-height:1;box-shadow:0 2px 8px #0003;cursor:pointer;z-index:1;}
-.registry-photo-gallery.registry-carousel .registry-carousel-nav:hover,.registry-photo-gallery.registry-carousel .registry-carousel-nav:focus-visible {background:#2a2a2ef2;}
+.registry-photo-gallery.registry-carousel .registry-carousel-nav,.registry-photo-gallery.registry-carousel .registry-carousel-nav:hover,.registry-photo-gallery.registry-carousel .registry-carousel-nav:active {position:absolute;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:35px;height:35px;min-height:35px;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;line-height:0;box-shadow:none;cursor:pointer;z-index:1;}
+.registry-photo-gallery.registry-carousel .registry-carousel-nav:hover,.registry-photo-gallery.registry-carousel .registry-carousel-nav:focus-visible {background:rgba(0,0,0,.65);}
+.registry-photo-gallery.registry-carousel .registry-carousel-nav svg {display:block;}
 .registry-photo-gallery.registry-carousel .registry-carousel-nav.prev {left:10px;}
 .registry-photo-gallery.registry-carousel .registry-carousel-nav.next {right:10px;}
-.registry-carousel-count {position:absolute;right:10px;bottom:10px;padding:3px 9px;border-radius:999px;background:#2a2a2eb3;color:#fff;font-size:12px;}
+.registry-carousel-count {position:absolute;right:10px;bottom:10px;padding:3px 9px;border-radius:999px;background:rgba(0,0,0,.5);color:#fff;font-size:12px;}

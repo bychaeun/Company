@@ -39,8 +39,8 @@
   function makeCarousel(container,label){
     const figures=[...container.querySelectorAll(':scope > figure')];if(figures.length<2)return;
     container.classList.add('registry-carousel');let index=0;
-    const prev=Object.assign(document.createElement('button'),{type:'button',className:'registry-carousel-nav prev',textContent:'‹'});prev.setAttribute('aria-label','이전 이미지');
-    const next=Object.assign(document.createElement('button'),{type:'button',className:'registry-carousel-nav next',textContent:'›'});next.setAttribute('aria-label','다음 이미지');
+    const prev=Object.assign(document.createElement('button'),{type:'button',className:'registry-carousel-nav prev',innerHTML:'<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'});prev.setAttribute('aria-label','이전 이미지');
+    const next=Object.assign(document.createElement('button'),{type:'button',className:'registry-carousel-nav next',innerHTML:'<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'});next.setAttribute('aria-label','다음 이미지');
     const count=Object.assign(document.createElement('span'),{className:'registry-carousel-count'});count.setAttribute('aria-live','polite');
     const show=i=>{index=(i+figures.length)%figures.length;figures.forEach((f,j)=>{f.hidden=j!==index;});count.textContent=`${index+1} / ${figures.length}`;const img=figures[index].querySelector('img');if(img)img.loading='eager';};
     prev.onclick=()=>show(index-1);next.onclick=()=>show(index+1);
