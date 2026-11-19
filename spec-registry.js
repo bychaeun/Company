@@ -39,7 +39,19 @@
   let guideCache=null,guideSource=null;
   function guideRanges(){const source=data?.guide||[];if(source===guideSource)return guideCache;guideSource=source;return guideCache=source.map(row=>{const cells=row.filter(Boolean),range=cells.map(v=>String(v).match(/^([A-Za-z]+)(\d+)\s*[-~–]\s*([A-Za-z]*)(\d+)$/)).find(Boolean);return range?{label:cells.filter(v=>!/^[A-Za-z]+\d+\s*[-~–]/.test(v)).join(' ')||cells[0],prefix:range[1].toUpperCase(),from:Number(range[2]),to:Number(range[4])}:null;}).filter(Boolean);}
   // 효산 LPM 시트의 ProductName / PreviousNames를 종이넘버로 찾는다(서버와 같은 키 규칙).
-  function productNames(paper){const key=String(paper||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();return (key&&data?.hyosanNames?.[key])||['',''];}
+  function hyosanEntry(paper){const key=String(paper||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();return (key&&data?.hyosanNames?.[key])||null;}
+  function productNames(paper){const e=hyosanEntry(paper);return e?[e[0]||'',e[1]||'']:['',''];}
+  // 효산 시트 Category → 스펙번호 규칙 표의 분류 이름
+  const CATEGORY_KO={SOLID:'단색',WOOD:'우드',STONE:'스톤',FABRIC:'패브릭',FANTASY:'추상'};
+  function paperCategory(paper){return CATEGORY_KO[String(hyosanEntry(paper)?.[2]||'').toUpperCase()]||'';}
+  // 다음 스펙넘버: 그 분류 범위(예: 우드 HS20~HS49)에서 마지막으로 쓴 번호 다음. CE99 다음은 HS를 하나 올려 CE01.
+  function nextSpecNumber(label,exceptId){
+    const range=guideRanges().find(r=>r.label===label);if(!range||!data)return '';let best=null;
+    for(const r of data.lists.numbers.items){if(r.id===exceptId)continue;const m=String(r.values[1]||'').trim().toUpperCase().match(/^([A-Z]+)(\d+)-CE(\d+)$/);if(!m||m[1]!==range.prefix)continue;const hs=+m[2],ce=+m[3];if(hs<range.from||hs>range.to)continue;if(!best||hs>best[0]||hs===best[0]&&ce>best[1])best=[hs,ce];}
+    let hs=best?best[0]:range.from,ce=best?best[1]+1:1;if(ce>99){hs++;ce=1;}if(hs>range.to)return '';
+    return `${range.prefix}${String(hs).padStart(2,'0')}-CE${String(ce).padStart(2,'0')}`;
+  }
+  function duplicateOf(field,value,exceptId){const v=fold(value);return v&&data?data.lists.numbers.items.find(r=>r.id!==exceptId&&fold(r.values[field])===v)||null:null;}
   function specCategory(spec){const m=String(spec||'').trim().match(/^([A-Za-z]+)(\d+)/);if(!m)return '';const n=Number(m[2]);return guideRanges().find(r=>r.prefix===m[1].toUpperCase()&&n>=r.from&&n<=r.to)?.label||'';}
   function renderGuide(){const rows=(data?.guide||[]).filter(r=>r.some(Boolean));guideBox.hidden=active!=='numbers'||!rows.length;if(guideBox.hidden)return;// 분류 칩을 누르면 그 분류만 보이고, 한 번 더 누르면 전체로 돌아간다.
     const labelOf=r=>{const cells=r.filter(Boolean);return cells.some(v=>/^[A-Za-z]+\d+\s*[-~–]/.test(v))?cells.filter(v=>!/^[A-Za-z]+\d+\s*[-~–]/.test(v)).join(' ')||cells[0]:'';};
@@ -208,6 +220,20 @@
     if(kind==='numbers'){
       const spec=form.elements['field-1'],cat=Object.assign(document.createElement('label'),{className:'registry-category-field'});cat.innerHTML='분류<output aria-live="polite"></output>';spec.closest('label').after(cat);
       const show=()=>{const v=specCategory(spec.value);cat.querySelector('output').innerHTML=v?esc(v):'<span class="registry-blank">스펙넘버를 입력하면 자동으로 채워져요</span>';};spec.addEventListener('input',show);show();
+      // 자동 부여: 분류 버튼을 누르면 그 분류의 다음 번호가 들어간다. 종이넘버가 효산 시트에 있으면 종류에 맞춰 바로 채운다.
+      const assist=Object.assign(document.createElement('div'),{className:'spec-assist'});spec.closest('label').after(assist);
+      const paperInput=form.elements['field-0'];let autoFilled=false;
+      const warn=()=>{const lines=[],ds=duplicateOf(1,spec.value,editing.id),dp=duplicateOf(0,paperInput.value,editing.id);
+        if(ds)lines.push(`스펙넘버 <b>${esc(spec.value.trim())}</b>는 이미 <b>${esc(ds.values[0])}</b>에 쓰였어요.`);
+        if(dp)lines.push(`종이넘버 <b>${esc(paperInput.value.trim())}</b>는 이미 <b>${esc(dp.values[1])}</b>로 등록돼 있어요.`);
+        assist.querySelector('[data-warn]').innerHTML=lines.join('<br>');assist.querySelector('[data-warn]').hidden=!lines.length;};
+      const drawAssist=()=>{const kind=paperCategory(paperInput.value);
+        assist.innerHTML=`<p class="spec-assist-title">자동 부여${kind?` · 종이넘버 종류: <b>${esc(kind)}</b>`:''}</p><div class="spec-assist-chips">${guideRanges().map(r=>{const next=nextSpecNumber(r.label,editing.id);return `<button type="button" data-next="${esc(next)}" ${next?'':'disabled'} class="${r.label===kind?'is-match':''}"><b>${esc(r.label)}</b><span>${esc(next||'번호 없음')}</span></button>`;}).join('')}</div><p class="spec-assist-warn" data-warn hidden></p>`;warn();};
+      assist.addEventListener('click',e=>{const b=e.target.closest('[data-next]');if(!b||!b.dataset.next)return;spec.value=b.dataset.next;autoFilled=true;spec.dispatchEvent(new Event('input',{bubbles:true}));});
+      spec.addEventListener('input',e=>{if(e.isTrusted)autoFilled=false;warn();});
+      paperInput.addEventListener('input',()=>{drawAssist();const kind=paperCategory(paperInput.value),next=kind&&nextSpecNumber(kind,editing.id);
+        if(next&&(!spec.value.trim()||autoFilled)){spec.value=next;autoFilled=true;spec.dispatchEvent(new Event('input',{bubbles:true}));}});
+      drawAssist();
       // 종이넘버를 입력하면 효산 시트의 제품명(현재·이전)이 자동으로 보인다.
       const paper=form.elements['field-0'],names=['제품명','이전 제품명'].map(label=>{const f=Object.assign(document.createElement('label'),{className:'registry-category-field'});f.innerHTML=esc(label)+'<output aria-live="polite"></output>';return f;});cat.after(...names);
       const showNames=()=>{const found=productNames(paper.value),known=found.some(Boolean);names.forEach((f,i)=>{f.querySelector('output').innerHTML=found[i]?esc(found[i]):`<span class="registry-blank">${known?'—':paper.value.trim()?'효산 시트에 없는 종이넘버예요':'종이넘버를 입력하면 자동으로 채워져요'}</span>`;});};paper.addEventListener('input',showNames);showNames();
@@ -229,6 +255,9 @@
   }
   form.onsubmit=async event=>{
     event.preventDefault();if(saving||uploading||!admin())return;const access=epoch,item={...editing,values:editing.values.map((_,i)=>form.elements['field-'+i].value.trim())};
+    if(item.kind==='numbers'){const ds=duplicateOf(1,item.values[1],item.id),dp=duplicateOf(0,item.values[0],item.id);
+      if(ds&&!window.confirm(`스펙넘버 ${item.values[1]}는 이미 ${ds.values[0]}에 쓰였어요. 그래도 저장할까요?`))return;
+      if(dp&&!window.confirm(`종이넘버 ${item.values[0]}는 이미 ${dp.values[1]}로 등록돼 있어요. 그래도 저장할까요?`))return;}
     if(item.kind==='sites'&&!item.values[1]&&!item.values[2]){editor.querySelector('[data-message]').textContent='종이넘버 또는 스펙넘버를 입력해 주세요.';return;}
     if(item.kind==='sites'){const split=v=>v.split(/[,\n\r]+/).map(s=>s.trim()).filter(Boolean),a=split(item.values[1]),b=split(item.values[2]),m=split(item.values[3]);if(a.length&&b.length&&a.length!==b.length||m.length>1&&m.length!==Math.max(a.length,b.length)){editor.querySelector('[data-message]').textContent='종이넘버·스펙넘버·경면 개수를 순서대로 맞춰 주세요. 경면 1개는 모든 스펙에 공통 적용됩니다.';return;}}
     try{const urls=parsePhotoUrls(form.elements['photo-urls'].value),enabled=item.kind==='numbers'?data.paperPhotoUrls:data.registryPhotoUrls;if(!enabled&&JSON.stringify(urls)!==JSON.stringify(editing.imageUrls))throw Error('이미지 URL 저장 연결을 확인 중이에요. 잠시 후 목록을 동기화해 주세요.');if(enabled)item.imageUrls=urls;else {delete item.imageUrls;delete item.photoVersion;}}catch(error){editor.querySelector('[data-message]').textContent=error.message;return;}

@@ -413,3 +413,16 @@ html { touch-action:pan-x pan-y; }
   .samples-method span { width:100%; }
   .samples-form-buttons > * { flex:1; justify-content:center; min-height:44px; }
 }
+
+/* 스펙 추가: 분류별 자동 부여 버튼 + 중복 알림 */
+.spec-assist { grid-column:1 / -1; display:grid; gap:8px; padding:12px; border-radius:14px; background:#f5f7f8; }
+.spec-assist-title { margin:0; color:#4f5b65; font-size:12px; font-weight:600; }
+.spec-assist-title b { color:#263943; }
+.spec-assist-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.registry-editor .spec-assist-chips button { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 12px; border:1px solid #dfe5e8!important; border-radius:999px!important; background:#fff!important; color:#4f5b65!important; font:inherit; font-size:12px; cursor:pointer; box-shadow:none!important; }
+.registry-editor .spec-assist-chips button span { color:#263943; font-variant-numeric:tabular-nums; font-weight:600; }
+.registry-editor .spec-assist-chips button.is-match { border-color:#263943!important; background:#263943!important; color:#fff!important; }
+.registry-editor .spec-assist-chips button.is-match span { color:#fff; }
+.registry-editor .spec-assist-chips button:disabled { opacity:.45; cursor:not-allowed; }
+.spec-assist-warn { margin:0; padding:8px 12px; border-radius:10px; background:#fdf0ee; color:#9b514a; font-size:12px; line-height:1.6; }
+.spec-assist-warn[hidden] { display:none; }

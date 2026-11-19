@@ -95,7 +95,7 @@ function zipReadCache_(scope,force,loader) {
   var cache=null,key='';
   try {
     cache=CacheService.getScriptCache();
-    key='read-v12:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_();
+    key='read-v13:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_();
   }catch(ignore){cache=null;}
   // ungzip needs the gzip content type; without it every read silently failed and fell back to a full sheet read.
   // A broken cache entry must not stop the fresh result from being stored below.

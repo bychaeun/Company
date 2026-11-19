@@ -194,21 +194,21 @@ var ZIP_HYOSAN_SHEET_DEFAULT='1RC-6ibPA86zaWOGt1rzgmQf9tLpT4OcgdI6K9XcUPTI',ZIP_
 function zipPaperKey_(value){return String(value||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();}
 function zipHyosanPaperMap_(){
   if(ZIP_HYOSAN_PAPERS)return ZIP_HYOSAN_PAPERS;
-  var cache=null,key='hyosan-papers-v3',failed=false;
+  var cache=null,key='hyosan-papers-v4',failed=false;
   try{cache=CacheService.getScriptCache();var packed=zipCacheGetChunks_(cache,key);if(packed){ZIP_HYOSAN_PAPERS=JSON.parse(packed);ZIP_HYOSAN_STATUS={count:Object.keys(ZIP_HYOSAN_PAPERS).length,error:'',cached:true};return ZIP_HYOSAN_PAPERS;}}catch(ignore){}
   var map={};
   try{
     var id=PropertiesService.getScriptProperties().getProperty('HYOSAN_SPREADSHEET_ID')||ZIP_HYOSAN_SHEET_DEFAULT;
     var sheet=SpreadsheetApp.openById(id).getSheetByName('HYOSAN_LPM'),values=sheet?sheet.getDataRange().getDisplayValues():[];
-    var headers=(values[0]||[]).map(function(h){return String(h).trim();}),pi=headers.indexOf('PaperNumber'),ii=headers.indexOf('ImageURL'),ai=headers.indexOf('Active'),ni=headers.indexOf('ProductName'),oi=headers.indexOf('PreviousNames');
+    var headers=(values[0]||[]).map(function(h){return String(h).trim();}),pi=headers.indexOf('PaperNumber'),ii=headers.indexOf('ImageURL'),ai=headers.indexOf('Active'),ni=headers.indexOf('ProductName'),oi=headers.indexOf('PreviousNames'),ki=headers.indexOf('Category');
     if(!sheet)throw new Error('HYOSAN_LPM 시트를 찾지 못했어요');if(pi<0||ii<0)throw new Error('PaperNumber/ImageURL 열을 찾지 못했어요');
     values.slice(1).forEach(function(row){
       if(ai>=0&&String(row[ai]).trim().toUpperCase()==='FALSE')return;
       var ids=[];String(row[ii]||'').split(/[\r\n]+/).forEach(function(url){var found=zipDriveId_(url.trim());if(found&&ids.indexOf(found)<0)ids.push(found);});
-      var name=ni>=0?String(row[ni]||'').trim():'',previous=oi>=0?String(row[oi]||'').trim():'';
-      if(!ids.length&&!name&&!previous)return;
-      // 종이넘버별 [이미지 ID 목록, 현재 제품명(ProductName), 이전 제품명(PreviousNames)]
-      String(row[pi]||'').split(/[\r\n,;|\/]+/).map(zipPaperKey_).filter(function(k){return k&&k!=='-';}).forEach(function(k){var e=map[k];if(!e)map[k]=[ids.slice(0,4),name,previous];else{if(!e[0].length)e[0]=ids.slice(0,4);if(!e[1])e[1]=name;if(!e[2])e[2]=previous;}});
+      var name=ni>=0?String(row[ni]||'').trim():'',previous=oi>=0?String(row[oi]||'').trim():'',kind=ki>=0?String(row[ki]||'').trim().toUpperCase():'';
+      if(!ids.length&&!name&&!previous&&!kind)return;
+      // 종이넘버별 [이미지 ID 목록, 현재 제품명(ProductName), 이전 제품명(PreviousNames), 종류(Category: SOLID·WOOD·STONE·FABRIC·FANTASY)]
+      String(row[pi]||'').split(/[\r\n,;|\/]+/).map(zipPaperKey_).filter(function(k){return k&&k!=='-';}).forEach(function(k){var e=map[k];if(!e)map[k]=[ids.slice(0,4),name,previous,kind];else{if(!e[0].length)e[0]=ids.slice(0,4);if(!e[1])e[1]=name;if(!e[2])e[2]=previous;if(!e[3])e[3]=kind;}});
     });
   }catch(error){map={};failed=true;ZIP_HYOSAN_STATUS={count:0,error:String(error&&error.message||error).slice(0,200)};}
   if(!failed){ZIP_HYOSAN_STATUS={count:Object.keys(map).length,error:''};if(cache)try{zipCachePutChunks_(cache,key,JSON.stringify(map),3600);}catch(ignore){}}   // 실패는 캐시하지 않고 다음 요청에서 다시 시도
@@ -221,6 +221,6 @@ function zipHyosanPaperUrls_(paper){
 // 앱에서 종이넘버를 입력하면 바로 제품명을 채울 수 있게 종이넘버 → [현재 제품명, 이전 제품명] 표를 보낸다.
 function zipHyosanProductNames_(){
   var map=zipHyosanPaperMap_(),names={};
-  Object.keys(map).forEach(function(k){var e=map[k];if(e[1]||e[2])names[k]=[e[1]||'',e[2]||''];});
+  Object.keys(map).forEach(function(k){var e=map[k];if(e[1]||e[2]||e[3])names[k]=[e[1]||'',e[2]||'',e[3]||''];});   // [제품명, 이전 제품명, 종류]
   return names;
 }
