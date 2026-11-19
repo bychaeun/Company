@@ -6,6 +6,7 @@
     let checklist = [{row:2,done:false,task:'로컬 미리보기 할 일',date:new Date().toISOString().slice(0,10),time:'09:00',note:'실제 캘린더에는 저장되지 않아요.',calendar:false}];
     const clone = value => JSON.parse(JSON.stringify(value));
     const previewImages = new Map();
+    let sampleBooks=[];
     let specs = [],board=[],artboards=[{id:'default',title:'기본 대지'}];
     const registry={numbers:{headers:['종이넘버','스펙넘버','비고'],items:[]},sites:{headers:['현장명','종이넘버','스펙넘버','경면','모델하우스 예정일','본납 예정일','설계사','진행상태','비고'],items:[]}};
     window.ZIP_API = {
@@ -13,6 +14,10 @@
         if(action==='specRegistry')return {ok:true,lists:clone(registry),mapItems:clone(specs),unifiedSites:false,registryPhotoUrls:true,paperPhotoUrls:true,statuses:['제안 중','스펙 확정','모델하우스 진행','본납 대기','본납 완료','보류'],syncedAt:new Date().toISOString()};
         if(action==='saveSpecRegistry'){const before=registry[payload.kind].items.find(r=>r.id===payload.id),urls=payload.imageUrls??before?.imageUrls??[];const item={id:payload.id,values:clone(payload.values),version:String(Date.now()),imageUrls:clone(urls),photoVersion:JSON.stringify(urls)};registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==item.id).concat(item);return {ok:true,item:clone(item)};}
         if(action==='deleteSpecRegistry'){registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==payload.id);return {ok:true};}
+        if(action==='sampleBooks')return {ok:true,items:clone(sampleBooks),template:true};
+        if(action==='saveSampleBook'){const item={...clone(payload),created:new Date().toISOString()};sampleBooks=sampleBooks.filter(r=>r.id!==item.id).concat(item);return {ok:true,item};}
+        if(action==='deleteSampleBook'){sampleBooks=sampleBooks.filter(r=>r.id!==payload.id);return {ok:true};}
+        if(action==='sampleBookReport')return {ok:true,name:'주간 샘플북 분출 리스트_미리보기.pdf',count:0,books:0,base64:btoa('%PDF-1.4 preview')};
         if(action==='board')return {ok:true,items:clone(board),artboards:clone(artboards),boardMedia:true};
         if(action==='saveBoard'){board=board.filter(n=>n.id!==payload.id).concat(clone(payload));return {ok:true};}
         if(action==='deleteBoard'){board=board.filter(n=>n.id!==payload.id);return {ok:true};}
@@ -85,7 +90,7 @@
   async function send(action, payload = {}, anonymous = false) {
     const version = sessionVersion;
     const response = await fetch(endpoint, { method:'POST', redirect:'follow', cache:'no-store', credentials:'omit',
-      headers:{'content-type':'text/plain;charset=utf-8'}, signal:AbortSignal.timeout(['createNote','updateNote','uploadNoteImage'].includes(action)?90000:40000),
+      headers:{'content-type':'text/plain;charset=utf-8'}, signal:AbortSignal.timeout(['createNote','updateNote','uploadNoteImage','sampleBookReport'].includes(action)?90000:40000),
       body:JSON.stringify({ ...payload, action, sessionToken:anonymous ? undefined : token }) });
     if (!response.ok) throw new Error('Google 연결을 확인할 수 없어요.');
     const data = await response.json();

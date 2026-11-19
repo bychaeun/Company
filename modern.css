@@ -338,3 +338,78 @@ html { touch-action:pan-x pan-y; }
 .board-fit-small { min-height:28px; padding:0 12px; border:0; border-radius:999px; background:#eef1f3; color:#4f5b65; font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
 .board-fit-small:hover { background:#e2e7ea; color:#263943; }
 @media(max-width:600px){ #board-view .board-add-note { min-height:38px; padding:0 14px; font-size:13px; } #board-view .board-photo-add { width:38px; min-width:38px; height:38px; } }
+
+/* ── 내 스펙관리 › 샘플북 ── */
+#specs-view .spec-view-tabs { grid-template-columns:repeat(4,minmax(0,1fr)); width:min(100%,480px); }
+#specs-view .spec-view-tabs::before { width:calc((100% - 8px)/4); }
+.samples-panel { display:grid; gap:14px; }
+.samples-panel[hidden] { display:none; }
+.samples-week { display:grid; grid-template-columns:42px minmax(0,1fr) 42px; align-items:center; gap:10px; padding:14px; background:#fff; border:1px solid var(--line); border-radius:18px; }
+.samples-nav { display:grid; place-items:center; width:42px; height:42px; padding:0; border:0; border-radius:50%; background:#eef1f3; color:#4f5b65; cursor:pointer; }
+.samples-nav:hover { background:#e2e7ea; color:#263943; }
+.samples-nav svg,.samples-export svg,.samples-delete svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.samples-period { display:grid; justify-items:center; gap:2px; text-align:center; }
+.samples-period span { color:var(--ink-soft); font-size:12px; font-weight:600; }
+.samples-period strong { color:#1d2d34; font-size:17px; font-weight:700; letter-spacing:-.01em; }
+.samples-period small { color:#6a7780; font-size:12px; }
+.samples-actions { display:flex; justify-content:flex-end; }
+.samples-export:disabled { opacity:.55; cursor:progress; }
+.samples-form { display:grid; gap:12px; padding:18px; background:#fff; border:1px solid var(--line); border-radius:18px; }
+.samples-form h3 { margin:0; font-size:15px; color:#263943; }
+.samples-fields { display:grid; grid-template-columns:172px minmax(0,1.2fr) minmax(0,1fr) auto 96px; gap:10px; align-items:end; }
+.samples-fields > label { display:grid; gap:6px; color:#4f5b65; font-size:12px; font-weight:600; }
+.samples-fields input[type=date],.samples-fields input[type=number],.samples-fields input:not([type]) { width:100%; min-width:0; box-sizing:border-box; height:44px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); font:inherit; font-size:14px; }
+.samples-method { display:flex; gap:4px; margin:0; padding:4px; border:0; border-radius:999px; background:#eef1f3; }
+.samples-method legend { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+.samples-method label { position:relative; }
+.samples-method input { position:absolute; opacity:0; pointer-events:none; }
+.samples-method span { display:grid; place-items:center; min-width:58px; height:36px; padding:0 14px; border-radius:999px; color:#5c6970; font-size:14px; font-weight:600; cursor:pointer; transition:background .2s,color .2s; }
+.samples-method input:checked + span { background:#263943; color:#fff; }
+.samples-message { margin:0; min-height:18px; color:#5c6970; font-size:13px; }
+.samples-form-buttons { display:flex; justify-content:flex-end; gap:8px; }
+.samples-list { display:grid; gap:8px; }
+.samples-item { display:grid; grid-template-columns:minmax(0,1fr) auto auto 38px; align-items:center; gap:12px; padding:10px 10px 10px 16px; background:#fff; border:1px solid var(--line); border-radius:16px; }
+.samples-item.is-editing { border-color:#9fb6bd; background:#f6f9fa; }
+.samples-item-main { display:grid; grid-template-columns:auto auto minmax(0,1fr); align-items:baseline; gap:10px; min-width:0; padding:4px 0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.samples-date { color:#6a7780; font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.samples-item-main strong { color:#1d2d34; font-size:15px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.samples-contact { color:#6a7780; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.samples-chip { padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+.samples-chip.is-direct { background:#e6f0ee; color:#2e6458; }
+.samples-chip.is-parcel { background:#eceff8; color:#3f4f86; }
+.samples-books { min-width:40px; color:#263943; font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
+.samples-delete { display:grid; place-items:center; width:38px; height:38px; padding:0; border:0; border-radius:50%; background:transparent; color:#a1abb2; cursor:pointer; }
+.samples-delete:hover { background:#f9efee; color:#9b514a; }
+.samples-empty { margin:0; padding:22px; border:1px dashed var(--line); border-radius:16px; color:var(--ink-soft); text-align:center; font-size:14px; }
+@media(max-width:900px){ .samples-fields { grid-template-columns:1fr 1fr; } .samples-fields > label:nth-child(2) { grid-column:1 / -1; } }
+@media(max-width:600px){
+  #specs-view .spec-view-tabs button { padding:10px 4px; font-size:12px; }
+  .samples-week { padding:10px; }
+  .samples-period strong { font-size:15px; }
+  .samples-form { padding:14px; }
+  .samples-actions .samples-export { width:100%; justify-content:center; }
+  .samples-item { grid-template-columns:minmax(0,1fr) auto auto 34px; gap:8px; padding:8px 6px 8px 12px; }
+  .samples-item-main { grid-template-columns:1fr; gap:2px; }
+  .samples-delete { width:34px; height:34px; }
+}
+/* 스펙관리 화면의 공통 버튼 스타일(#specs-view button)보다 우선 */
+#specs-view .samples-panel .view-tabs-add { background:#263943!important; color:#fff!important; }
+#specs-view .samples-panel .view-tabs-add:hover { background:#1b2b31!important; }
+#specs-view .samples-panel .samples-item-main { background:transparent!important; border-radius:10px; }
+#specs-view .samples-panel .samples-delete { background:transparent!important; border-radius:50%!important; }
+#specs-view .samples-panel .samples-delete:hover { background:#f9efee!important; color:#9b514a!important; }
+#specs-view .samples-panel .samples-nav { border-radius:50%!important; background:#eef1f3!important; }
+#specs-view .samples-panel .samples-nav:hover { background:#e2e7ea!important; }
+.samples-actions .samples-export { min-height:44px; }
+@media(max-width:600px){
+  /* 모바일 입력칸: 날짜·권수 한 줄, 업체명, 담당자, 직달/택배 */
+  .samples-fields { grid-template-columns:1fr 92px; grid-template-areas:"date count" "company company" "contact contact" "method method"; gap:10px; }
+  .samples-fields > label:nth-child(1) { grid-area:date; }
+  .samples-fields > label:nth-child(2) { grid-area:company; grid-column:1 / -1; }
+  .samples-fields > label:nth-child(3) { grid-area:contact; }
+  .samples-fields > .samples-method { grid-area:method; }
+  .samples-fields > .samples-count { grid-area:count; }
+  .samples-method label { flex:1; }
+  .samples-method span { width:100%; }
+  .samples-form-buttons > * { flex:1; justify-content:center; min-height:44px; }
+}

@@ -3,7 +3,7 @@
   const $=id=>document.getElementById(id),api=window.ZIP_API;
   const admin=()=>window.CHAE_AUTH?.user?.status==='approved'&&window.CHAE_AUTH.user.role==='admin';
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const tabs=['map','sites','numbers'],pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>';
+  const tabs=['map','sites','numbers','samples'],pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>';
   const clipboardIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="6" width="12" height="15" rx="2"/><path d="M16 6V3H4v14h4"/></svg>';
   let searchCache={},searchTimer=0,categoryFilter='',active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
   const editor=document.createElement('dialog');editor.id='registry-editor';editor.className='board-editor registry-editor';editor.setAttribute('aria-labelledby','registry-editor-title');
@@ -108,23 +108,24 @@
     if(!tabs.includes(kind))return;detail.close();active=kind;page=1;categoryFilter='';sortColumn=-1;$('registry-search').value='';
     $('spec-tab-map').parentElement.style.setProperty('--active-tab',String(tabs.indexOf(kind)));
     tabs.forEach(k=>{const b=$('spec-tab-'+k);b.setAttribute('aria-selected',String(k===kind));b.tabIndex=k===kind?0:-1;});
-    $('spec-map-panel').hidden=kind!=='map';$('spec-registry-panel').hidden=kind==='map';
+    $('spec-map-panel').hidden=kind!=='map';$('spec-registry-panel').hidden=kind==='map'||kind==='samples';$('spec-samples-panel').hidden=kind!=='samples';
     $('spec-registry-panel').setAttribute('aria-labelledby','spec-tab-'+kind);
     if(focus)$('spec-tab-'+kind).focus();
     if(kind==='map'){window.dispatchEvent(new Event('spec-map-visible'));return;}
+    if(kind==='samples'){window.dispatchEvent(new Event('spec-samples-visible'));return;}   // 샘플북은 samples.js가 맡는다
     $('registry-search').placeholder=kind==='numbers'?'종이넘버, 스펙넘버, 분류, 제품명, 비고':'현장명, 종이넘버, 스펙넘버, 경면, 설계사';
     $('registry-add').textContent=kind==='numbers'?'＋ 스펙 추가':'＋ 현장 내역';render();refresh();
   }
-  tabs.forEach(kind=>{const b=$('spec-tab-'+kind);b.onclick=()=>selectTab(kind);b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const i=tabs.indexOf(active);selectTab(e.key==='Home'?tabs[0]:e.key==='End'?tabs[2]:tabs[(i+(e.key==='ArrowRight'?1:2))%3],true);};});
+  tabs.forEach(kind=>{const b=$('spec-tab-'+kind);b.onclick=()=>selectTab(kind);b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const i=tabs.indexOf(active);selectTab(e.key==='Home'?tabs[0]:e.key==='End'?tabs[tabs.length-1]:tabs[(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length],true);};});
   function rows(){
-    if(!data||active==='map')return [];const result=data.lists[active].items.map(item=>({...item,kind:active}));
+    if(!data||!data.lists[active])return [];const result=data.lists[active].items.map(item=>({...item,kind:active}));
     if(active==='sites'&&!data.unifiedSites)for(const item of data.mapItems||[])for(const paper of item.papers||[]){result.push({id:'map-'+item.id+'-'+result.length,source:item,values:[item.name,paper.number||'',paper.spec||'',paper.mirror||'',item.openMonth||'',item.completionMonth||'',item.designer||'','',paper.area||''],kind:'sites'});}
     return result;
   }
   function render(){
     const table=$('registry-table'),pager=$('registry-pagination'),sites=$('registry-site-list');$('registry-add').disabled=!data||loading||saving;
     sites.hidden=active!=='sites';table.parentElement.hidden=active==='sites';
-    if(!data||active==='map'){guideBox.hidden=true;sites.replaceChildren();table.querySelector('thead').replaceChildren();table.querySelector('tbody').replaceChildren();pager.hidden=true;return;}
+    if(!data||!data.lists[active]){guideBox.hidden=true;sites.replaceChildren();table.querySelector('thead').replaceChildren();table.querySelector('tbody').replaceChildren();pager.hidden=true;return;}
     renderGuide();const listHeaders=data.lists[active].headers,headers=active==='numbers'?[listHeaders[0],listHeaders[1],'분류','제품명','이전 제품명',...listHeaders.slice(2)]:listHeaders,query=fold($('registry-search').value);
     // 스펙목록은 스펙넘버로 '스펙번호 규칙' 표에서 분류(우드 등)를 찾아 스펙넘버 옆 칸에 자동으로 보여 준다.
     // 모바일 스펙 목록은 세로 공간이 좁아 분류·비고 칸을 숨긴다(팝업에서는 모두 보인다).
@@ -260,7 +261,7 @@
   $('registry-table').onkeydown=e=>{const row=e.target.closest?.('tr[data-row-id]');if(row&&e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openRow(row);}};
   $('registry-table').onclick=e=>{const b=e.target.closest('button');if(!b){const row=e.target.closest('tr[data-row-id]');if(row&&!getSelection()?.toString())openRow(row);return;}if(b.dataset.paperImages!==undefined){showPaperImages(rows().find(r=>r.id===b.dataset.paperImages));return;}if(b.dataset.copy!==undefined){copyPaperNumber(b);return;}if(b.dataset.sort!==undefined){const col=Number(b.dataset.sort);sortDirection=sortColumn===col?-sortDirection:1;sortColumn=col;render();}else if(b.dataset.id)edit(rows().find(r=>r.id===b.dataset.id));};
   $('registry-pagination').onclick=e=>{const b=e.target.closest('[data-page]');if(b&&!b.disabled){page=Number(b.dataset.page);render();}};
-  $('specs-nav-button').addEventListener('click',()=>{if(active!=='map')refresh();});
+  $('specs-nav-button').addEventListener('click',()=>{if(active!=='map'&&active!=='samples')refresh();});
   window.addEventListener('access-change',()=>{if(!admin()){epoch++;revision++;data=null;loadedAt=0;forceQueued=false;editing=null;detail.close();detail.replaceChildren();editor.close();editor.querySelector('[data-fields]').replaceChildren();$('registry-synced').textContent='';$('registry-count').textContent='';$('registry-message').textContent='';render();selectTab('map');}});
-  setInterval(()=>{if(!document.hidden&&!$('specs-view').hidden&&active!=='map')refresh();},60000);
+  setInterval(()=>{if(!document.hidden&&!$('specs-view').hidden&&active!=='map'&&active!=='samples')refresh();},60000);
 })();
