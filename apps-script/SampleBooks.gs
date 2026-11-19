@@ -62,7 +62,19 @@ function zipDeleteSampleBook_(id){
   finally{lock.releaseLock();}
 }
 function zipSampleTemplateId_(){return PropertiesService.getScriptProperties().getProperty('SAMPLE_REPORT_TEMPLATE_ID')||ZIP_SAMPLE_TEMPLATE_DEFAULT;}
-// weekStart(월요일) 주의 기록으로 보고서를 만들어 PDF(base64)로 돌려준다. 복사본은 바로 휴지통으로.
+// 보고서용 작업 사본: 양식을 매번 복사·삭제하면 Drive 작업만 몇 초가 걸려서, 한 번 만든 사본을 계속 다시 채운다.
+// 원본 양식이 바뀌었거나, 지난번에 15칸을 넘겨 줄을 늘렸으면 새로 복사한다.
+function zipSampleWorkbook_(props,templateStamp){
+  var id=props.getProperty('SAMPLE_REPORT_WORK_ID');
+  if(id&&props.getProperty('SAMPLE_REPORT_WORK_STAMP')===templateStamp&&props.getProperty('SAMPLE_REPORT_WORK_EXTRA')==='0'){
+    try{return SpreadsheetApp.openById(id);}catch(ignore){}
+  }
+  if(id)try{DriveApp.getFileById(id).setTrashed(true);}catch(ignore){}
+  var copy;try{copy=DriveApp.getFileById(zipSampleTemplateId_()).makeCopy('주간 샘플북 분출 리스트 (앱 보고서 작업용 · 지우지 마세요)');}catch(error){throw zipSampleError_('SAMPLE_TEMPLATE');}
+  props.setProperties({SAMPLE_REPORT_WORK_ID:copy.getId(),SAMPLE_REPORT_WORK_STAMP:templateStamp,SAMPLE_REPORT_WORK_EXTRA:'0'});
+  return SpreadsheetApp.openById(copy.getId());
+}
+// weekStart(월요일) 주의 기록으로 보고서를 채워 PDF(base64)로 돌려준다. 같은 내용이면 만들어 둔 PDF를 바로 준다.
 function zipSampleReport_(body){
   var tz=Session.getScriptTimeZone(),start=String(body.weekStart||'');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(start))throw zipSampleError_('SAMPLE_INPUT');
@@ -71,28 +83,32 @@ function zipSampleReport_(body){
   var items=zipSampleRows_(zipSampleSheet_()).filter(function(r){return r.date>=start&&r.date<=sundayKey;})
     .sort(function(a,b){return a.date.localeCompare(b.date)||a.created.localeCompare(b.created);});
   var name='주간 샘플북 분출 리스트_'+Utilities.formatDate(monday,tz,'yyyyMMdd')+'-'+Utilities.formatDate(friday,tz,'MMdd');
-  var copy;
-  try{copy=DriveApp.getFileById(zipSampleTemplateId_()).makeCopy(name);}catch(error){throw zipSampleError_('SAMPLE_TEMPLATE');}
+  var summary={ok:true,name:name+'.pdf',count:items.length,books:items.reduce(function(s,r){return s+r.count;},0)};
+  var templateStamp;try{templateStamp=String(DriveApp.getFileById(zipSampleTemplateId_()).getLastUpdated().getTime());}catch(error){throw zipSampleError_('SAMPLE_TEMPLATE');}
+  var cache=CacheService.getScriptCache(),cacheKey='sample-pdf:'+zipHash_(JSON.stringify([start,templateStamp,items.map(function(r){return [r.date,r.company,r.contact,r.method,r.count];})]));
+  try{var hit=zipCacheGetChunks_(cache,cacheKey);if(hit){summary.base64=hit;summary.cached=true;return summary;}}catch(ignore){}
+  var lock=LockService.getScriptLock();lock.waitLock(20000);   // 작업 사본은 한 번에 하나의 보고서만
   try{
-    var sheet=SpreadsheetApp.openById(copy.getId()).getSheets()[0],first=ZIP_SAMPLE_FIRST_ROW,slots=ZIP_SAMPLE_SLOTS,extra=Math.max(0,items.length-slots);
-    // 15건이 넘으면 목록 안쪽에 줄을 더해 합계 수식(SUM)이 자동으로 늘어나게 한다.
+    var props=PropertiesService.getScriptProperties(),ss=zipSampleWorkbook_(props,templateStamp),sheet=ss.getSheets()[0];
+    var first=ZIP_SAMPLE_FIRST_ROW,slots=ZIP_SAMPLE_SLOTS,extra=Math.max(0,items.length-slots);
+    // 15건이 넘으면 목록 안쪽에 줄을 더해 합계 수식(SUM)이 자동으로 늘어나게 한다(다음 보고서 때 사본을 새로 만든다).
     if(extra){
+      props.setProperty('SAMPLE_REPORT_WORK_EXTRA',String(extra));
       var lastSlot=first+slots-1;sheet.insertRowsAfter(lastSlot-1,extra);
-      var template=sheet.getRange(lastSlot-1+extra+1,1,1,7);
-      for(var k=0;k<extra;k++){var target=sheet.getRange(lastSlot+k,1,1,7);template.copyTo(target,SpreadsheetApp.CopyPasteType.PASTE_FORMAT,false);sheet.getRange(lastSlot+k,3,1,2).merge();}
+      var format=sheet.getRange(lastSlot+extra,1,1,7);
+      for(var k=0;k<extra;k++){format.copyTo(sheet.getRange(lastSlot+k,1,1,7),SpreadsheetApp.CopyPasteType.PASTE_FORMAT,false);sheet.getRange(lastSlot+k,3,1,2).merge();}
     }
     var total=slots+extra;
-    sheet.getRange(first,2,total,6).clearContent();   // 양식의 예시 업체·담당자 지우기
-    sheet.getRange(first,1,total,1).setValues(Array.from({length:total},function(_,i){return [i+1];}));
-    if(items.length)sheet.getRange(first,2,items.length,6).setValues(items.map(function(r){
-      return [r.company,r.contact,'',r.count,r.method==='직달'?1:'',r.method==='택배'?1:''];   // 직달·택배 칸은 건수(1)로 표시해 합계에 잡힌다
-    }));
-    sheet.getRange('C5').setValue(monday);sheet.getRange('E5').setValue(friday);
+    // 번호·업체명·담당자·권수·직달·택배를 한 번에 쓴다(양식의 예시 행도 이걸로 덮인다). 직달·택배 칸은 건수(1).
+    sheet.getRange(first,1,total,7).setValues(Array.from({length:total},function(_,i){var r=items[i];
+      return r?[i+1,r.company,r.contact,'',r.count,r.method==='직달'?1:'',r.method==='택배'?1:'']:[i+1,'','','','','',''];}));
+    sheet.getRange(5,3,1,3).setValues([[monday,'부터',friday]]);
     SpreadsheetApp.flush();
-    var lastRow=ZIP_SAMPLE_LAST_TEMPLATE_ROW+extra;
-    var url='https://docs.google.com/spreadsheets/d/'+copy.getId()+'/export?format=pdf&gid='+sheet.getSheetId()+'&size=A4&portrait=true&fitw=true&gridlines=false&printtitle=false&sheetnames=false&pagenum=UNDEFINED&fzr=false&horizontal_alignment=CENTER&top_margin=0.6&bottom_margin=0.6&left_margin=0.5&right_margin=0.5&r1=0&c1=0&r2='+lastRow+'&c2=7';
+    var url='https://docs.google.com/spreadsheets/d/'+ss.getId()+'/export?format=pdf&gid='+sheet.getSheetId()+'&size=A4&portrait=true&fitw=true&gridlines=false&printtitle=false&sheetnames=false&pagenum=UNDEFINED&fzr=false&horizontal_alignment=CENTER&top_margin=0.6&bottom_margin=0.6&left_margin=0.5&right_margin=0.5&r1=0&c1=0&r2='+(ZIP_SAMPLE_LAST_TEMPLATE_ROW+extra)+'&c2=7';
     var response=UrlFetchApp.fetch(url,{headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},muteHttpExceptions:true});
     if(response.getResponseCode()!==200)throw zipSampleError_('SAMPLE_PDF');
-    return {ok:true,name:name+'.pdf',count:items.length,books:items.reduce(function(s,r){return s+r.count;},0),base64:Utilities.base64Encode(response.getBlob().getBytes())};
-  }finally{try{copy.setTrashed(true);}catch(ignore){}}
+    summary.base64=Utilities.base64Encode(response.getBlob().getBytes());
+    try{zipCachePutChunks_(cache,cacheKey,summary.base64,6*60*60);}catch(ignore){}
+    return summary;
+  }finally{lock.releaseLock();}
 }
