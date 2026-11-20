@@ -44,12 +44,13 @@
   // 효산 시트 Category → 스펙번호 규칙 표의 분류 이름
   const CATEGORY_KO={SOLID:'단색',WOOD:'우드',STONE:'스톤',FABRIC:'패브릭',FANTASY:'추상'};
   function paperCategory(paper){return CATEGORY_KO[String(hyosanEntry(paper)?.[2]||'').toUpperCase()]||'';}
-  // 다음 스펙넘버: 그 분류 범위(예: 우드 HS20~HS49)에서 마지막으로 쓴 번호 다음. CE99 다음은 HS를 하나 올려 CE01.
+  // 다음 스펙넘버: 그 분류 범위(예: 우드 HS20~HS49)에서 HS·CE 순서대로 비어 있는 첫 번호.
+  // 중간에 지운 번호가 있으면 그 번호부터 다시 채우고, 없으면 마지막 번호 다음(CE99 다음은 HS를 올려 CE01).
   function nextSpecNumber(label,exceptId){
-    const range=guideRanges().find(r=>r.label===label);if(!range||!data)return '';let best=null;
-    for(const r of data.lists.numbers.items){if(r.id===exceptId)continue;const m=String(r.values[1]||'').trim().toUpperCase().match(/^([A-Z]+)(\d+)-CE(\d+)$/);if(!m||m[1]!==range.prefix)continue;const hs=+m[2],ce=+m[3];if(hs<range.from||hs>range.to)continue;if(!best||hs>best[0]||hs===best[0]&&ce>best[1])best=[hs,ce];}
-    let hs=best?best[0]:range.from,ce=best?best[1]+1:1;if(ce>99){hs++;ce=1;}if(hs>range.to)return '';
-    return `${range.prefix}${String(hs).padStart(2,'0')}-CE${String(ce).padStart(2,'0')}`;
+    const range=guideRanges().find(r=>r.label===label);if(!range||!data)return '';const used=new Set();
+    for(const r of data.lists.numbers.items){if(r.id===exceptId)continue;const m=String(r.values[1]||'').trim().toUpperCase().match(/^([A-Z]+)(\d+)-CE(\d+)$/);if(m&&m[1]===range.prefix)used.add(+m[2]*100+ +m[3]);}
+    for(let hs=range.from;hs<=range.to;hs++)for(let ce=1;ce<=99;ce++)if(!used.has(hs*100+ce))return `${range.prefix}${String(hs).padStart(2,'0')}-CE${String(ce).padStart(2,'0')}`;
+    return '';
   }
   function duplicateOf(field,value,exceptId){const v=fold(value);return v&&data?data.lists.numbers.items.find(r=>r.id!==exceptId&&fold(r.values[field])===v)||null:null;}
   function specCategory(spec){const m=String(spec||'').trim().match(/^([A-Za-z]+)(\d+)/);if(!m)return '';const n=Number(m[2]);return guideRanges().find(r=>r.prefix===m[1].toUpperCase()&&n>=r.from&&n<=r.to)?.label||'';}
