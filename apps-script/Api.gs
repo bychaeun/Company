@@ -95,7 +95,7 @@ function zipReadCache_(scope,force,loader) {
   var cache=null,key='';
   try {
     cache=CacheService.getScriptCache();
-    key='read-v13:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_();
+    key='read-v13:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_()+(scope==='registry'&&typeof zipHyosanStamp_==='function'?':'+zipHyosanStamp_():'');   // 스펙 목록은 효산 시트가 바뀌어도 새로 읽는다
   }catch(ignore){cache=null;}
   // ungzip needs the gzip content type; without it every read silently failed and fell back to a full sheet read.
   // A broken cache entry must not stop the fresh result from being stored below.

@@ -191,10 +191,19 @@ function setupSpecRegistryDaily() {
 // 같은 Google 계정의 효산 시트를 읽어 종이넘버별 Drive 이미지 ID를 만든다. 1시간 캐시.
 // 다른 시트를 쓰려면 스크립트 속성 HYOSAN_SPREADSHEET_ID에 시트 ID를 넣는다.
 var ZIP_HYOSAN_SHEET_DEFAULT='1RC-6ibPA86zaWOGt1rzgmQf9tLpT4OcgdI6K9XcUPTI',ZIP_HYOSAN_PAPERS=null,ZIP_HYOSAN_STATUS={count:0,error:''};
+// 효산 시트의 마지막 수정 시각. 5분마다 한 번만 Drive에 물어보고, 바뀌면 이미지·제품명·종류를 새로 읽는다.
+var ZIP_HYOSAN_STAMP;
+function zipHyosanStamp_(){
+  if(ZIP_HYOSAN_STAMP!==undefined)return ZIP_HYOSAN_STAMP;
+  var cache=null;try{cache=CacheService.getScriptCache();var hit=cache.get('hyosan-stamp');if(hit)return ZIP_HYOSAN_STAMP=hit;}catch(ignore){}
+  try{var id=PropertiesService.getScriptProperties().getProperty('HYOSAN_SPREADSHEET_ID')||ZIP_HYOSAN_SHEET_DEFAULT;ZIP_HYOSAN_STAMP=String(DriveApp.getFileById(id).getLastUpdated().getTime());}catch(ignore){ZIP_HYOSAN_STAMP='0';}
+  try{if(cache)cache.put('hyosan-stamp',ZIP_HYOSAN_STAMP,300);}catch(ignore){}
+  return ZIP_HYOSAN_STAMP;
+}
 function zipPaperKey_(value){return String(value||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();}
 function zipHyosanPaperMap_(){
   if(ZIP_HYOSAN_PAPERS)return ZIP_HYOSAN_PAPERS;
-  var cache=null,key='hyosan-papers-v4',failed=false;
+  var cache=null,key='hyosan-papers-v4:'+zipHyosanStamp_(),failed=false;
   try{cache=CacheService.getScriptCache();var packed=zipCacheGetChunks_(cache,key);if(packed){ZIP_HYOSAN_PAPERS=JSON.parse(packed);ZIP_HYOSAN_STATUS={count:Object.keys(ZIP_HYOSAN_PAPERS).length,error:'',cached:true};return ZIP_HYOSAN_PAPERS;}}catch(ignore){}
   var map={};
   try{
