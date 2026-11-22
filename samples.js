@@ -13,9 +13,8 @@
   const mondayOf = (d) => addDays(d, -((d.getDay() + 6) % 7));
   const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
   const label = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일(${DAYS[d.getDay()]})`;
-  // 월요일에는 보고할 지난주를, 그 외에는 이번 주를 먼저 보여 준다.
-  const today = new Date();
-  let week = today.getDay() === 1 ? addDays(mondayOf(today), -7) : mondayOf(today);
+  // 항상 오늘이 속한 주를 먼저 보여 준다. 앱을 띄워 둔 채 날짜가 바뀌어도 화면을 열 때마다 오늘을 다시 잡는다.
+  let week = mondayOf(new Date());
   let items = [], loaded = false, loading = false, busy = false, editingId = '', version = 0;
 
   panel.innerHTML = `
@@ -24,7 +23,7 @@
       <div class="samples-period"><span>분출 기간</span><strong data-period></strong><small data-summary></small></div>
       <button type="button" class="samples-nav" data-week="1" aria-label="다음 주"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
     </section>
-    <div class="samples-actions"><button type="button" class="view-tabs-add samples-export" data-export><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14"/></svg> 주간 보고서 PDF</button></div>
+    <div class="samples-actions"><button type="button" class="install-button samples-last-week" data-export-last hidden></button><button type="button" class="view-tabs-add samples-export" data-export><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14"/></svg> 주간 보고서 PDF</button></div>
     <form class="samples-form" autocomplete="off">
       <h3 data-form-title>샘플북 분출 추가</h3>
       <div class="samples-fields">
@@ -53,6 +52,11 @@
     $('[data-period]').textContent = `${label(week)} ~ ${label(friday)}`;
     $('[data-summary]').textContent = loaded ? `${rows.length}건 · ${books}권 · 직달 ${rows.filter((r) => r.method === '직달').length} · 택배 ${rows.filter((r) => r.method === '택배').length}` : '불러오는 중…';
     $('[data-export]').disabled = busy || !loaded;
+    // 월요일에는 보고할 지난주(월~금) 보고서를 바로 받을 수 있게 따로 보여 준다.
+    const now = new Date(), last = addDays(mondayOf(now), -7), lastButton = $('[data-export-last]');
+    lastButton.hidden = now.getDay() !== 1 || key(week) === key(last);
+    lastButton.textContent = `지난주(${last.getMonth() + 1}/${last.getDate()}~${addDays(last, 4).getMonth() + 1}/${addDays(last, 4).getDate()}) 보고서 PDF`;
+    lastButton.disabled = busy || !loaded;
     $('[data-list]').innerHTML = !loaded ? '' : rows.length ? rows.map((r) => `
       <div class="samples-item ${r.id === editingId ? 'is-editing' : ''}" data-id="${esc(r.id)}">
         <button type="button" class="samples-item-main" data-edit="${esc(r.id)}" aria-label="${esc(r.company)} 수정">
@@ -102,6 +106,7 @@
       return;
     }
     if (event.target.closest('[data-cancel]')) { resetForm(); render(); return; }
+    if (event.target.closest('[data-export-last]') && !busy) { week = addDays(mondayOf(new Date()), -7); if (!editingId) resetForm(); render(); exportPdf(); return; }
     if (event.target.closest('[data-export]') && !busy) exportPdf();
   });
 
@@ -136,7 +141,12 @@
     finally { busy = false; button.innerHTML = text; render(); }
   }
 
-  window.addEventListener('spec-samples-visible', () => { if (!editingId) resetForm(); load(); });
+  let shownOn = '';
+  window.addEventListener('spec-samples-visible', () => {
+    const todayKey = key(new Date());
+    if (shownOn !== todayKey) { shownOn = todayKey; week = mondayOf(new Date()); }   // 날짜가 바뀌었으면 이번 주로
+    if (!editingId) resetForm(); load();
+  });
   window.addEventListener('access-change', () => { if (!admin()) { version++; items = []; loaded = false; render(); } });
   resetForm(); render();
 })();
