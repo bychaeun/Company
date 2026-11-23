@@ -440,3 +440,10 @@ html { touch-action:pan-x pan-y; }
 .registry-editor .registry-product-picks button:hover { border-color:#263943!important; }
 .registry-product-picks button span { color:#6a7780; }
 .registry-product-picks button em { font-style:normal; color:#9b514a; }
+/* 스펙 목록 쪽 번호: ‹ 1 2 3 4 5 6 7 › */
+#registry-pagination { display:flex; justify-content:center; align-items:center; gap:6px; flex-wrap:wrap; margin:16px 0 8px; }
+#registry-pagination[hidden] { display:none; }
+#specs-view #registry-pagination button { min-width:38px; height:38px; padding:0 10px; border:0; border-radius:999px!important; background:#eef1f3; color:#4f5b65; font:inherit; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; cursor:pointer; }
+#specs-view #registry-pagination button:hover:not(:disabled) { background:#e2e7ea; color:#263943; }
+#specs-view #registry-pagination button.is-current { background:#263943; color:#fff; }
+#specs-view #registry-pagination button:disabled { opacity:.4; cursor:default; }

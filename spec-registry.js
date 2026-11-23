@@ -5,7 +5,8 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const tabs=['map','sites','numbers','samples'],pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>';
   const clipboardIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="6" width="12" height="15" rx="2"/><path d="M16 6V3H4v14h4"/></svg>';
-  let searchCache={},searchTimer=0,categoryFilter='',active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
+  const PAGE_SIZE=30;   // 목록 한 쪽에 30개
+  let pageChanged=false,searchCache={},searchTimer=0,categoryFilter='',active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
   const editor=document.createElement('dialog');editor.id='registry-editor';editor.className='board-editor registry-editor';editor.setAttribute('aria-labelledby','registry-editor-title');
   editor.innerHTML='<h2 id="registry-editor-title"></h2><form><div data-fields class="registry-fields"></div><p data-message role="status"></p><footer><button type="button" class="install-button" data-remove>삭제</button><button type="button" class="install-button" data-cancel>취소</button><button type="submit" class="install-button">시트에 저장</button></footer></form>';document.body.append(editor);
   const form=editor.querySelector('form');
@@ -40,7 +41,8 @@
   function guideRanges(){const source=data?.guide||[];if(source===guideSource)return guideCache;guideSource=source;return guideCache=source.map(row=>{const cells=row.filter(Boolean),range=cells.map(v=>String(v).match(/^([A-Za-z]+)(\d+)\s*[-~–]\s*([A-Za-z]*)(\d+)$/)).find(Boolean);return range?{label:cells.filter(v=>!/^[A-Za-z]+\d+\s*[-~–]/.test(v)).join(' ')||cells[0],prefix:range[1].toUpperCase(),from:Number(range[2]),to:Number(range[4])}:null;}).filter(Boolean);}
   // 효산 LPM 시트의 ProductName / PreviousNames를 종이넘버로 찾는다(서버와 같은 키 규칙).
   function hyosanEntry(paper){const key=String(paper||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();return (key&&data?.hyosanNames?.[key])||null;}
-  function productNames(paper){const e=hyosanEntry(paper);return e?[e[0]||'',e[1]||'']:['',''];}
+  const nameTokens=v=>String(v||'').split(/[\r\n,\/;]+/).map(x=>x.trim()).filter(Boolean);   // 효산 시트는 이름 여러 개를 줄바꿈으로 적는다
+  function productNames(paper){const e=hyosanEntry(paper);return e?[nameTokens(e[0]).join(', '),nameTokens(e[1]).join(', ')]:['',''];}
   // 효산 시트 Category → 스펙번호 규칙 표의 분류 이름
   const CATEGORY_KO={SOLID:'단색',WOOD:'우드',STONE:'스톤',FABRIC:'패브릭',FANTASY:'추상'};
   function paperCategory(paper){return CATEGORY_KO[String(hyosanEntry(paper)?.[2]||'').toUpperCase()]||'';}
@@ -148,13 +150,16 @@
     if(searchCache.data!==data||searchCache.kind!==active)searchCache={data,kind:active,text:new Map()};const textOf=r=>{let t=searchCache.text.get(r.id);if(t===undefined)searchCache.text.set(r.id,t=fold(cols(r).join(' ')));return t;};
     let filtered=rows().filter(r=>(!query||textOf(r).includes(query))&&(active!=='numbers'||!categoryFilter||specCategory(r.values[1])===categoryFilter));
     if(sortColumn>=0){const keyed=filtered.map(r=>[String(cols(r)[sortColumn]),r]);keyed.sort((a,b)=>sortDirection*collator.compare(a[0],b[0]));filtered=keyed.map(k=>k[1]);}
-    const pages=Math.max(1,Math.ceil(filtered.length/50));page=Math.min(page,pages);
-    sites.innerHTML=active==='sites'?(filtered.length?filtered.slice((page-1)*50,page*50).map(r=>`<button type="button" class="registry-site-card" data-site-id="${esc(r.id)}" aria-label="${esc(r.values[0])} 현장 상세 보기"><strong>${esc(r.values[0])}</strong><span aria-hidden="true">›</span></button>`).join(''):`<p class="registry-empty">${query?'검색 결과가 없어요.':'등록된 현장이 없어요.'}</p>`):'';
+    const pages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));page=Math.min(page,pages);
+    sites.innerHTML=active==='sites'?(filtered.length?filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE).map(r=>`<button type="button" class="registry-site-card" data-site-id="${esc(r.id)}" aria-label="${esc(r.values[0])} 현장 상세 보기"><strong>${esc(r.values[0])}</strong><span aria-hidden="true">›</span></button>`).join(''):`<p class="registry-empty">${query?'검색 결과가 없어요.':'등록된 현장이 없어요.'}</p>`):'';
     table.querySelector('thead').innerHTML='<tr>'+(active==='numbers'?'<th scope="col" class="registry-image-column">이미지</th>':'')+headers.map((h,i)=>`<th scope="col"${mobileHidden(h)?' class="registry-col-desktop"':''} aria-sort="${sortColumn===i?(sortDirection===1?'ascending':'descending'):'none'}"><button type="button" data-sort="${i}">${esc(h)}${sortColumn===i?(sortDirection===1?' ↑':' ↓'):''}</button></th>`).join('')+'</tr>';
-    table.querySelector('tbody').innerHTML=filtered.length?filtered.slice((page-1)*50,page*50).map(r=>`<tr class="registry-row" data-row-id="${esc(r.id)}" tabindex="0" aria-label="${esc(r.values[0])} 상세 보기">`+(active==='numbers'?paperImageCell(r):'')+cols(r).map((v,i)=>`<td${mobileHidden(headers[i])?' class="registry-col-desktop"':''}>${v&&i===(active==='numbers'?0:1)?`<span class="registry-paper-number"><span>${esc(v)}</span><button type="button" class="registry-copy" data-copy="${esc(v)}" aria-label="종이넘버 ${esc(v)} 복사" title="종이넘버 복사">${clipboardIcon}</button></span>`:(v?`<span class="registry-cell-text">${esc(v)}</span>`:'<span class="registry-blank">—</span>')}</td>`).join('')+'</tr>').join(''):`<tr><td colspan="${headers.length+(active==='numbers'?1:0)}" class="registry-empty">${query?'검색 결과가 없어요.':'등록된 내역이 없어요. 추가 버튼으로 첫 내역을 작성하세요.'}</td></tr>`;
+    table.querySelector('tbody').innerHTML=filtered.length?filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE).map(r=>`<tr class="registry-row" data-row-id="${esc(r.id)}" tabindex="0" aria-label="${esc(r.values[0])} 상세 보기">`+(active==='numbers'?paperImageCell(r):'')+cols(r).map((v,i)=>`<td${mobileHidden(headers[i])?' class="registry-col-desktop"':''}>${v&&i===(active==='numbers'?0:1)?`<span class="registry-paper-number"><span>${esc(v)}</span><button type="button" class="registry-copy" data-copy="${esc(v)}" aria-label="종이넘버 ${esc(v)} 복사" title="종이넘버 복사">${clipboardIcon}</button></span>`:(v?`<span class="registry-cell-text">${esc(v)}</span>`:'<span class="registry-blank">—</span>')}</td>`).join('')+'</tr>').join(''):`<tr><td colspan="${headers.length+(active==='numbers'?1:0)}" class="registry-empty">${query?'검색 결과가 없어요.':'등록된 내역이 없어요. 추가 버튼으로 첫 내역을 작성하세요.'}</td></tr>`;
     table.querySelectorAll('.registry-paper-preview img').forEach(image=>{image.onerror=()=>{image.hidden=true;image.parentElement.querySelector('.registry-paper-fallback').hidden=false;};setImage(image,image.dataset.src);});
     $('registry-count').textContent=`${filtered.length}개${query||(categoryFilter&&active==='numbers')?' 검색됨':''}`;pager.hidden=pages<=1;
-    pager.innerHTML=`<button type="button" data-page="${page-1}" ${page===1?'disabled':''}>이전</button><span>${page} / ${pages}</span><button type="button" data-page="${page+1}" ${page===pages?'disabled':''}>다음</button>`;
+    // 쪽 번호는 한 번에 7개까지 보이고, 지금 쪽이 가운데 오도록 밀린다.
+    const firstShown=Math.max(1,Math.min(page-3,pages-6)),shown=Array.from({length:Math.min(7,pages)},(_,i)=>firstShown+i);
+    pager.innerHTML=`<button type="button" data-page="${page-1}" ${page===1?'disabled':''} aria-label="이전 쪽">‹</button>`+shown.map(n=>`<button type="button" data-page="${n}" class="${n===page?'is-current':''}" ${n===page?'aria-current="page"':''}>${n}</button>`).join('')+`<button type="button" data-page="${page+1}" ${page===pages?'disabled':''} aria-label="다음 쪽">›</button>`;
+    if(pageChanged){pageChanged=false;table.closest('.registry-table-scroll')?.scrollIntoView({block:'start',behavior:'smooth'});}
   }
   async function refresh(force=false){
     if(!admin()||saving)return;if(loading){if(force)forceQueued=true;return;}if(data&&!force&&Date.now()-loadedAt<30000)return;
@@ -246,19 +251,20 @@
       const showNames=()=>{const found=productNames(paper.value),known=found.some(Boolean);
         if(!productTyped||document.activeElement!==productInput)productInput.value=found[0]||'';
         previous.querySelector('output').innerHTML=found[1]?esc(found[1]):`<span class="registry-blank">${known?'—':paper.value.trim()?'효산 시트에 없는 종이넘버예요':'종이넘버나 제품명을 입력하면 채워져요'}</span>`;};
-      const papersFor=name=>{const q=fold(name);if(!q||!data?.hyosanNames)return [];const exact=[],old=[];
-        for(const [key,e] of Object.entries(data.hyosanNames)){if(fold(e[0])===q)exact.push(key);else if(String(e[1]||'').split(/[,\/\n;]+/).some(v=>fold(v)===q))old.push(key);}
-        return exact.length?exact:old;};
+      // 현재 제품명·이전 제품명을 함께 찾는다(어느 쪽인지 몰라도 된다). 현재 제품명으로 맞은 것을 앞에 둔다.
+      const papersFor=name=>{const q=fold(name);if(!q||!data?.hyosanNames)return [];const found=[];
+        for(const [key,e] of Object.entries(data.hyosanNames)){if(nameTokens(e[0]).some(v=>fold(v)===q))found.push({key,how:'현재'});else if(nameTokens(e[1]).some(v=>fold(v)===q))found.push({key,how:'이전'});}
+        return found.sort((a,b)=>(a.how==='현재'?0:1)-(b.how==='현재'?0:1));};
       const choosePaper=key=>{paper.value=key;productTyped=false;picks.hidden=true;picks.replaceChildren();paper.dispatchEvent(new Event('input',{bubbles:true}));};
       let productTimer=0;
       productInput.addEventListener('input',()=>{productTyped=true;clearTimeout(productTimer);productTimer=setTimeout(()=>{
         const list=papersFor(productInput.value);picks.replaceChildren();
         if(!productInput.value.trim()){picks.hidden=true;return;}
-        if(list.length===1){if(fold(paper.value)!==fold(list[0]))choosePaper(list[0]);else picks.hidden=true;return;}
+        if(list.length===1){if(fold(paper.value)!==fold(list[0].key))choosePaper(list[0].key);else picks.hidden=true;return;}
         picks.hidden=false;
         if(!list.length){picks.innerHTML='<p class="registry-blank">효산 시트에서 이 제품명을 찾지 못했어요.</p>';return;}
-        picks.innerHTML=`<p class="registry-product-picks-title">이 제품명의 종이넘버가 ${list.length}개예요. 하나를 골라 주세요.</p>`+list.map(key=>{const kind=paperCategory(key),dup=duplicateOf(0,key,editing.id);
-          return `<button type="button" data-paper="${esc(key)}"><b>${esc(key)}</b>${kind?`<span>${esc(kind)}</span>`:''}${dup?`<em>등록됨 ${esc(dup.values[1])}</em>`:''}</button>`;}).join('');
+        picks.innerHTML=`<p class="registry-product-picks-title">이 제품명의 종이넘버가 ${list.length}개예요. 하나를 골라 주세요.</p>`+list.map(({key,how})=>{const kind=paperCategory(key),dup=duplicateOf(0,key,editing.id),[now]=productNames(key);
+          return `<button type="button" data-paper="${esc(key)}"><b>${esc(key)}</b><span>${how==='현재'?'현재 제품명':`이전 제품명 → 지금 ${esc(now||'—')}`}</span>${kind?`<span>· ${esc(kind)}</span>`:''}${dup?`<em>등록됨 ${esc(dup.values[1])}</em>`:''}</button>`;}).join('');
       },180);});
       picks.addEventListener('click',e=>{const b=e.target.closest('[data-paper]');if(b)choosePaper(b.dataset.paper);});
       paper.addEventListener('input',e=>{if(e.isTrusted){productTyped=false;picks.hidden=true;picks.replaceChildren();}showNames();});showNames();   // 종이넘버를 직접 쓰면 제품명 선택지는 닫는다
@@ -314,7 +320,7 @@
   const openRow=row=>{const item=rows().find(r=>r.id===row.dataset.rowId);if(!item)return;if(active==='numbers')showPaperImages(item);else edit(item);};
   $('registry-table').onkeydown=e=>{const row=e.target.closest?.('tr[data-row-id]');if(row&&e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openRow(row);}};
   $('registry-table').onclick=e=>{const b=e.target.closest('button');if(!b){const row=e.target.closest('tr[data-row-id]');if(row&&!getSelection()?.toString())openRow(row);return;}if(b.dataset.paperImages!==undefined){showPaperImages(rows().find(r=>r.id===b.dataset.paperImages));return;}if(b.dataset.copy!==undefined){copyPaperNumber(b);return;}if(b.dataset.sort!==undefined){const col=Number(b.dataset.sort);sortDirection=sortColumn===col?-sortDirection:1;sortColumn=col;render();}else if(b.dataset.id)edit(rows().find(r=>r.id===b.dataset.id));};
-  $('registry-pagination').onclick=e=>{const b=e.target.closest('[data-page]');if(b&&!b.disabled){page=Number(b.dataset.page);render();}};
+  $('registry-pagination').onclick=e=>{const b=e.target.closest('[data-page]');if(b&&!b.disabled&&Number(b.dataset.page)!==page){page=Number(b.dataset.page);pageChanged=true;render();}};
   $('specs-nav-button').addEventListener('click',()=>{if(active!=='map'&&active!=='samples')refresh();});
   window.addEventListener('access-change',()=>{if(!admin()){epoch++;revision++;data=null;loadedAt=0;forceQueued=false;editing=null;detail.close();detail.replaceChildren();editor.close();editor.querySelector('[data-fields]').replaceChildren();$('registry-synced').textContent='';$('registry-count').textContent='';$('registry-message').textContent='';render();selectTab('map');}});
   setInterval(()=>{if(!document.hidden&&!$('specs-view').hidden&&active!=='map'&&active!=='samples')refresh();},60000);
