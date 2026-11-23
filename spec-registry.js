@@ -235,9 +235,33 @@
       paperInput.addEventListener('input',()=>{drawAssist();const kind=paperCategory(paperInput.value),next=kind&&nextSpecNumber(kind,editing.id);
         if(next&&(!spec.value.trim()||autoFilled)){spec.value=next;autoFilled=true;spec.dispatchEvent(new Event('input',{bubbles:true}));}});
       drawAssist();
-      // 종이넘버를 입력하면 효산 시트의 제품명(현재·이전)이 자동으로 보인다.
-      const paper=form.elements['field-0'],names=['제품명','이전 제품명'].map(label=>{const f=Object.assign(document.createElement('label'),{className:'registry-category-field'});f.innerHTML=esc(label)+'<output aria-live="polite"></output>';return f;});cat.after(...names);
-      const showNames=()=>{const found=productNames(paper.value),known=found.some(Boolean);names.forEach((f,i)=>{f.querySelector('output').innerHTML=found[i]?esc(found[i]):`<span class="registry-blank">${known?'—':paper.value.trim()?'효산 시트에 없는 종이넘버예요':'종이넘버를 입력하면 자동으로 채워져요'}</span>`;});};paper.addEventListener('input',showNames);showNames();
+      // 제품명 칸: 종이넘버를 넣으면 효산 시트의 제품명이 채워지고, 거꾸로 제품명을 넣으면 그 제품의 종이넘버를 찾아 채운다
+      // (하나면 바로, 여러 개면 고르게). 종이넘버가 채워지면 위의 자동 부여로 스펙넘버까지 들어간다. 이전 제품명은 보기만 한다.
+      const paper=form.elements['field-0'];
+      const product=Object.assign(document.createElement('label'),{className:'registry-product-field'});product.innerHTML='제품명<input data-product-search maxlength="100" placeholder="제품명으로 찾기 (예: N436)" autocomplete="off">';
+      const previous=Object.assign(document.createElement('label'),{className:'registry-category-field'});previous.innerHTML='이전 제품명<output aria-live="polite"></output>';
+      const picks=Object.assign(document.createElement('div'),{className:'registry-product-picks'});picks.hidden=true;
+      assist.before(product,previous,picks);
+      const productInput=product.querySelector('input');let productTyped=false;
+      const showNames=()=>{const found=productNames(paper.value),known=found.some(Boolean);
+        if(!productTyped||document.activeElement!==productInput)productInput.value=found[0]||'';
+        previous.querySelector('output').innerHTML=found[1]?esc(found[1]):`<span class="registry-blank">${known?'—':paper.value.trim()?'효산 시트에 없는 종이넘버예요':'종이넘버나 제품명을 입력하면 채워져요'}</span>`;};
+      const papersFor=name=>{const q=fold(name);if(!q||!data?.hyosanNames)return [];const exact=[],old=[];
+        for(const [key,e] of Object.entries(data.hyosanNames)){if(fold(e[0])===q)exact.push(key);else if(String(e[1]||'').split(/[,\/\n;]+/).some(v=>fold(v)===q))old.push(key);}
+        return exact.length?exact:old;};
+      const choosePaper=key=>{paper.value=key;productTyped=false;picks.hidden=true;picks.replaceChildren();paper.dispatchEvent(new Event('input',{bubbles:true}));};
+      let productTimer=0;
+      productInput.addEventListener('input',()=>{productTyped=true;clearTimeout(productTimer);productTimer=setTimeout(()=>{
+        const list=papersFor(productInput.value);picks.replaceChildren();
+        if(!productInput.value.trim()){picks.hidden=true;return;}
+        if(list.length===1){if(fold(paper.value)!==fold(list[0]))choosePaper(list[0]);else picks.hidden=true;return;}
+        picks.hidden=false;
+        if(!list.length){picks.innerHTML='<p class="registry-blank">효산 시트에서 이 제품명을 찾지 못했어요.</p>';return;}
+        picks.innerHTML=`<p class="registry-product-picks-title">이 제품명의 종이넘버가 ${list.length}개예요. 하나를 골라 주세요.</p>`+list.map(key=>{const kind=paperCategory(key),dup=duplicateOf(0,key,editing.id);
+          return `<button type="button" data-paper="${esc(key)}"><b>${esc(key)}</b>${kind?`<span>${esc(kind)}</span>`:''}${dup?`<em>등록됨 ${esc(dup.values[1])}</em>`:''}</button>`;}).join('');
+      },180);});
+      picks.addEventListener('click',e=>{const b=e.target.closest('[data-paper]');if(b)choosePaper(b.dataset.paper);});
+      paper.addEventListener('input',e=>{if(e.isTrusted){productTyped=false;picks.hidden=true;picks.replaceChildren();}showNames();});showNames();   // 종이넘버를 직접 쓰면 제품명 선택지는 닫는다
     }
     if(kind==='sites'){
       const options=document.createElement('div');options.className='registry-match-options';options.setAttribute('aria-label','일치하는 스펙 선택');editor.querySelector('[data-fields]').after(options);editor.querySelectorAll('.registry-match-options').forEach((v,i)=>{if(v!==options)v.remove();});
