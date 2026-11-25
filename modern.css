@@ -532,3 +532,5 @@ select:not([multiple]):not(.select-box select)::-ms-expand { display:none; }
 #specs-editor textarea { border-radius:16px!important; background-color:#fff; }
 /* 펼침 칸은 어디서나 흰 배경 */
 select:not([multiple]):not(.select-box select) { background-color:#fff; }
+.samples-pending { grid-column:4; justify-self:center; padding:3px 8px; border-radius:999px; background:#eef1f3; color:#6a7780; font-size:11px; font-weight:600; white-space:nowrap; }
+.samples-item .samples-delete[hidden] { display:none!important; }

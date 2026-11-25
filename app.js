@@ -318,6 +318,8 @@
 
   function openNoteEditor(record = null) {
     if(noteSaving)return;
+    if(String(record?.noteId||'').startsWith('pending:')){showToast('아직 시트에 저장하는 중이에요. 잠시 후 다시 열어 주세요.');return;}
+    editorOpenToken++;
     noteRequest=null;
     if (window.CHAE_AUTH?.user?.role !== "admin") return;
     const categories = Array.from(new Set(state.records.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko"));
@@ -366,6 +368,9 @@
     } finally { URL.revokeObjectURL(url); }
   }
 
+  let editorOpenToken=0;
+  // 뒤에서 저장 중일 때 창을 닫으려 하면 한 번 묻는다.
+  window.addEventListener('beforeunload',event=>{if((window.ZIP_PENDING_SAVES||0)>0){event.preventDefault();event.returnValue='';}});
   async function saveNote(event) {
     event.preventDefault();
     if(noteSaving)return;
@@ -408,19 +413,34 @@
       if(!noteRequest||noteRequest.signature!==signature)noteRequest={signature,id:crypto.randomUUID()};
       payload.requestId=noteRequest.id;
       if(noteId&&typeof editingTitle==='string')payload.expectedTitle=editingTitle;
-      el.noteEditorMessage.textContent = "Google 시트에 저장하고 있어요.";
-      const result=await window.ZIP_API.request(noteId ? "updateNote" : "createNote", payload);
+      // 기다리지 않고 바로 반영: 목록에 먼저 넣고 창을 닫은 뒤, 시트 저장은 뒤에서 한다. 실패하면 되돌리고 입력한 그대로 창을 다시 연다.
+      const before=state.records,tempId=noteId||`pending:${payload.requestId}`,openToken=++editorOpenToken;
+      const optimistic={...payload,noteId:tempId,images:splitImages(payload.imageText),updatedAt:new Date().toLocaleDateString('sv-SE')};
       notesRevision++;
-      if(result.noteId){
-        const updated={...payload,noteId:result.noteId,images:splitImages(payload.imageText),updatedAt:new Date().toLocaleDateString('sv-SE')};
-        state.records=jsonToRecords({records:[...state.records.filter(r=>r.noteId!==noteId),updated]});
-        state.query='';el.search.value='';state.category='';state.subcategory='';state.page=1;render();
-      }
-      el.noteEditor.close();
-      state.page = 1;
-      // Moving a note to another category deletes its old row, so row-based IDs below it change.
-      if(!result.noteId||(noteId&&!noteId.startsWith(String(result.noteId).split(':')[0]+':')))loadData(true);
-      showToast(noteId ? "메모와 시트를 수정했어요" : "새 메모를 시트에 저장했어요");
+      state.records=jsonToRecords({records:[...state.records.filter(r=>r.noteId!==noteId),optimistic]});
+      state.query='';el.search.value='';state.category='';state.subcategory='';state.page=1;render();
+      el.noteEditor.close();noteSaving=false;submit.disabled=false;
+      showToast('저장하고 있어요…');window.ZIP_PENDING_SAVES=(window.ZIP_PENDING_SAVES||0)+1;
+      (async()=>{
+        try{
+          const result=await window.ZIP_API.request(noteId ? "updateNote" : "createNote", payload);
+          notesRevision++;
+          if(result.noteId){
+            const saved={...optimistic,noteId:result.noteId};
+            state.records=jsonToRecords({records:[...state.records.filter(r=>r.noteId!==tempId),saved]});render();
+          }
+          // Moving a note to another category deletes its old row, so row-based IDs below it change.
+          if(!result.noteId||(noteId&&!noteId.startsWith(String(result.noteId).split(':')[0]+':')))loadData(true);
+          showToast(noteId ? "메모와 시트를 수정했어요" : "새 메모를 시트에 저장했어요");
+        }catch(error){
+          notesRevision++;state.records=before;render();
+          const message=error.name==='TimeoutError'||error.name==='AbortError'?'저장 응답이 늦어요. 시트에 이미 저장됐을 수 있으니 같은 내용으로 다시 저장해 확인해 주세요.':error.message;
+          // 그 사이 다른 메모를 열지 않았으면 입력한 내용 그대로 창을 다시 연다.
+          if(openToken===editorOpenToken&&!el.noteEditor.open){el.noteEditor.showModal();el.noteEditorMessage.textContent='저장하지 못했어요: '+message;}
+          else showToast('메모를 저장하지 못했어요: '+message);
+        }finally{window.ZIP_PENDING_SAVES--;}
+      })();
+      return;
     } catch (error) {
       el.noteEditorMessage.textContent = error.name==='TimeoutError'||error.name==='AbortError'?'저장 응답이 늦어요. 입력 내용은 유지했어요. 시트에 이미 저장됐을 수 있으니 같은 내용으로 다시 저장해 확인해 주세요.':error.message;
     } finally {

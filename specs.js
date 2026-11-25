@@ -230,14 +230,27 @@
     const version=generation;saving=true;$('specs-fields').disabled=true;form.querySelector('[type=submit]').disabled=true;$('specs-cancel').disabled=true;
     try{
       for(let i=0;i<files.length;i++){if(uploadedImages[i])continue;$('specs-save-message').textContent=`사진 ${i+1}/${files.length} 업로드 중…`;const data=await photo(files[i]);if(version!==generation)return;const result=await api.request('uploadNoteImage',data);if(version!==generation)return;uploadedImages[i]=result.fileId;}
-      payload.images=[...retainedImages,...uploadedImages];$('specs-save-message').textContent='현장과 종이 스펙을 저장하고 있어요.';
-      const result=await api.request('saveSpec',payload);if(version!==generation)return;
-      const saved={...payload,papers:result.papers||payload.papers,id:result.id||payload.id,lat:Number(result.lat??payload.lat),lng:Number(result.lng??payload.lng)};dataRevision++;loadedAt=0;window.dispatchEvent(new Event('spec-registry-invalidated'));window.dispatchEvent(new Event('spec-registry-refresh'));   // 현장목록·그래프도 바로 새로
-      const index=items.findIndex(item=>item.id===saved.id);
-      if(index<0)items.push(saved);else items[index]=saved;
-      $('specs-search').value='';render();editor.close();
-      map?.setView([saved.lat,saved.lng],Math.max(map.getZoom(),9),{animate:animateMap()});
-      message.textContent='';
+      payload.images=[...retainedImages,...uploadedImages];
+      // 바로 반영: 목록에 먼저 넣고 창을 닫는다. 위치 찾기·시트 저장은 뒤에서. 실패하면 되돌리고 입력한 그대로 창을 다시 연다.
+      const before=items,tempId=payload.id||`pending-${crypto.randomUUID()}`,draft={...payload,id:tempId,papers:payload.papers,pending:true,lat:Number(payload.lat),lng:Number(payload.lng)};
+      items=items.filter(item=>item.id!==tempId).concat(draft);$('specs-search').value='';render();
+      saving=false;$('specs-fields').disabled=false;form.querySelector('[type=submit]').disabled=false;$('specs-cancel').disabled=false;
+      const notice=t=>{message.textContent=t;const r=$('registry-message');if(r)r.textContent=t;};   // 지도 탭·현장목록 탭 어디서든 보이게
+      const openedAt=editorVersion;editor.close();notice('현장을 저장하고 있어요… 주소로 위치를 찾는 중이면 조금 걸려요.');
+      window.ZIP_PENDING_SAVES=(window.ZIP_PENDING_SAVES||0)+1;
+      try{
+        const result=await api.request('saveSpec',payload);if(version!==generation)return;
+        const saved={...payload,papers:result.papers||payload.papers,id:result.id||payload.id,lat:Number(result.lat??payload.lat),lng:Number(result.lng??payload.lng)};dataRevision++;loadedAt=0;window.dispatchEvent(new Event('spec-registry-invalidated'));window.dispatchEvent(new Event('spec-registry-refresh'));   // 현장목록·그래프도 바로 새로
+        items=items.filter(item=>item.id!==tempId&&item.id!==saved.id).concat(saved);render();
+        if(Number.isFinite(saved.lat))map?.setView([saved.lat,saved.lng],Math.max(map.getZoom(),9),{animate:animateMap()});
+        notice(`${saved.name} 저장했어요.`);
+      }catch(error){
+        if(version!==generation)return;items=before;render();
+        // 그 사이 다른 현장을 열지 않았으면 입력한 내용 그대로 다시 연다(위치 선택도 유지).
+        if(openedAt+1===editorVersion&&!editor.open){editor.showModal();$('specs-save-message').textContent='저장하지 못했어요: '+error.message+' 입력 내용은 유지됩니다.';}
+        else notice('현장을 저장하지 못했어요: '+error.message);
+      }finally{window.ZIP_PENDING_SAVES--;}
+      return;
     }catch(error){if(version===generation)$('specs-save-message').textContent=error.message+' 입력 내용은 유지됩니다.';}
     finally{saving=false;$('specs-fields').disabled=false;form.querySelector('[type=submit]').disabled=false;$('specs-cancel').disabled=false;}
   });

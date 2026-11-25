@@ -66,7 +66,7 @@
         </button>
         <span class="samples-chip ${r.method === '직달' ? 'is-direct' : 'is-parcel'}">${esc(r.method)}</span>
         <span class="samples-books">${Number(r.count) || 0}권</span>
-        <button type="button" class="samples-delete" data-delete="${esc(r.id)}" aria-label="${esc(r.company)} 삭제" title="삭제"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button>
+        ${r.pending ? '<span class="samples-pending" title="시트에 저장하는 중">저장 중</span>' : ''}<button type="button" class="samples-delete" data-delete="${esc(r.id)}" aria-label="${esc(r.company)} 삭제" title="삭제" ${r.pending ? 'hidden' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button>
       </div>`).join('') : '<p class="samples-empty">이 기간에 등록한 샘플북 분출이 없어요.</p>';
   }
   function resetForm() {
@@ -114,16 +114,22 @@
     event.preventDefault(); if (busy || !admin()) return;
     const data = { id: editingId || crypto.randomUUID(), date: form.elements.date.value, company: form.elements.company.value.trim(), contact: form.elements.contact.value.trim(), method: form.elements.method.value, count: Number(form.elements.count.value) };
     if (!data.date || !data.company || !Number.isInteger(data.count) || data.count < 1) { message.textContent = '날짜, 업체명, 권수를 확인해 주세요.'; return; }
-    busy = true; $('[data-save]').disabled = true; message.textContent = '저장하고 있어요…';
+    // 바로 반영하고 시트 저장은 뒤에서. 실패하면 목록을 되돌리고 입력칸에 다시 채운다.
+    const before = items, wasEditing = !!editingId;
+    items = items.filter((x) => x.id !== data.id).concat({ ...data, created: new Date().toISOString(), pending: true });
+    const savedWeek = mondayOf(parse(data.date)); if (key(savedWeek) !== key(week)) week = savedWeek;   // 저장한 기록이 보이는 주로 이동
+    message.textContent = '저장하고 있어요…'; resetForm(); render(); form.elements.company.focus();
+    window.ZIP_PENDING_SAVES = (window.ZIP_PENDING_SAVES || 0) + 1;
     try {
       const result = await api.request('saveSampleBook', data);
-      const saved = { ...data, created: result.item?.created || new Date().toISOString() };
-      items = items.filter((i) => i.id !== data.id).concat(saved);
-      const savedWeek = mondayOf(parse(data.date)); if (key(savedWeek) !== key(week)) week = savedWeek;   // 저장한 기록이 보이는 주로 이동
-      message.textContent = editingId ? '수정했어요.' : '저장했어요.'; resetForm();
-      form.elements.company.focus();
-    } catch (error) { message.textContent = error.message; }
-    finally { busy = false; $('[data-save]').disabled = false; render(); }
+      items = items.map((x) => x.id === data.id ? { ...data, created: result.item?.created || x.created } : x);   // pending 표시 해제
+      message.textContent = wasEditing ? '수정했어요.' : '저장했어요.';
+    } catch (error) {
+      items = before; editingId = wasEditing ? data.id : '';
+      form.elements.date.value = data.date; form.elements.company.value = data.company; form.elements.contact.value = data.contact;
+      form.querySelector(`input[name=method][value="${data.method}"]`).checked = true; form.elements.count.value = data.count;
+      message.textContent = '저장하지 못했어요: ' + error.message;
+    } finally { window.ZIP_PENDING_SAVES--; render(); }
   });
 
   async function exportPdf() {

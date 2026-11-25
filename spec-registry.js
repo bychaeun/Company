@@ -182,7 +182,7 @@
     if(!admin()||saving)return;if(loading){if(force)forceQueued=true;return;}if(data&&!force&&Date.now()-loadedAt<30000)return;
     if(!data){const cached=api.cached?.('specRegistry');if(cached)applyResult(cached);}
     loading=true;render();$('registry-sync').disabled=true;$('registry-message').textContent='시트에서 목록을 불러오는 중…';const access=epoch,start=revision;
-    try{const result=await api.request('specRegistry',{force});if(access!==epoch||start!==revision)return;applyResult(result);$('registry-message').textContent='';}
+    try{const result=await api.request('specRegistry',{force});if(access!==epoch||start!==revision)return;applyResult(result);if(!/저장했어요|저장하고 있어요/.test($('registry-message').textContent))$('registry-message').textContent='';}
     catch(error){if(access===epoch)$('registry-message').textContent=error.message;}
     finally{loading=false;$('registry-sync').disabled=false;render();if(forceQueued){forceQueued=false;refresh(true);}}
   }
@@ -205,6 +205,7 @@
   }
   function edit(item){
     if(!admin()||saving||!data)return;
+    if(item?.pending){$('registry-message').textContent='아직 시트에 저장하는 중이에요. 잠시 후 다시 열어 주세요.';return;}
     if(item?.source){selectTab('map');window.dispatchEvent(new CustomEvent('spec-map-edit',{detail:item.source}));return;}
     if(active==='sites'){const mapped=item?(item.source||data.mapItems?.find(m=>m.id===item.id)):null;if(!item||mapped){window.dispatchEvent(new CustomEvent('spec-site-edit',{detail:mapped||null}));return;}}   // 현장은 주소·지도·종이 세트를 한 번에 입력하는 현장 입력창으로
     const kind=active,mapped=item?.source||data.mapItems?.find(row=>row.id===item?.id);editing={kind,id:item?.id||crypto.randomUUID(),version:item?.version||'',legacyMirror:item?.legacyMirror||'',imageUrls:[...(item?.imageUrls||mapped?.imageUrls||[])],photoVersion:item?.photoVersion||mapped?.photoVersion||'',values:item?[...item.values]:Array(data.lists[kind].headers.length).fill('')};
@@ -310,10 +311,18 @@
     if(item.kind==='sites'&&!item.values[1]&&!item.values[2]){editor.querySelector('[data-message]').textContent='종이넘버 또는 스펙넘버를 입력해 주세요.';return;}
     if(item.kind==='sites'){const split=v=>v.split(/[,\n\r]+/).map(s=>s.trim()).filter(Boolean),a=split(item.values[1]),b=split(item.values[2]),m=split(item.values[3]);if(a.length&&b.length&&a.length!==b.length||m.length>1&&m.length!==Math.max(a.length,b.length)){editor.querySelector('[data-message]').textContent='종이넘버·스펙넘버·경면 개수를 순서대로 맞춰 주세요. 경면 1개는 모든 스펙에 공통 적용됩니다.';return;}}
     try{const urls=parsePhotoUrls(form.elements['photo-urls'].value),enabled=item.kind==='numbers'?data.paperPhotoUrls:data.registryPhotoUrls;if(!enabled&&JSON.stringify(urls)!==JSON.stringify(editing.imageUrls))throw Error('이미지 URL 저장 연결을 확인 중이에요. 잠시 후 목록을 동기화해 주세요.');if(enabled)item.imageUrls=urls;else {delete item.imageUrls;delete item.photoVersion;}}catch(error){editor.querySelector('[data-message]').textContent=error.message;return;}
-    saving=true;editor.querySelectorAll('button,input,select,textarea').forEach(e=>e.disabled=true);editor.querySelector('[data-message]').textContent='시트에 저장 중…';
-    try{const result=await api.request('saveSpecRegistry',numberWrite(item));if(access!==epoch)return;revision++;let saved=result.item;if(item.kind==='numbers'&&data.legacyNumberColumns)saved={...saved,legacyMirror:saved.values[2],values:[saved.values[0],saved.values[1],saved.values[3]]};const list=data.lists[item.kind].items;const index=list.findIndex(r=>r.id===item.id);if(index<0)list.push(saved);else list[index]=saved;editor.close();$('registry-message').textContent='시트에 저장했어요.';render();}
-    catch(error){if(access===epoch)editor.querySelector('[data-message]').textContent=error.message+' 입력 내용은 그대로 유지됩니다.';}
-    finally{saving=false;editor.querySelectorAll('button,input,select,textarea').forEach(e=>e.disabled=false);render();}
+    // 바로 반영: 목록에 먼저 넣고 창을 닫는다. 시트 저장이 실패하면 되돌리고 입력한 그대로 창을 다시 연다.
+    const kind=item.kind,previous=data.lists[kind].items.find(r=>r.id===item.id),optimistic={...item,pending:true};
+    {const list=data.lists[kind].items,index=list.findIndex(r=>r.id===item.id);if(index<0)list.push(optimistic);else list[index]=optimistic;}
+    editor.close();$('registry-message').textContent='시트에 저장하고 있어요…';render();
+    window.ZIP_PENDING_SAVES=(window.ZIP_PENDING_SAVES||0)+1;
+    try{const result=await api.request('saveSpecRegistry',numberWrite(item));if(access!==epoch)return;revision++;let saved=result.item;if(kind==='numbers'&&data.legacyNumberColumns)saved={...saved,legacyMirror:saved.values[2],values:[saved.values[0],saved.values[1],saved.values[3]]};
+      const list=data.lists[kind].items,index=list.findIndex(r=>r.id===item.id);if(index<0)list.push(saved);else list[index]=saved;$('registry-message').textContent='시트에 저장했어요.';render();}
+    catch(error){if(access!==epoch)return;const list=data.lists[kind].items,index=list.findIndex(r=>r.id===item.id);
+      if(index>=0){if(previous)list[index]=previous;else list.splice(index,1);}render();
+      $('registry-message').textContent='저장하지 못했어요: '+error.message;
+      if(!editor.open&&!saving){edit({...item,pending:false,version:previous?.version||''});editor.querySelector('[data-message]').textContent=error.message+' 입력 내용은 그대로예요. 다시 저장해 주세요.';}}
+    finally{window.ZIP_PENDING_SAVES--;}
   };
   editor.querySelector('[data-cancel]').onclick=()=>{if(!saving)editor.close();};
   editor.querySelector('[data-remove]').onclick=async()=>{
