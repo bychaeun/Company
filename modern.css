@@ -506,3 +506,29 @@ html { touch-action:pan-x pan-y; }
   .graph-bars { padding:10px 8px; }
   .graph-filters { gap:6px; }
 }
+
+/* ── 디자인 다듬기 ── */
+/* 검색창 왼쪽 메뉴 버튼: 정원 + 아이콘 정가운데 */
+.search-panel #open-sidebar.menu-button { display:flex!important; align-items:center; justify-content:center; width:44px; min-width:44px; height:44px; min-height:44px; padding:0!important; aspect-ratio:1; border-radius:50%!important; }
+.search-panel #open-sidebar.menu-button svg { display:block; width:20px; height:20px; margin:0!important; flex:none; }
+/* 현장 입력 종이 줄의 × : 늘어나지 않는 동그라미 */
+#specs-editor .site-paper-remove { width:30px!important; height:30px!important; min-width:30px; min-height:0!important; max-height:30px; padding:0!important; aspect-ratio:1; display:grid; place-items:center; flex:none; }
+/* 펼침 칸(선택): 브라우저 기본 화살표 대신 테두리 안쪽에 둥근 화살표 */
+select:not([multiple]):not(.select-box select) {
+  -webkit-appearance:none; appearance:none; padding-right:40px!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236a7780' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important; background-position:right 14px center!important; background-size:16px 16px!important;
+}
+select:not([multiple]):not(.select-box select)::-ms-expand { display:none; }
+/* 늘어나 보이던 아이콘 버튼들: 정원으로 고정 */
+#specs-view #registry-sync,.registry-detail-heading .registry-detail-edit,.registry-detail-heading [data-detail-close],#specs-view .samples-panel .samples-delete {
+  width:38px!important; height:38px!important; min-width:38px!important; min-height:0!important; max-height:38px; padding:0!important; aspect-ratio:1; display:grid!important; place-items:center; flex:none;
+}
+#specs-view #registry-sync { border-radius:50%!important; }
+@media(max-width:600px){ #specs-view .samples-panel .samples-delete { width:34px!important; height:34px!important; min-width:34px!important; max-height:34px; } }
+/* 현장 입력창: 입력칸과 펼침 칸을 같은 높이·같은 알약 모양·흰 배경으로 */
+#specs-editor .specs-grid input,#specs-editor .specs-grid select { box-sizing:border-box; height:46px; min-height:46px; padding:0 18px; border:1px solid var(--line); border-radius:999px!important; background-color:#fff!important; color:var(--ink); font:inherit; font-size:15px; box-shadow:none; }
+#specs-editor .specs-grid select { padding-right:42px!important; }
+#specs-editor textarea { border-radius:16px!important; background-color:#fff; }
+/* 펼침 칸은 어디서나 흰 배경 */
+select:not([multiple]):not(.select-box select) { background-color:#fff; }
