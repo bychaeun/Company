@@ -76,6 +76,7 @@ function doPost(e) {
   } catch (error) {
     // No token, private note, raw upstream error or configuration secrets in public responses.
     var messages={AUTH_REQUIRED:'로그인이 만료됐어요. 다시 로그인해 주세요.',NOTE_CATEGORY:'대분류 이름을 확인해 주세요. 관리용 이름이나 / \\ ? * [ ] : 문자는 사용할 수 없어요.',NOTE_FIELDS:'제목과 입력 길이를 확인해 주세요.',NOTE_HEADERS:'같은 이름의 시트가 있지만 메모 양식이 달라요. 다른 대분류 이름을 사용해 주세요.',NOTE_MOVED:'시트에서 메모 위치가 바뀌었어요. 새로고침한 뒤 다시 시도해 주세요.'};
+    Object.assign(messages,{SPEC_LOCATION:'주소로 위치를 찾지 못했어요. 주소를 더 자세히 쓰거나 지도에서 위치를 찍어 주세요.'});
     Object.assign(messages,{SAMPLE_INPUT:'날짜, 업체명, 직달/택배, 권수(1~999)를 확인해 주세요.',SAMPLE_HEADERS:'샘플북 시트의 제목행이 바뀌었어요. 열 이름을 확인해 주세요.',SAMPLE_TEMPLATE:'보고서 양식 시트를 열 수 없어요. 양식 시트 공유 권한을 확인해 주세요.',SAMPLE_PDF:'PDF를 만들지 못했어요. 잠시 후 다시 시도해 주세요.'});
     Object.assign(messages,{REGISTRY_SETUP:'컴퍼니 시트의 관리 탭 연결을 확인해 주세요.',REGISTRY_HEADERS:'관리 시트의 제목행이 변경됐어요. 열 이름을 확인해 주세요.',REGISTRY_IDS:'중복된 관리 ID가 있어요. 시트의 ID 열을 확인해 주세요.',REGISTRY_INPUT:'필수 항목과 입력 길이를 확인해 주세요.',REGISTRY_CONFLICT:'시트에서 다른 수정이 확인됐어요. 입력 내용을 복사해 두고 목록을 동기화한 뒤 다시 열어 주세요.',REGISTRY_FORMULA:'수식으로 계산 중인 칸은 앱에서 덮어쓰지 않아요. 시트에서 수정해 주세요.',REGISTRY_VALIDATION:'시트에서 허용한 진행상태를 선택해 주세요.',REGISTRY_LIMIT:'관리 시트는 탭당 10,000개 내역까지 지원해요.'});
     return zipJson_({ok:false,code:error.zipCode || 'REQUEST_FAILED',error:messages[error.zipCode] || '요청을 완료하지 못했어요. 입력 내용은 유지됩니다. 설정과 시트 권한을 확인해 주세요.'});
@@ -95,7 +96,7 @@ function zipReadCache_(scope,force,loader) {
   var cache=null,key='';
   try {
     cache=CacheService.getScriptCache();
-    key='read-v13:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+zipWorkbookStamp_()+(scope==='registry'&&typeof zipHyosanStamp_==='function'?':'+zipHyosanStamp_():'');   // 스펙 목록은 효산 시트가 바뀌어도 새로 읽는다
+    key='read-v13:'+scope+':'+(PropertiesService.getScriptProperties().getProperty('read-version:'+scope)||'0')+':'+(scope==='notes'?'t'+Math.floor(Date.now()/1800000):zipWorkbookStamp_())+(scope==='registry'&&typeof zipHyosanStamp_==='function'?':'+zipHyosanStamp_():'');   // 메모는 보드·스펙 저장으로 통째로 버려지지 않게: 메모 수정(앱·시트 직접 편집)으로만 새로 읽고, 그 밖의 변경은 30분 안에 반영   // 스펙 목록은 효산 시트가 바뀌어도 새로 읽는다
   }catch(ignore){cache=null;}
   // ungzip needs the gzip content type; without it every read silently failed and fell back to a full sheet read.
   // A broken cache entry must not stop the fresh result from being stored below.
@@ -143,6 +144,7 @@ function zipMutateRead_(scopes,write) {
 }
 function zipInvalidateSheetRead_(name) {
   if(name==='접근관리'){zipInvalidateUsers_();return;}
+  if(zipNameKey_(name)===zipNameKey_('샘플북'))return;   // 샘플북은 읽기 캐시가 없다(메모 캐시를 건드리지 않게)
   var canonical=ZIP_RESERVED_SHEETS.filter(function(n){return zipNameKey_(n)===zipNameKey_(name);})[0];if(canonical)name=canonical;
   var scopes=['내 스펙관리','현장별 관리'].indexOf(name)>=0?['specs','registry']:name==='스펙번호 관리'?['registry']:['디자인 보드','디자인 대지'].indexOf(name)>=0?['board']:name==='체크리스트'?['checklist']:['notes'];
   zipInvalidateRead_(scopes);

@@ -447,3 +447,62 @@ html { touch-action:pan-x pan-y; }
 #specs-view #registry-pagination button:hover:not(:disabled) { background:#e2e7ea; color:#263943; }
 #specs-view #registry-pagination button.is-current { background:#263943; color:#fff; }
 #specs-view #registry-pagination button:disabled { opacity:.4; cursor:default; }
+
+/* ── 현장 입력: 종이 한 줄 = 찾기 · 결과 · 경면 · 구분 · 부위 ── */
+#specs-papers { display:grid; gap:10px; }
+.specs-paper.site-paper { position:relative; display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:10px 12px; padding:14px 44px 14px 14px; border:1px solid var(--line); border-radius:16px; background:#fff; }
+.site-paper-find,.site-paper-mirror { display:grid; gap:6px; color:#4f5b65; font-size:12px; font-weight:600; }
+.site-paper input[data-find],.site-paper input[data-mirror] { height:42px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); font:inherit; font-size:14px; }
+.site-paper input[data-find] { border-color:#9fb6bd; }
+.site-paper-result { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-height:34px; padding:6px 10px; border-radius:12px; background:#f5f7f8; font-size:13px; }
+.site-paper-result b { color:#1d2d34; }
+.site-paper-result span { color:#4f5b65; }
+.site-paper-result span + span::before { content:'· '; color:#a1abb2; }
+.site-paper-result em { font-style:normal; padding:2px 8px; border-radius:999px; background:#e6f0ee; color:#2e6458; font-size:12px; font-weight:700; }
+.site-paper-result .site-paper-hint { color:#6a7780; font-size:12px; }
+.site-paper-result .site-paper-hint::before { content:none; }
+#specs-editor .site-paper-result button { min-height:30px; padding:0 12px; border:1px solid #dfe5e8!important; border-radius:999px!important; background:#fff!important; color:#263943!important; font:inherit; font-size:12px; cursor:pointer; box-shadow:none!important; }
+#specs-editor .site-paper-result button[data-register] { background:#263943!important; color:#fff!important; border-color:#263943!important; }
+#specs-editor .site-paper-result button small { color:#6a7780; }
+.site-paper-toggles { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:8px 14px; }
+.site-paper-usage,.site-paper-parts { display:flex; gap:4px; padding:4px; border-radius:999px; background:#eef1f3; }
+#specs-editor .site-paper-usage button,#specs-editor .site-paper-parts button { min-height:32px; padding:0 12px; border:0!important; border-radius:999px!important; background:transparent!important; color:#5c6970!important; font:inherit; font-size:13px; font-weight:600; cursor:pointer; box-shadow:none!important; }
+#specs-editor .site-paper-usage button[aria-pressed=true] { background:#263943!important; color:#fff!important; }
+#specs-editor .site-paper-parts button[aria-pressed=true] { background:#426d79!important; color:#fff!important; }
+#specs-editor .site-paper-remove { position:absolute; top:10px; right:10px; width:30px; height:30px; padding:0; border:0!important; border-radius:50%!important; background:#eef1f3!important; color:#6a7780!important; font-size:16px; line-height:1; cursor:pointer; }
+@media(max-width:600px){ .specs-paper.site-paper { grid-template-columns:1fr; padding:12px 40px 12px 12px; } }
+
+/* ── 내 스펙관리 › 그래프 ── */
+#specs-view .spec-view-tabs { grid-template-columns:repeat(5,minmax(0,1fr)); width:min(100%,560px); }
+#specs-view .spec-view-tabs::before { width:calc((100% - 8px)/5); }
+.graph-panel { position:relative; display:grid; gap:14px; }
+.graph-panel[hidden] { display:none; }
+.graph-filters { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.graph-quarter { display:flex; align-items:center; gap:8px; color:#4f5b65; font-size:12px; font-weight:600; }
+.graph-quarter select { height:40px; padding:0 34px 0 16px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); font:inherit; font-size:14px; }
+.graph-seg { display:flex; gap:2px; padding:4px; border-radius:999px; background:#eef1f3; }
+#specs-view .graph-seg button { min-height:32px; padding:0 12px; border:0!important; border-radius:999px!important; background:transparent!important; color:#5c6970!important; font:inherit; font-size:13px; font-weight:600; cursor:pointer; box-shadow:none!important; }
+#specs-view .graph-seg button[aria-pressed=true] { background:#263943!important; color:#fff!important; }
+#specs-view .graph-parts button[aria-pressed=true] { background:#0f87a3!important; color:#fff!important; }
+.graph-summary { margin:0; color:#4f5b65; font-size:13px; }
+.graph-summary:empty { display:none; }
+.graph-bars { display:grid; gap:4px; margin:0; padding:14px; list-style:none; background:#fff; border:1px solid var(--line); border-radius:18px; }
+.graph-row { display:grid; grid-template-columns:24px minmax(90px,200px) minmax(0,1fr) 36px; align-items:center; gap:10px; padding:6px 8px; border-radius:10px; cursor:pointer; outline:none; }
+.graph-row:hover,.graph-row:focus-visible { background:#f3f7f8; }
+.graph-rank { color:#8a969d; font-size:12px; font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
+.graph-name { display:grid; min-width:0; }
+.graph-name b { color:#1d2d34; font-size:14px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.graph-name small { color:#7a868d; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.graph-track { position:relative; height:14px; }
+.graph-fill { position:absolute; left:0; top:0; bottom:0; border-radius:0 4px 4px 0; background:#0f87a3; }   /* 4px 둥근 끝, 기준선은 왼쪽 */
+.graph-count { color:#1d2d34; font-size:14px; font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
+.graph-empty { padding:22px; color:var(--ink-soft); font-size:14px; text-align:center; list-style:none; }
+.graph-tip { position:absolute; z-index:5; display:grid; gap:3px; max-width:320px; padding:10px 12px; border-radius:12px; background:#1d2d34; color:#e8eef0; font-size:12px; line-height:1.5; box-shadow:0 8px 24px #0003; pointer-events:none; }
+.graph-tip b { color:#fff; font-size:13px; }
+.graph-tip[hidden] { display:none; }
+@media(max-width:600px){
+  #specs-view .spec-view-tabs button { padding:10px 2px; font-size:11.5px; }
+  .graph-row { grid-template-columns:20px minmax(70px,110px) minmax(0,1fr) 28px; gap:6px; padding:6px 4px; }
+  .graph-bars { padding:10px 8px; }
+  .graph-filters { gap:6px; }
+}

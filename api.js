@@ -24,7 +24,7 @@
         if(action==='deleteBoards'){board=board.filter(n=>!payload.ids.includes(n.id));return {ok:true};}
         if(action==='saveArtboard'){artboards=artboards.filter(b=>b.id!==payload.id).concat(clone(payload));return {ok:true,...payload};}
         if(action==='specs')return {ok:true,siteSchemaVersion:2,items:clone(specs)};
-        if(action==='saveSpec'){const item={...payload,id:payload.id||String(Date.now())};const index=specs.findIndex(x=>x.id===item.id);if(index<0)specs.push(item);else specs[index]=item;return {ok:true,id:item.id};}
+        if(action==='saveSpec'){const item={...payload,id:payload.id||String(Date.now()),updatedAt:new Date().toISOString()};if(item.lat===''||item.lat==null){item.lat=37.5665;item.lng=126.978;}item.papers=(item.papers||[]).map(p=>({...p,date:p.date||new Date().toISOString().slice(0,10)}));const index=specs.findIndex(x=>x.id===item.id);if(index<0)specs.push(item);else specs[index]=item;return {ok:true,id:item.id,papers:item.papers,lat:item.lat,lng:item.lng};}   // 미리보기: 위치를 안 고르면 서울로
         if(action==='deleteSpec'){specs=specs.filter(x=>x.id!==payload.id);return {ok:true};}
         if(action==='geocodeSpec')return {ok:true,configured:false,locations:[]};
         if(action==='me')return {ok:true,user:{sub:'local-preview',email:'로컬 파일 미리보기',name:'채은',role:'admin',status:'approved'}};

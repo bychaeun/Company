@@ -12,7 +12,7 @@ function zipSpecs_() {
 }
 function zipSpecItems_(data) {
   return data.rows.filter(function(r){return r[9]&&!r[11]&&r[0];}).map(function(r){
-    return {id:r[9],name:r[0],address:r[12],designer:r[6],contact:r[13],builder:r[14],openMonth:r[4].slice(0,7),completionMonth:r[5].slice(0,7),lat:r[15]===''?null:Number(r[15]),lng:r[16]===''?null:Number(r[16]),images:r[17].split('|').filter(Boolean),imageUrls:zipReadablePhotoUrls_(r[20]),photoVersion:zipHash_(r[20]||''),papers:zipSitePapers_(r),updatedAt:r[10]};
+    return {id:r[9],name:r[0],address:r[12],designer:r[6],contact:r[13],builder:r[14],openMonth:r[4],completionMonth:r[5],status:r[7],note:r[8],lat:r[15]===''?null:Number(r[15]),lng:r[16]===''?null:Number(r[16]),images:r[17].split('|').filter(Boolean),imageUrls:zipReadablePhotoUrls_(r[20]),photoVersion:zipHash_(r[20]||''),papers:zipSitePapers_(r),updatedAt:r[10]};
   });
 }
 var ZIP_SITE_EXTRA=['주소','담당자','건설사','위도','경도','사진 ID','이전 스펙 상세(JSON)','통합 원본 ID','사진 URL'];
@@ -25,7 +25,7 @@ function zipSitePapers_(r){
   try{old=JSON.parse(r[18]||'[]');}catch(ignore){}
   var mirrorLines=String(r[3]||'').replace(/\r\n?/g,'\n').split('\n').map(function(v){return v.trim();});
   if(mirrorLines.length===length&&!String(r[3]||'').includes(','))mirrors=mirrorLines;
-  return Array.from({length:length},function(_,i){return {number:numbers[i]||'',spec:specs[i]||numbers[i]||'',mirror:mirrors.length===1?mirrors[0]:mirrors[i]||'',area:old[i]?.area||'',specMode:true};});
+  return Array.from({length:length},function(_,i){var o=old[i]||{};return {number:numbers[i]||'',spec:specs[i]||numbers[i]||'',mirror:mirrors.length===1?mirrors[0]:mirrors[i]||'',area:o.area||'',usage:o.usage||'',parts:Array.isArray(o.parts)?o.parts:[],date:o.date||'',specMode:true};});
 }
 function zipUnifiedSiteSheet_(setup){
   var data=zipRegistrySheet_('sites',setup,ZIP_SITE_EXTRA),sheet=data.sheet;
@@ -63,13 +63,19 @@ function migrateUnifiedSites(){
   }finally{lock.releaseLock();}
 }
 function zipSpecInput_(b) {
-  var x={};['name','address','designer','contact','builder','openMonth','completionMonth'].forEach(function(k){x[k]=String(b[k]||'').trim();if(x[k].length>300)throw new Error('Too long');});
+  var x={};['name','address','designer','contact','builder','openMonth','completionMonth','status'].forEach(function(k){x[k]=String(b[k]||'').trim();if(x[k].length>300)throw new Error('Too long');});
+  x.note=String(b.note||'').trim();if(x.note.length>4000)throw new Error('Too long');x.keepStatus=!Object.prototype.hasOwnProperty.call(b,'status');x.keepNote=!Object.prototype.hasOwnProperty.call(b,'note');
   if(!x.name||!x.address)throw new Error('Name and address required');
-  ['openMonth','completionMonth'].forEach(function(k){if(x[k]&&!/^\d{4}-(0[1-9]|1[0-2])$/.test(x[k]))throw new Error('Invalid month');});
+  // 모델하우스·본납 예정일은 연월(2027-03) 또는 날짜(2027-03-15) 모두 받는다.
+  ['openMonth','completionMonth'].forEach(function(k){if(x[k]&&!/^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$/.test(x[k]))throw new Error('Invalid month');});
   x.lat=Number(b.lat);x.lng=Number(b.lng);
-  if(b.lat==null||b.lng==null||b.lat===''||b.lng===''||!isFinite(x.lat)||!isFinite(x.lng)||x.lat<32||x.lat>39.5||x.lng<124||x.lng>132.5)throw new Error('Select location in Korea');
+  // 위치를 고르지 않았으면 주소로 자동으로 찾는다(현장목록에서 추가해도 지도에 바로 표시되게).
+  if(b.lat==null||b.lng==null||b.lat===''||b.lng===''||!isFinite(x.lat)||!isFinite(x.lng)){var found=zipGeocodeSpec_(x.address).locations[0];if(!found){var e=new Error('location');e.zipCode='SPEC_LOCATION';throw e;}x.lat=found.lat;x.lng=found.lng;}
+  if(x.lat<32||x.lat>39.5||x.lng<124||x.lng>132.5){var outside=new Error('location');outside.zipCode='SPEC_LOCATION';throw outside;}
   if(!Array.isArray(b.papers)||b.papers.length>50)throw new Error('Invalid papers');
-  x.papers=b.papers.map(function(p){var row={};['number','area','spec','mirror'].forEach(function(k){row[k]=String(p[k]||'').trim();if(row[k].length>300)throw new Error('Too long');});if(p.specMode===true){if(!row.spec&&!row.number)throw new Error('Paper or specification number required');row.specMode=true;}else if(!row.number)throw new Error('Paper number required');return row;});
+  x.papers=b.papers.map(function(p){var row={};['number','area','spec','mirror'].forEach(function(k){row[k]=String(p[k]||'').trim();if(row[k].length>300)throw new Error('Too long');});
+    // 그래프용: 구분(요구·제안·사용), 부위(월·선반·가구, 여러 개), 등록일
+    row.usage=['요구','제안','사용'].indexOf(String(p.usage||''))>=0?String(p.usage):'';row.parts=(Array.isArray(p.parts)?p.parts:[]).map(String).filter(function(v,i,a){return ['월','선반','가구'].indexOf(v)>=0&&a.indexOf(v)===i;});row.date=/^\d{4}-\d{2}-\d{2}$/.test(String(p.date||''))?String(p.date):(typeof Utilities!=='undefined'&&typeof Session!=='undefined'?Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd'):new Date().toISOString().slice(0,10));if(p.specMode===true){if(!row.spec&&!row.number)throw new Error('Paper or specification number required');row.specMode=true;}else if(!row.number)throw new Error('Paper number required');return row;});
   x.images=b.images||[];if(!Array.isArray(x.images)||x.images.length>4||x.images.some(function(v){return typeof v!=='string'||!/^[-\w]{10,200}$/.test(v);}))throw new Error('Invalid images');
   x.imageUrls=zipPhotoUrls_(b.imageUrls||[]);
   return x;
@@ -85,10 +91,10 @@ function zipSaveSpec_(b) {
     // Only images already stored in the configured private upload folder may be attached.
     var folderId=x.images.length?zipImageFolder_().getId():'';
     x.images.forEach(function(image){var parents=DriveApp.getFileById(image).getParents(),found=false;while(parents.hasNext()){if(parents.next().getId()===folderId)found=true;}if(!found)throw new Error('Foreign image');});
-    var values=[x.name,x.papers.map(function(p){return p.number;}).join('\n'),x.papers.map(function(p){return p.spec||p.number;}).join('\n'),x.papers.map(function(p){return p.mirror;}).join('\n'),x.openMonth,x.completionMonth,x.designer,previous[7]||'',previous[8]||'',id,new Date().toISOString(),'',x.address,x.contact,x.builder,String(x.lat),String(x.lng),x.images.join('|'),JSON.stringify(x.papers),previous[19]||'',x.imageUrls.join('\n')];
+    var values=[x.name,x.papers.map(function(p){return p.number;}).join('\n'),x.papers.map(function(p){return p.spec||p.number;}).join('\n'),x.papers.map(function(p){return p.mirror;}).join('\n'),x.openMonth,x.completionMonth,x.designer,x.keepStatus?previous[7]||'':x.status,x.keepNote?previous[8]||'':x.note,id,new Date().toISOString(),'',x.address,x.contact,x.builder,String(x.lat),String(x.lng),x.images.join('|'),JSON.stringify(x.papers),previous[19]||'',x.imageUrls.join('\n')];
     if(row>sh.getMaxRows())sh.insertRowsAfter(sh.getMaxRows(),1);
     zipWriteMapped_(sh,data.columns,row,values);SpreadsheetApp.flush();
-    return {ok:true,id:id,papers:x.papers};
+    return {ok:true,id:id,papers:x.papers,lat:x.lat,lng:x.lng};
   }finally{lock.releaseLock();}
 }
 function zipDeleteSpec_(id) {
@@ -97,8 +103,12 @@ function zipDeleteSpec_(id) {
 function zipGeocodeSpec_(address) {
   address=String(address||'').trim();if(!address||address.length>300)throw new Error('Invalid address');
   var key=PropertiesService.getScriptProperties().getProperty('KAKAO_REST_API_KEY');
-  if(!key)return {ok:true,configured:false,locations:[]};
-  var cache=CacheService.getScriptCache(),cacheKey='specgeo:'+zipHash_(address),hit=cache.get(cacheKey);if(hit)return JSON.parse(hit);
+  if(!key&&(typeof Maps==='undefined'||!Maps.newGeocoder))return {ok:true,configured:false,locations:[]};   // 지오코더가 없으면 지도에서 직접 찍기
+  var cache=CacheService.getScriptCache(),cacheKey='specgeo:'+(key?'':'g:')+zipHash_(address),hit=cache.get(cacheKey);if(hit)return JSON.parse(hit);
+  if(!key){   // 카카오 키가 없으면 Apps Script 내장 지오코더(키 불필요)
+    var located=[];try{var g=Maps.newGeocoder().setRegion('kr').setLanguage('ko').geocode(address);located=(g&&g.results||[]).slice(0,5).map(function(r){return {address:r.formatted_address,lat:Number(r.geometry.location.lat),lng:Number(r.geometry.location.lng)};});}catch(ignore){}
+    var built={ok:true,configured:true,provider:'google',locations:located};if(located.length)cache.put(cacheKey,JSON.stringify(built),21600);return built;
+  }
   var response=UrlFetchApp.fetch('https://dapi.kakao.com/v2/local/search/address.json?query='+encodeURIComponent(address)+'&size=5',{headers:{Authorization:'KakaoAK '+key},muteHttpExceptions:true});
   if(response.getResponseCode()!==200)throw new Error('Geocoder unavailable');
   var result={ok:true,configured:true,locations:(JSON.parse(response.getContentText()).documents||[]).map(function(d){return {address:d.address_name,lat:Number(d.y),lng:Number(d.x)};})};

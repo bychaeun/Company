@@ -3,7 +3,7 @@
   const $=id=>document.getElementById(id),api=window.ZIP_API;
   const admin=()=>window.CHAE_AUTH?.user?.status==='approved'&&window.CHAE_AUTH.user.role==='admin';
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const tabs=['map','sites','numbers','samples'],pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>';
+  const tabs=['map','sites','numbers','samples','graph'],pencil='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg>';
   const clipboardIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="6" width="12" height="15" rx="2"/><path d="M16 6V3H4v14h4"/></svg>';
   const PAGE_SIZE=30;   // 목록 한 쪽에 30개
   let pageChanged=false,searchCache={},searchTimer=0,categoryFilter='',active='map',data=null,loading=false,saving=false,epoch=0,revision=0,page=1,sortColumn=-1,sortDirection=1,editing,loadedAt=0,forceQueued=false;
@@ -55,6 +55,22 @@
     return '';
   }
   function duplicateOf(field,value,exceptId){const v=fold(value);return v&&data?data.lists.numbers.items.find(r=>r.id!==exceptId&&fold(r.values[field])===v)||null:null;}
+  // 현장 입력에서 쓰는 찾기: 종이넘버 · 제품명(현재·이전) · 스펙넘버 중 무엇을 넣어도 [종이넘버, 스펙넘버, 제품명, 분류] 세트로 돌려준다.
+  function resolvePaper(text){
+    const q=fold(text);if(!q||!data)return [];const out=new Map(),list=data.lists.numbers.items;
+    const add=(number,spec,how)=>{const key=fold(number);if(!key||out.has(key))return;const reg=list.find(r=>fold(r.values[0])===key);spec=spec||reg?.values[1]||'';
+      out.set(key,{number:reg?.values[0]||number,spec,product:productNames(number)[0],category:paperCategory(number)||specCategory(spec),registered:!!reg,how});};
+    list.forEach(r=>{if(fold(r.values[1])===q)add(r.values[0],r.values[1],'스펙넘버');});
+    list.forEach(r=>{if(fold(r.values[0])===q)add(r.values[0],r.values[1],'종이넘버');});
+    const hy=data.hyosanNames||{};
+    Object.keys(hy).forEach(k=>{if(fold(k)===q)add(k,'','종이넘버');});
+    Object.entries(hy).forEach(([k,e])=>{if(nameTokens(e[0]).some(v=>fold(v)===q))add(k,'','현재 제품명');});
+    Object.entries(hy).forEach(([k,e])=>{if(nameTokens(e[1]).some(v=>fold(v)===q))add(k,'','이전 제품명');});
+    return [...out.values()];
+  }
+  window.ZIP_SPEC_LOOKUP={resolve:resolvePaper,productNames,category:p=>paperCategory(p),nextSpec:(label)=>nextSpecNumber(label),ready:()=>!!data,statuses:()=>data?.statuses||[],
+    // 스펙 목록에 없는 종이를 다음 번호로 바로 등록
+    async register(number,spec){const item={kind:'numbers',id:crypto.randomUUID(),version:'',values:[number,spec,'']};const result=await api.request('saveSpecRegistry',numberWrite(item));revision++;let saved=result.item;if(data.legacyNumberColumns)saved={...saved,legacyMirror:saved.values[2],values:[saved.values[0],saved.values[1],saved.values[3]]};data.lists.numbers.items.push(saved);render();return saved;}};
   function specCategory(spec){const m=String(spec||'').trim().match(/^([A-Za-z]+)(\d+)/);if(!m)return '';const n=Number(m[2]);return guideRanges().find(r=>r.prefix===m[1].toUpperCase()&&n>=r.from&&n<=r.to)?.label||'';}
   function renderGuide(){const rows=(data?.guide||[]).filter(r=>r.some(Boolean));guideBox.hidden=active!=='numbers'||!rows.length;if(guideBox.hidden)return;// 분류 칩을 누르면 그 분류만 보이고, 한 번 더 누르면 전체로 돌아간다.
     const labelOf=r=>{const cells=r.filter(Boolean);return cells.some(v=>/^[A-Za-z]+\d+\s*[-~–]/.test(v))?cells.filter(v=>!/^[A-Za-z]+\d+\s*[-~–]/.test(v)).join(' ')||cells[0]:'';};
@@ -123,11 +139,12 @@
     if(!tabs.includes(kind))return;detail.close();active=kind;page=1;categoryFilter='';sortColumn=-1;$('registry-search').value='';
     $('spec-tab-map').parentElement.style.setProperty('--active-tab',String(tabs.indexOf(kind)));
     tabs.forEach(k=>{const b=$('spec-tab-'+k);b.setAttribute('aria-selected',String(k===kind));b.tabIndex=k===kind?0:-1;});
-    $('spec-map-panel').hidden=kind!=='map';$('spec-registry-panel').hidden=kind==='map'||kind==='samples';$('spec-samples-panel').hidden=kind!=='samples';
+    $('spec-map-panel').hidden=kind!=='map';$('spec-registry-panel').hidden=['map','samples','graph'].includes(kind);$('spec-samples-panel').hidden=kind!=='samples';$('spec-graph-panel').hidden=kind!=='graph';
     $('spec-registry-panel').setAttribute('aria-labelledby','spec-tab-'+kind);
     if(focus)$('spec-tab-'+kind).focus();
     if(kind==='map'){window.dispatchEvent(new Event('spec-map-visible'));return;}
     if(kind==='samples'){window.dispatchEvent(new Event('spec-samples-visible'));return;}   // 샘플북은 samples.js가 맡는다
+    if(kind==='graph'){window.dispatchEvent(new Event('spec-graph-visible'));refresh();return;}   // 그래프는 graph.js (현장 데이터로 그린다)
     $('registry-search').placeholder=kind==='numbers'?'종이넘버, 스펙넘버, 분류, 제품명, 비고':'현장명, 종이넘버, 스펙넘버, 경면, 설계사';
     $('registry-add').textContent=kind==='numbers'?'＋ 스펙 추가':'＋ 현장 내역';render();refresh();
   }
@@ -189,6 +206,7 @@
   function edit(item){
     if(!admin()||saving||!data)return;
     if(item?.source){selectTab('map');window.dispatchEvent(new CustomEvent('spec-map-edit',{detail:item.source}));return;}
+    if(active==='sites'){const mapped=item?(item.source||data.mapItems?.find(m=>m.id===item.id)):null;if(!item||mapped){window.dispatchEvent(new CustomEvent('spec-site-edit',{detail:mapped||null}));return;}}   // 현장은 주소·지도·종이 세트를 한 번에 입력하는 현장 입력창으로
     const kind=active,mapped=item?.source||data.mapItems?.find(row=>row.id===item?.id);editing={kind,id:item?.id||crypto.randomUUID(),version:item?.version||'',legacyMirror:item?.legacyMirror||'',imageUrls:[...(item?.imageUrls||mapped?.imageUrls||[])],photoVersion:item?.photoVersion||mapped?.photoVersion||'',values:item?[...item.values]:Array(data.lists[kind].headers.length).fill('')};
     $('registry-editor-title').textContent=(kind==='numbers'?'스펙번호':'현장 내역')+(item?' 수정':' 추가');
     editor.querySelector('[data-fields]').innerHTML=data.lists[kind].headers.map((h,i)=>{
@@ -321,7 +339,7 @@
   $('registry-table').onkeydown=e=>{const row=e.target.closest?.('tr[data-row-id]');if(row&&e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openRow(row);}};
   $('registry-table').onclick=e=>{const b=e.target.closest('button');if(!b){const row=e.target.closest('tr[data-row-id]');if(row&&!getSelection()?.toString())openRow(row);return;}if(b.dataset.paperImages!==undefined){showPaperImages(rows().find(r=>r.id===b.dataset.paperImages));return;}if(b.dataset.copy!==undefined){copyPaperNumber(b);return;}if(b.dataset.sort!==undefined){const col=Number(b.dataset.sort);sortDirection=sortColumn===col?-sortDirection:1;sortColumn=col;render();}else if(b.dataset.id)edit(rows().find(r=>r.id===b.dataset.id));};
   $('registry-pagination').onclick=e=>{const b=e.target.closest('[data-page]');if(b&&!b.disabled&&Number(b.dataset.page)!==page){page=Number(b.dataset.page);pageChanged=true;render();}};
-  $('specs-nav-button').addEventListener('click',()=>{if(active!=='map'&&active!=='samples')refresh();});
+  $('specs-nav-button').addEventListener('click',()=>{if(!['map','samples'].includes(active))refresh();});
   window.addEventListener('access-change',()=>{if(!admin()){epoch++;revision++;data=null;loadedAt=0;forceQueued=false;editing=null;detail.close();detail.replaceChildren();editor.close();editor.querySelector('[data-fields]').replaceChildren();$('registry-synced').textContent='';$('registry-count').textContent='';$('registry-message').textContent='';render();selectTab('map');}});
-  setInterval(()=>{if(!document.hidden&&!$('specs-view').hidden&&active!=='map'&&active!=='samples')refresh();},60000);
+  setInterval(()=>{if(!document.hidden&&!$('specs-view').hidden&&!['map','samples'].includes(active))refresh();},60000);
 })();

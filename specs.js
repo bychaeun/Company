@@ -15,12 +15,12 @@
     <fieldset id="specs-fields"><div class="specs-grid">
     <label>현장명 *<input name="name" required maxlength="300"></label><label>현장 주소 *<input name="address" required maxlength="300"></label>
     <label>설계사<input name="designer" maxlength="300"></label><label>담당자<input name="contact" maxlength="300"></label><label>건설사<input name="builder" maxlength="300"></label>
-    <label>M/H 오픈날<input name="openMonth" type="month"></label><label>완공 연월<input name="completionMonth" type="month"></label></div>
-    <p class="specs-help">주소 검색을 누르면 입력한 주소만 카카오에 전달됩니다. 담당자나 비공개 메모는 주소 칸에 넣지 마세요. API 연결 전에는 아래 지도에서 직접 위치를 찍을 수 있어요.</p>
+    <label>모델하우스 예정일<input name="openMonth" maxlength="10" placeholder="2027-03 또는 2027-03-15"></label><label>본납 예정일<input name="completionMonth" maxlength="10" placeholder="2027-09 또는 2027-09-30"></label><label>진행상태<select name="status"><option value="">선택 안 함</option></select></label></div><label>비고<textarea name="note" rows="2" maxlength="4000"></textarea></label>
+    <p class="specs-help">위치를 따로 고르지 않아도 저장할 때 주소로 자동으로 찾아 지도에 표시해요. 정확한 위치가 필요하면 주소로 찾기나 지도 클릭으로 바꿀 수 있어요. 담당자나 비공개 메모는 주소 칸에 넣지 마세요.</p>
     <button id="specs-locate" type="button">주소로 위치 찾기</button><div id="specs-candidates"></div>
     <p id="specs-location" role="status">지도에서 현장 위치를 선택해 주세요.</p><div id="specs-pick-map" class="specs-pick-map" aria-label="현장 위치 선택 지도"></div>
     <input name="lat" type="hidden"><input name="lng" type="hidden">
-    <h3>스펙번호 · 경면</h3><div id="specs-papers"></div><button id="specs-paper-add" type="button">＋ 스펙 추가</button>
+    <h3>종이 · 경면 · 구분 · 부위</h3><p class="specs-help">종이넘버, 제품명, 스펙넘버 중 하나만 넣으면 나머지가 채워져요. 쉼표나 줄바꿈으로 여러 개를 한 번에 넣으면 줄이 나뉘어요. 경면·구분·부위는 줄마다 따로예요.</p><div id="specs-papers"></div><button id="specs-paper-add" type="button">＋ 종이 추가</button>
     <label>사진 URL (한 줄에 하나씩 · 최대 12장)<textarea id="specs-photo-urls" rows="4" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea></label><div id="specs-url-preview" class="specs-photos"></div>
     <label hidden>기존 방식 사진 첨부<input id="specs-files" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="specs-retained"></div>
     </fieldset><p id="specs-save-message" role="status"></p><div class="specs-actions"><button id="specs-cancel" type="button">취소</button><button type="submit">시트에 저장</button></div></form>`;
@@ -126,26 +126,57 @@
   window.addEventListener('spec-map-detail',event=>{if(admin()&&event.detail)showDetail(event.detail);});
   window.addEventListener('spec-map-data',event=>{if(!admin()||!Array.isArray(event.detail))return;dataRevision++;siteSchemaVersion=2;items=event.detail.map(item=>({...item,papers:Array.isArray(item.papers)?item.papers:[],images:Array.isArray(item.images)?item.images:[]}));render();});
   window.addEventListener('spec-map-edit',event=>{if(admin()&&event.detail)edit(event.detail);});
+  window.addEventListener('spec-site-edit',event=>{if(admin())edit(event.detail||null);});   // 현장목록에서 추가·수정
   $('specs-search').addEventListener('input',()=>{page=1;render();});
   $('specs-pagination').onclick=event=>{const button=event.target.closest('[data-spec-page]');if(button&&!button.disabled){page=Number(button.dataset.specPage);render();$('specs-list').scrollIntoView({block:'start',behavior:'smooth'});}};
   $('specs-list').onclick=e=>{const b=e.target.closest('[data-spec-id]');if(b){const x=items.find(x=>x.id===b.dataset.specId);if(x)showDetail(x);}};
-  function addPaper(p={}) {
-    const row=document.createElement('div');row.className='specs-paper';
-    row.dataset.original=JSON.stringify(p);
-    row.innerHTML=`<label>종이넘버<textarea data-paper="number" maxlength="4000" placeholder="종이넘버 또는 스펙넘버 중 하나 입력">${escape(p.number||'')}</textarea></label><label>스펙넘버<textarea data-paper="spec" maxlength="4000" placeholder="여러 개는 줄바꿈 또는 쉼표로 구분">${escape(p.spec||'')}</textarea></label><label>경면<textarea data-paper="mirror" maxlength="4000" placeholder="예: HM, SM">${escape(p.mirror||'')}</textarea></label><output class="spec-combined">${escape(specLabel(p))}</output><div class="spec-number-matches"></div><button type="button" data-remove-paper aria-label="이 스펙 항목 삭제">삭제</button>`;
-    row.addEventListener('input',()=>{const specs=splitSpec(row.querySelector('[data-paper=spec]').value),mirrors=splitSpec(row.querySelector('[data-paper=mirror]').value);row.querySelector('output').textContent=specs.map((spec,i)=>specLabel({spec,mirror:mirrors.length===1?mirrors[0]:mirrors[i]})).join(', ');});
-    let change=0;row.addEventListener('input',()=>{change++;row.querySelector('.spec-number-matches').replaceChildren();});
-    ['number','spec'].forEach((field,index)=>{row.querySelector('[data-paper='+field+']').onchange=async()=>{
-      const stamp=++change,version=editorVersion,access=generation,input=row.querySelector('[data-paper='+field+']'),value=input.value;if(!value.trim())return;
-      try{const result=await api.request('specRegistry');if(stamp!==change||version!==editorVersion||access!==generation||!editor.open||!row.isConnected)return;
-        const matches=findNumberPairs(result.lists.numbers.items,index,value),box=row.querySelector('.spec-number-matches');box.replaceChildren();
-        const apply=pairs=>{row.querySelector('[data-paper=number]').value=pairs.map(p=>p[0]).join('\n');row.querySelector('[data-paper=spec]').value=pairs.map(p=>p[1]).join('\n');box.replaceChildren();row.dispatchEvent(new Event('input',{bubbles:true}));$('specs-save-message').textContent='연결된 번호를 자동 입력했어요.';};
-        if(matches.length&&matches.every(m=>m.length===1)){apply(matches.map(m=>m[0]));return;}
-        $('specs-save-message').textContent=matches.some(m=>m.length>1)?'같은 번호에 여러 스펙이 있어요. 연결할 번호를 선택해 주세요.':'스펙번호 관리에 연결된 번호가 없어요. 직접 입력할 수 있어요.';
-        if(matches.length===1)matches[0].forEach(pair=>{const b=document.createElement('button');b.type='button';b.textContent=pair[0]+' → '+pair[1];b.onclick=()=>apply([pair]);box.append(b);});
-      }catch(error){if(version===editorVersion&&access===generation&&editor.open)$('specs-save-message').textContent=error.message+' 번호는 직접 입력할 수 있어요.';}
-    };});
-    row.querySelector('[data-remove-paper]').onclick=()=>row.remove();$('specs-papers').append(row);
+  const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+  const looksSpec=v=>/^[A-Za-z]+\d+-CE\d+$/i.test(String(v||'').trim());
+  // 종이 한 줄 = [종이넘버, 스펙넘버, 제품명] 세트 + 경면 1개 + 구분(요구·제안·실제 사용) + 부위(드레스룸 월·선반·가구, 여러 개)
+  function addPaper(p={},text='') {
+    const row=document.createElement('div');row.className='specs-paper site-paper';row.dataset.original=JSON.stringify(p);
+    const state={number:p.number||'',spec:p.spec||'',usage:p.usage||'',parts:new Set(Array.isArray(p.parts)?p.parts:[]),date:p.date||''};row._state=state;
+    row.innerHTML=`<label class="site-paper-find">종이넘버 · 제품명 · 스펙넘버<input data-find maxlength="2000" placeholder="하나만 입력 (예: SM2003D · N436 · HS20-CE01)" autocomplete="off"></label>
+      <div class="site-paper-result" data-result aria-live="polite"></div>
+      <label class="site-paper-mirror">경면<input data-mirror maxlength="100" placeholder="예: HM" value="${escape(p.mirror||'')}"></label>
+      <div class="site-paper-toggles"><div class="site-paper-usage" role="group" aria-label="구분">${['요구','제안','사용'].map(u=>`<button type="button" data-usage="${u}" aria-pressed="${state.usage===u}">${u==='사용'?'실제 사용':u}</button>`).join('')}</div>
+      <div class="site-paper-parts" role="group" aria-label="부위">${['월','선반','가구'].map(v=>`<button type="button" data-part="${v}" aria-pressed="${state.parts.has(v)}">${v==='월'?'드레스룸 월':v}</button>`).join('')}</div></div>
+      <button type="button" class="site-paper-remove" data-remove-paper aria-label="이 종이 빼기">×</button>`;
+    const find=row.querySelector('[data-find]'),result=row.querySelector('[data-result]'),look=()=>window.ZIP_SPEC_LOOKUP;
+    const show=()=>{const L=look();if(!state.number&&!state.spec){result.innerHTML='<span class="site-paper-hint">입력하면 종이넘버·스펙넘버·제품명이 함께 채워져요</span>';return;}
+      const product=L?.productNames(state.number)?.[0]||'',cat=L?.category(state.number)||'';
+      result.innerHTML=`<b>${escape(state.number||'종이넘버 없음')}</b><span>${escape(state.spec||'스펙 미등록')}</span>${product?`<span>${escape(product)}</span>`:''}${cat?`<em>${escape(cat)}</em>`:''}`;
+      const next=state.number&&!state.spec&&cat&&L?.nextSpec(cat);if(next)result.insertAdjacentHTML('beforeend',`<button type="button" data-register="${escape(next)}">${escape(next)}로 스펙 등록</button>`);};
+    const choose=c=>{state.number=c.number;state.spec=c.spec;find.value='';show();};
+    const resolveOne=token=>{const L=look(),list=L?.ready()?L.resolve(token):[];
+      if(list.length===1){choose(list[0]);return true;}
+      if(list.length>1){result.innerHTML=`<span class="site-paper-hint">"${escape(token)}"에 맞는 종이가 ${list.length}개예요. 골라 주세요.</span>`+list.map((c,k)=>`<button type="button" data-pick="${k}"><b>${escape(c.number)}</b> ${escape(c.spec||'스펙 미등록')}${c.product?' · '+escape(c.product):''} <small>${escape(c.how)}</small></button>`).join('');row._picks=list;return false;}
+      if(looksSpec(token)){state.spec=token.trim().toUpperCase();state.number='';}else{state.number=token.trim();state.spec='';}find.value='';show();
+      result.insertAdjacentHTML('afterbegin','<span class="site-paper-hint">스펙 목록·효산 시트에 없는 번호라 입력한 그대로 써요. </span>');return true;};
+    const resolveText=()=>{const tokens=find.value.split(/[,\n\r]+/).map(v=>v.trim()).filter(Boolean);if(!tokens.length)return;
+      // 여러 개를 한 번에 넣으면 첫 번째는 이 줄에, 나머지는 바로 아래 새 줄로 나눈다(경면·구분·부위는 줄마다).
+      tokens.slice(1).reverse().forEach(t=>{const extra=addPaper({usage:state.usage,parts:[...state.parts]},t);row.after(extra);});resolveOne(tokens[0]);};
+    let timer=0;find.addEventListener('input',()=>{clearTimeout(timer);if(/[,\n\r]/.test(find.value))return;timer=setTimeout(()=>{if(find.value.trim())resolveOne(find.value);},450);});
+    find.addEventListener('change',()=>{clearTimeout(timer);resolveText();});
+    find.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(timer);resolveText();}});
+    find.addEventListener('paste',()=>setTimeout(()=>{if(/[,\n\r]/.test(find.value)){clearTimeout(timer);resolveText();}},0));
+    row.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
+      if(b.dataset.pick!==undefined){choose(row._picks[Number(b.dataset.pick)]);return;}
+      if(b.dataset.usage){state.usage=state.usage===b.dataset.usage?'':b.dataset.usage;row.querySelectorAll('[data-usage]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.usage===state.usage)));return;}
+      if(b.dataset.part){state.parts.has(b.dataset.part)?state.parts.delete(b.dataset.part):state.parts.add(b.dataset.part);b.setAttribute('aria-pressed',String(state.parts.has(b.dataset.part)));return;}
+      if(b.dataset.register){b.disabled=true;try{await look().register(state.number,b.dataset.register);state.spec=b.dataset.register;show();$('specs-save-message').textContent=`${state.number}을 ${state.spec}로 스펙 목록에 등록했어요.`;}catch(error){b.disabled=false;$('specs-save-message').textContent=error.message;}return;}
+      if(b.dataset.removePaper!==undefined)row.remove();});
+    show();if(text){find.value=text;resolveOne(text);}
+    if(!row.isConnected&&!text)$('specs-papers').append(row);
+    return row;
+  }
+  // 저장 전에: 아직 확정 안 된 입력은 지금 찾고, 줄마다 하나의 종이로 모은다.
+  function collectPapers(){
+    const rows=[...$('specs-papers').children];
+    for(const row of rows){const f=row.querySelector('[data-find]');if(f?.value.trim()){f.dispatchEvent(new Event('change'));}}
+    const out=[];for(const row of [...$('specs-papers').children]){const st=row._state;if(!st)continue;if(row._picks&&!st.number&&!st.spec)throw Error('종이를 골라 주세요.');if(!st.number&&!st.spec)continue;
+      const old=JSON.parse(row.dataset.original||'{}');out.push({...old,number:st.number,spec:st.spec,mirror:row.querySelector('[data-mirror]').value.trim(),usage:st.usage,parts:[...st.parts],date:st.date||today(),specMode:true});}
+    if(!out.length)throw Error('종이넘버·제품명·스펙넘버 중 하나 이상 넣어 주세요.');return out;
   }
   function setLocation(lat,lng) {
     location={lat:Number(lat),lng:Number(lng)};form.elements.lat.value=lat;form.elements.lng.value=lng;
@@ -155,11 +186,12 @@
   async function edit(item=null) {
     if(!admin()||saving)return;const editVersion=++editorVersion;editing=item;searchVersion++;form.reset();location=null;retainedImages=[...(item?.images||[])];uploadedImages=[];
     $('specs-editor-title').textContent=item?'현장 수정':'현장 등록';$('specs-save-message').textContent='';$('specs-candidates').replaceChildren();$('specs-location').textContent='주소 검색 또는 지도 클릭으로 위치를 선택하세요.';
-    for(const k of ['name','address','designer','contact','builder','openMonth','completionMonth'])form.elements[k].value=item?.[k]||'';
-    $('specs-papers').replaceChildren();(item?.papers.length?item.papers:[{}]).forEach(addPaper);renderRetained();
+    const statuses=[...new Set([...(window.ZIP_SPEC_LOOKUP?.statuses()||[]),item?.status].filter(Boolean))];form.elements.status.innerHTML='<option value="">선택 안 함</option>'+statuses.map(v=>`<option>${escape(v)}</option>`).join('');
+    for(const k of ['name','address','designer','contact','builder','openMonth','completionMonth','status','note'])form.elements[k].value=item?.[k]||'';
+    $('specs-papers').replaceChildren();(item?.papers.length?item.papers:[{}]).forEach(p=>addPaper(p));renderRetained();
     $('specs-photo-urls').value=(item?.imageUrls||[]).join('\n');$('specs-url-preview').replaceChildren();
     if(pickMarker&&picker){picker.removeLayer(pickMarker);pickMarker=null;}
-    if(item)setLocation(item.lat,item.lng);
+    if(item&&Number.isFinite(Number(item.lat))&&item.lat!==null)setLocation(item.lat,item.lng);else $('specs-location').textContent='위치를 고르지 않으면 저장할 때 주소로 자동으로 찾아요.';
     editor.showModal();const version=generation;
     try{const [,data]=await Promise.all([loadMapLibrary(),loadGeography()]);if(version!==generation||editVersion!==editorVersion||!editor.open)return;if(!picker){picker=makeMap('specs-pick-map',data);picker.on('click',e=>{if(!saving)setLocation(e.latlng.lat,e.latlng.lng);});}picker.invalidateSize();picker.setView(item?[item.lat,item.lng]:[36.0,127.8],item?10:7);if(location)setLocation(location.lat,location.lng);}catch(e){if(editVersion===editorVersion)$('specs-location').textContent=e.message+' 주소 검색을 이용하거나 창을 닫고 다시 열어 주세요.';}
   }
@@ -185,13 +217,13 @@
   $('specs-files').addEventListener('change',()=>{uploadedImages=[];});
   form.addEventListener('submit',async e=>{
     e.preventDefault();if(saving||!admin())return;
-    if(!location||!Number.isFinite(location.lat)||!Number.isFinite(location.lng)||location.lat<32||location.lat>39.5||location.lng<124||location.lng>132.5){$('specs-save-message').textContent='주소 검색 또는 지도에서 국내 현장 위치를 선택해 주세요.';return;}
+    if(location&&(location.lat<32||location.lat>39.5||location.lng<124||location.lng>132.5)){$('specs-save-message').textContent='국내 위치를 선택해 주세요.';return;}   // 위치를 안 고르면 서버가 주소로 찾는다
     const files=Array.from($('specs-files').files);if(files.length+retainedImages.length>4){$('specs-save-message').textContent='사진은 기존 사진을 포함해 4장까지 가능해요.';return;}
-    const payload={id:editing?.id||'',lat:Number(form.elements.lat.value),lng:Number(form.elements.lng.value)};
-    for(const k of ['name','address','designer','contact','builder','openMonth','completionMonth'])payload[k]=form.elements[k].value.trim();
+    const payload={id:editing?.id||'',lat:location?Number(form.elements.lat.value):'',lng:location?Number(form.elements.lng.value):''};
+    for(const k of ['name','address','designer','contact','builder','openMonth','completionMonth','status','note'])payload[k]=form.elements[k].value.trim();
     try{
       payload.imageUrls=photoUrls($('specs-photo-urls').value);
-      payload.papers=Array.from($('specs-papers').children).flatMap(row=>{const old=JSON.parse(row.dataset.original||'{}'),numbers=splitSpec(row.querySelector('[data-paper=number]').value),specs=splitSpec(row.querySelector('[data-paper=spec]').value),mirrors=splitSpec(row.querySelector('[data-paper=mirror]').value),count=Math.max(numbers.length,specs.length);if(!count||numbers.length&&specs.length&&numbers.length!==specs.length||mirrors.length>1&&mirrors.length!==count)throw Error('종이넘버 또는 스펙넘버를 입력하고 항목 개수를 맞춰 주세요.');return Array.from({length:count},(_,i)=>({...old,number:numbers[i]||'',spec:specs[i]||'',mirror:mirrors.length===1?mirrors[0]:mirrors[i]||'',specMode:true}));});
+      payload.papers=collectPapers();
       if(payload.papers.length>50)throw Error('스펙은 최대 50개까지 입력해 주세요.');
       if(siteSchemaVersion<2&&(payload.imageUrls.length||payload.papers.some(p=>p.mirror||!p.number)))throw Error('사진 URL·경면·스펙번호 단독 저장은 서버 업데이트 후 사용할 수 있어요. 입력 내용은 유지됩니다.');
     }catch(e){$('specs-save-message').textContent=e.message;return;}
@@ -200,7 +232,7 @@
       for(let i=0;i<files.length;i++){if(uploadedImages[i])continue;$('specs-save-message').textContent=`사진 ${i+1}/${files.length} 업로드 중…`;const data=await photo(files[i]);if(version!==generation)return;const result=await api.request('uploadNoteImage',data);if(version!==generation)return;uploadedImages[i]=result.fileId;}
       payload.images=[...retainedImages,...uploadedImages];$('specs-save-message').textContent='현장과 종이 스펙을 저장하고 있어요.';
       const result=await api.request('saveSpec',payload);if(version!==generation)return;
-      const saved={...payload,papers:result.papers||payload.papers,id:result.id||payload.id};dataRevision++;loadedAt=0;window.dispatchEvent(new Event('spec-registry-invalidated'));
+      const saved={...payload,papers:result.papers||payload.papers,id:result.id||payload.id,lat:Number(result.lat??payload.lat),lng:Number(result.lng??payload.lng)};dataRevision++;loadedAt=0;window.dispatchEvent(new Event('spec-registry-invalidated'));window.dispatchEvent(new Event('spec-registry-refresh'));   // 현장목록·그래프도 바로 새로
       const index=items.findIndex(item=>item.id===saved.id);
       if(index<0)items.push(saved);else items[index]=saved;
       $('specs-search').value='';render();editor.close();
