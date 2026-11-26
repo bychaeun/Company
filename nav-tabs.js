@@ -11,6 +11,7 @@
     { view: '#checklist-view', open: '#checklist-nav-button', source: '#checklist-nav-button', label: '스케줄', short: '스케줄', icon: icon('M5 6h14v14H5zM5 10h14M9 3v4M15 3v4') },
     { view: '#specs-view', open: '#specs-nav-button', source: '#specs-nav-button', label: '스펙관리', short: '스펙', icon: icon('M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z') },
     { view: '#board-view', open: '#board-nav-button', source: '#board-nav-button', label: '디자인 보드', short: '보드', icon: icon('M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z') },
+    { view: '#sales-view', open: '#sales-nav-button', source: '#sales-nav-button', label: '영업 관리', short: '영업', icon: icon('M9 7V5h6v2M4 7h16v12H4zM4 12h16M11 12v2h2v-2') },
   ];
 
   const tabs = (cls, withIcons) => views.map((v, i) => withIcons

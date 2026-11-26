@@ -140,7 +140,7 @@
   search.querySelector('[data-count]').textContent=!boardQuery?'':!boardMatches.length?'결과 없음':boardMatchAt<0?(here?`${boardMatches.length}개`:`다른 대지에 ${other}개 · › 로 이동`):`${boardMatchAt+1}/${boardMatches.length}`+(other?` · 다른 대지 ${other}개`:'');
   search.querySelectorAll('[data-step]').forEach(b=>{b.disabled=!boardMatches.length||(boardMatches.length===1&&boardMatchAt===0);});search.classList.toggle('has-query',!!boardQuery);}
  function centerOn(n){const card=nodes.querySelector(`[data-node="${CSS.escape(n.id)}"]`),w=card?.offsetWidth||n.width||260,h=card?.offsetHeight||n.height||140,box=board.getBoundingClientRect();
-  tx=box.width/2-(n.x+w/2)*scale;ty=box.height/2-(n.y+h/2)*scale;world.style.transition='transform .35s ease';transform();setTimeout(()=>{world.style.transition='';},380);}
+  const visible=Math.max(160,Math.min(box.height,window.innerHeight-Math.max(box.top,0)-(document.body.classList.contains('has-view-tabs')&&innerWidth<=600?100:20)));tx=box.width/2-(n.x+w/2)*scale;ty=visible/2-(n.y+h/2)*scale;world.style.transition='transform .35s ease';transform();setTimeout(()=>{world.style.transition='';},380);}
  function goTo(i){if(!boardMatches.length)return;if(boardMatchAt<0&&i>=0)i=Math.max(0,boardMatches.findIndex(n=>(n.boardId||'default')===activeBoard));boardMatchAt=(i+boardMatches.length)%boardMatches.length;const n=boardMatches[boardMatchAt];
   if((n.boardId||'default')!==activeBoard){activeBoard=n.boardId||'default';resetSelection();renderArtboards();}
   render();showCount();requestAnimationFrame(()=>centerOn(n));}

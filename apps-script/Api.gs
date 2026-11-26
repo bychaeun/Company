@@ -53,6 +53,9 @@ function doPost(e) {
     if (action === 'specs') return zipJson_(zipReadCache_('specs',body.force,function(){return {ok:true,siteSchemaVersion:2,items:zipSpecs_()};}));
     if (action === 'saveSpec') return zipJson_(zipMutateRead_(['specs','registry'],function(){return zipSaveSpec_(body);}));
     if (action === 'deleteSpec') return zipJson_(zipMutateRead_(['specs','registry'],function(){return zipDeleteSpec_(body.id);}));
+    if (action === 'salesLog') return zipJson_(zipSalesLog_());
+    if (action === 'saveSalesLog') return zipJson_(zipSaveSalesLog_(body));
+    if (action === 'deleteSalesLog') return zipJson_(zipDeleteSalesLog_(body.id));
     if (action === 'sampleBooks') return zipJson_(zipSampleBooks_());
     if (action === 'saveSampleBook') return zipJson_(zipSaveSampleBook_(body));
     if (action === 'deleteSampleBook') return zipJson_(zipDeleteSampleBook_(body.id));
@@ -76,6 +79,7 @@ function doPost(e) {
   } catch (error) {
     // No token, private note, raw upstream error or configuration secrets in public responses.
     var messages={AUTH_REQUIRED:'로그인이 만료됐어요. 다시 로그인해 주세요.',NOTE_CATEGORY:'대분류 이름을 확인해 주세요. 관리용 이름이나 / \\ ? * [ ] : 문자는 사용할 수 없어요.',NOTE_FIELDS:'제목과 입력 길이를 확인해 주세요.',NOTE_HEADERS:'같은 이름의 시트가 있지만 메모 양식이 달라요. 다른 대분류 이름을 사용해 주세요.',NOTE_MOVED:'시트에서 메모 위치가 바뀌었어요. 새로고침한 뒤 다시 시도해 주세요.'};
+    Object.assign(messages,{SALES_INPUT:'날짜와 업체명을 확인해 주세요. 내용은 4000자까지예요.',SALES_HEADERS:'영업 기록 시트의 제목행이 바뀌었어요. 열 이름을 확인해 주세요.'});
     Object.assign(messages,{SPEC_LOCATION:'주소로 위치를 찾지 못했어요. 주소를 더 자세히 쓰거나 지도에서 위치를 찍어 주세요.'});
     Object.assign(messages,{SAMPLE_INPUT:'날짜, 업체명, 직달/택배, 권수(1~999)를 확인해 주세요.',SAMPLE_HEADERS:'샘플북 시트의 제목행이 바뀌었어요. 열 이름을 확인해 주세요.',SAMPLE_TEMPLATE:'보고서 양식 시트를 열 수 없어요. 양식 시트 공유 권한을 확인해 주세요.',SAMPLE_PDF:'PDF를 만들지 못했어요. 잠시 후 다시 시도해 주세요.'});
     Object.assign(messages,{REGISTRY_SETUP:'컴퍼니 시트의 관리 탭 연결을 확인해 주세요.',REGISTRY_HEADERS:'관리 시트의 제목행이 변경됐어요. 열 이름을 확인해 주세요.',REGISTRY_IDS:'중복된 관리 ID가 있어요. 시트의 ID 열을 확인해 주세요.',REGISTRY_INPUT:'필수 항목과 입력 길이를 확인해 주세요.',REGISTRY_CONFLICT:'시트에서 다른 수정이 확인됐어요. 입력 내용을 복사해 두고 목록을 동기화한 뒤 다시 열어 주세요.',REGISTRY_FORMULA:'수식으로 계산 중인 칸은 앱에서 덮어쓰지 않아요. 시트에서 수정해 주세요.',REGISTRY_VALIDATION:'시트에서 허용한 진행상태를 선택해 주세요.',REGISTRY_LIMIT:'관리 시트는 탭당 10,000개 내역까지 지원해요.'});
@@ -131,7 +135,7 @@ function zipWorkbookStamp_() {
 }
 // Tab names are matched without spaces or case, so '스펙번호관리' and '스펙번호 관리' are the same tab.
 function zipNameKey_(value){return String(value||'').normalize('NFKC').replace(/\s+/g,'').toLowerCase();}
-var ZIP_RESERVED_SHEETS=['접근관리','체크리스트','샘플북','내 스펙관리','스펙번호 관리','현장별 관리','디자인 보드','디자인 대지'];
+var ZIP_RESERVED_SHEETS=['접근관리','체크리스트','샘플북','영업 기록','내 스펙관리','스펙번호 관리','현장별 관리','디자인 보드','디자인 대지'];
 function zipReservedSheet_(name){var key=zipNameKey_(name);return key.indexOf('메모_백업')===0||ZIP_RESERVED_SHEETS.some(function(n){return zipNameKey_(n)===key;});}
 function zipInvalidateRead_(scopes) {
   if(typeof Utilities==='undefined'||typeof Utilities.getUuid!=='function')return;
@@ -144,7 +148,7 @@ function zipMutateRead_(scopes,write) {
 }
 function zipInvalidateSheetRead_(name) {
   if(name==='접근관리'){zipInvalidateUsers_();return;}
-  if(zipNameKey_(name)===zipNameKey_('샘플북'))return;   // 샘플북은 읽기 캐시가 없다(메모 캐시를 건드리지 않게)
+  if(zipNameKey_(name)===zipNameKey_('샘플북')||zipNameKey_(name)===zipNameKey_('영업 기록'))return;   // 읽기 캐시가 없는 탭   // 샘플북은 읽기 캐시가 없다(메모 캐시를 건드리지 않게)
   var canonical=ZIP_RESERVED_SHEETS.filter(function(n){return zipNameKey_(n)===zipNameKey_(name);})[0];if(canonical)name=canonical;
   var scopes=['내 스펙관리','현장별 관리'].indexOf(name)>=0?['specs','registry']:name==='스펙번호 관리'?['registry']:['디자인 보드','디자인 대지'].indexOf(name)>=0?['board']:name==='체크리스트'?['checklist']:['notes'];
   zipInvalidateRead_(scopes);

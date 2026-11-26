@@ -7,6 +7,7 @@
     const clone = value => JSON.parse(JSON.stringify(value));
     const previewImages = new Map();
     let sampleBooks=[];
+    let salesLog=[];
     let specs = [],board=[],artboards=[{id:'default',title:'기본 대지'}];
     const registry={numbers:{headers:['종이넘버','스펙넘버','비고'],items:[]},sites:{headers:['현장명','종이넘버','스펙넘버','경면','모델하우스 예정일','본납 예정일','설계사','진행상태','비고'],items:[]}};
     window.ZIP_API = {
@@ -14,6 +15,9 @@
         if(action==='specRegistry')return {ok:true,lists:clone(registry),mapItems:clone(specs),unifiedSites:false,registryPhotoUrls:true,paperPhotoUrls:true,statuses:['제안 중','스펙 확정','모델하우스 진행','본납 대기','본납 완료','보류'],syncedAt:new Date().toISOString()};
         if(action==='saveSpecRegistry'){const before=registry[payload.kind].items.find(r=>r.id===payload.id),urls=payload.imageUrls??before?.imageUrls??[];const item={id:payload.id,values:clone(payload.values),version:String(Date.now()),imageUrls:clone(urls),photoVersion:JSON.stringify(urls)};registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==item.id).concat(item);return {ok:true,item:clone(item)};}
         if(action==='deleteSpecRegistry'){registry[payload.kind].items=registry[payload.kind].items.filter(r=>r.id!==payload.id);return {ok:true};}
+        if(action==='salesLog')return {ok:true,items:clone(salesLog),types:['미팅','전화','방문','샘플 발송','제안','견적','기타']};
+        if(action==='saveSalesLog'){const item={...clone(payload),created:new Date().toISOString()};salesLog=salesLog.filter(r=>r.id!==item.id).concat(item);return {ok:true,item};}
+        if(action==='deleteSalesLog'){salesLog=salesLog.filter(r=>r.id!==payload.id);return {ok:true};}
         if(action==='sampleBooks')return {ok:true,items:clone(sampleBooks),template:true};
         if(action==='saveSampleBook'){const item={...clone(payload),created:new Date().toISOString()};sampleBooks=sampleBooks.filter(r=>r.id!==item.id).concat(item);return {ok:true,item};}
         if(action==='deleteSampleBook'){sampleBooks=sampleBooks.filter(r=>r.id!==payload.id);return {ok:true};}

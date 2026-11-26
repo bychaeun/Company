@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="specs.css?v=31" />
     <link rel="stylesheet" href="spec-registry.css?v=46" />
     <link rel="stylesheet" href="board.css?v=27" />
-    <link rel="stylesheet" href="modern.css?v=63" />
+    <link rel="stylesheet" href="modern.css?v=68" />
   </head>
   <body class="auth-checking">
     <a class="skip-link" href="#knowledge-list">내용으로 바로가기</a>
@@ -79,6 +79,7 @@
         </button>
         <button class="category-button" id="specs-nav-button" type="button" hidden><span>내 스펙관리</span><span aria-hidden="true">⌖</span></button>
         <button class="category-button" id="board-nav-button" type="button" hidden><span>디자인 보드</span><span aria-hidden="true">▦</span></button>
+        <button class="category-button" id="sales-nav-button" type="button" hidden><span>영업 관리</span><span aria-hidden="true">◎</span></button>
         <div class="sidebar-note">
           <strong>승인된 계정만 보는 메모</strong>
           <span>시트의 대분류·소분류를 자유롭게 추가하세요. 앱을 열어 둔 동안 30분마다 새 자료를 읽어요.</span>
@@ -198,6 +199,7 @@
           <p id="board-status" role="status"></p>
           <div id="design-board" tabindex="0" aria-label="디자인 자료 보드" aria-keyshortcuts="+ -"><div id="board-world"><svg id="board-links" aria-hidden="true"></svg><div id="board-nodes"></div></div></div>
         </section>
+        <section id="sales-view" class="sales-view" hidden aria-labelledby="sales-title"></section>
       </main>
     </div>
 
@@ -282,18 +284,19 @@
 
     <noscript>이 사이트의 검색 기능을 사용하려면 JavaScript를 활성화해 주세요.</noscript>
     <script src="config.js?v=14"></script>
-    <script src="api.js?v=43"></script>
+    <script src="api.js?v=44"></script>
     <script src="editor-guard.js?v=24"></script>
     <script src="auth.js?v=38"></script>
     <script src="checklist.js?v=14"></script>
-    <script src="app.js?v=42"></script>
+    <script src="app.js?v=43"></script>
     <script src="specs.js?v=42"></script>
     <script src="spec-registry.js?v=57"></script>
-    <script src="board.js?v=29"></script>
-    <script src="nav-tabs.js?v=2"></script>
+    <script src="board.js?v=30"></script>
+    <script src="nav-tabs.js?v=4"></script>
     <script src="zoom.js?v=1"></script>
     <script src="samples.js?v=3"></script>
     <script src="graph.js?v=2"></script>
+    <script src="sales.js?v=2"></script>
   </body>
 </html>
 

@@ -97,7 +97,7 @@ dialog::backdrop,dialog.detail-dialog::backdrop,dialog.install-dialog::backdrop,
 .auth-caption { color:var(--ink-soft); }
 .google-login { color:var(--ink); border-color:var(--line); border-radius:8px; }
 .access-user { border-color:var(--line); }
-#specs-view > .specs-heading,#board-view > .specs-heading,.checklist-heading { min-height:0; padding:0 0 22px; margin-bottom:22px; color:var(--ink); background:none; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; }
+#specs-view > .specs-heading,#board-view > .specs-heading,#sales-view > .specs-heading,.checklist-heading { min-height:0; padding:0 0 22px; margin-bottom:22px; color:var(--ink); background:none; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; }
 .specs-heading h1,.checklist-heading h1 { font-size:30px; font-weight:650; letter-spacing:-.04em; color:var(--ink); }
 .spec-view-tabs { background:#e9edef; border-radius:9px; margin:20px 0 24px; }
 .spec-view-tabs::before { background:#fff; border-radius:6px; box-shadow:0 1px 4px #25313b0d; }
@@ -551,3 +551,84 @@ mark.board-hit { padding:0 2px; border-radius:3px; background:#ffe45c; color:inh
 .board-node.is-current-match { box-shadow:0 0 0 3px #e0a800, 0 10px 26px #0003; }
 .board-node.is-current-match mark.board-hit { background:#ffcf33; }
 @media(max-width:600px){ .board-search { height:44px; padding-left:14px; } }
+
+/* ── 영업 관리 ── */
+.sales-view { display:grid; gap:14px; }
+.sales-view[hidden] { display:none; }
+.sales-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
+.sales-search { display:flex; align-items:center; gap:8px; height:46px; padding:0 16px; border:1px solid var(--line); border-radius:999px; background:#fff; }
+.sales-search:focus-within { border-color:#9fb6bd; }
+.sales-search svg { flex:none; width:18px; height:18px; fill:none; stroke:#7d8992; stroke-width:1.9; stroke-linecap:round; }
+.sales-search input { flex:1; min-width:0; height:100%; border:0; outline:none; background:transparent; font:inherit; font-size:14px; color:var(--ink); }
+.sales-message { margin:0; min-height:18px; color:#4f5b65; font-size:13px; }
+.sales-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:16px; align-items:start; }
+.sales-companies { position:sticky; top:84px; display:grid; gap:4px; max-height:calc(100dvh - 120px); overflow:auto; padding:8px; border:1px solid var(--line); border-radius:18px; background:#fff; }
+.sales-companies button { display:grid; gap:2px; width:100%; padding:10px 12px; border:0; border-radius:12px; background:transparent; color:#33454d; font:inherit; text-align:left; cursor:pointer; }
+.sales-companies button:hover { background:#f3f6f7; }
+.sales-companies button[aria-pressed=true] { background:#263943; color:#fff; }
+.sales-companies b { font-size:14px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sales-companies span { font-size:11px; opacity:.75; }
+.sales-filters { display:grid; gap:8px; }
+.sales-filters:empty { display:none; }
+.sales-chips { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.sales-chips > span { color:#6a7780; font-size:12px; font-weight:600; margin-right:2px; }
+.sales-chips button { min-height:32px; padding:0 12px; border:1px solid var(--line); border-radius:999px; background:#fff; color:#33454d; font:inherit; font-size:13px; cursor:pointer; }
+.sales-chips button[aria-pressed=true] { border-color:#0f87a3; background:#0f87a3; color:#fff; }
+.sales-timeline { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.sales-month { margin:10px 0 2px; color:#6a7780; font-size:12px; font-weight:700; letter-spacing:.02em; }
+.sales-month:first-child { margin-top:0; }
+.sales-entry > button { display:grid; grid-template-columns:78px minmax(0,1fr); gap:14px; width:100%; padding:14px 16px; border:1px solid var(--line); border-radius:16px; background:#fff; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.sales-entry > button:hover { border-color:#c9d4d8; }
+.sales-entry.is-pending > button { opacity:.7; }
+.sales-date { color:#263943; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; padding-top:2px; }
+.sales-body { display:grid; gap:6px; min-width:0; }
+.sales-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+.sales-line em { font-style:normal; padding:2px 9px; border-radius:999px; background:#e6f0ee; color:#2e6458; font-size:12px; font-weight:700; }
+.sales-line b { color:#1d2d34; font-size:15px; font-weight:650; }
+.sales-line span { color:#4f5b65; font-size:13px; }
+.sales-line .sales-site { color:#0f6f86; }
+.sales-content { color:#33454d; font-size:14px; line-height:1.6; white-space:pre-line; overflow-wrap:anywhere; }
+.sales-next { justify-self:start; padding:4px 10px; border-radius:10px; background:#f3f6f7; color:#33454d; font-size:13px; }
+.sales-next time { color:#6a7780; font-variant-numeric:tabular-nums; }
+.sales-next.is-today { background:#fff6d6; }
+.sales-next.is-late { background:#fdecea; color:#8e3b33; }
+.sales-pending { justify-self:start; padding:2px 8px; border-radius:999px; background:#eef1f3; color:#6a7780; font-size:11px; font-weight:600; }
+.sales-empty { padding:26px; border:1px dashed var(--line); border-radius:16px; color:var(--ink-soft); text-align:center; font-size:14px; list-style:none; }
+/* 기록 입력창 */
+.sales-editor { width:min(640px,calc(100vw - 32px)); }
+.sales-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.sales-form-grid > label { display:grid; gap:6px; color:#4f5b65; font-size:12px; font-weight:600; }
+.sales-form-grid .sales-wide { grid-column:1 / -1; }
+.sales-form-grid input:not([type=checkbox]) { box-sizing:border-box; height:44px; padding:0 16px; border:1px solid var(--line); border-radius:999px; background:#fff; font:inherit; font-size:14px; color:var(--ink); }
+.sales-form-grid textarea { box-sizing:border-box; padding:12px 16px; border:1px solid var(--line); border-radius:16px; font:inherit; font-size:14px; color:var(--ink); resize:vertical; }
+.sales-types { margin:0; padding:0; border:0; display:grid; gap:6px; color:#4f5b65; font-size:12px; font-weight:600; }
+.sales-types legend { padding:0; margin-bottom:6px; }
+.sales-types > div { display:flex; flex-wrap:wrap; gap:4px; }
+.sales-editor .sales-types button { min-height:32px; padding:0 11px; border:1px solid var(--line)!important; border-radius:999px!important; background:#fff!important; color:#4f5b65!important; font:inherit; font-size:12px; cursor:pointer; box-shadow:none!important; }
+.sales-editor .sales-types button[aria-pressed=true] { border-color:#263943!important; background:#263943!important; color:#fff!important; }
+.sales-check { display:flex!important; align-items:center; gap:8px; font-size:13px!important; font-weight:500!important; color:#33454d!important; }
+.sales-check input { width:18px; height:18px; accent-color:#263943; }
+.sales-editor-message { margin:10px 0 0; min-height:18px; color:#9b514a; font-size:13px; }
+@media(max-width:900px){
+  .sales-layout { grid-template-columns:1fr; }
+  .sales-companies { position:static; max-height:none; display:flex; gap:6px; overflow-x:auto; padding:6px; border-radius:999px; scrollbar-width:none; }
+  .sales-companies::-webkit-scrollbar { display:none; }
+  .sales-companies button { flex:none; width:auto; display:flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; }
+}
+@media(max-width:600px){
+  .sales-heading { align-items:center; }
+  .sales-entry > button { grid-template-columns:1fr; gap:6px; padding:12px 14px; }
+  .sales-form-grid { grid-template-columns:1fr; }
+}
+#sales-view > .specs-heading { margin-bottom:6px; }
+#sales-view > .specs-heading::before,#sales-view > .specs-heading::after { display:none; }
+.sales-editor .specs-actions .view-tabs-add { background:#263943!important; color:#fff!important; border:0!important; }
+.sales-editor .specs-actions .view-tabs-add:hover { background:#1b2b31!important; }
+.sales-editor .specs-actions [data-delete] { margin-right:auto; color:#9b514a!important; background:#f9efee!important; }
+/* 검색창 지우기(×): 브라우저 기본 파란 × 는 숨기고, 회색 동그라미 × 버튼을 직접 둔다 */
+.board-search input::-webkit-search-cancel-button { -webkit-appearance:none; display:none; }
+.sales-search input::-webkit-search-cancel-button { -webkit-appearance:none; display:none; }
+.search-clear { flex:none; display:grid; place-items:center; width:22px; height:22px; padding:0; border:0; border-radius:50%; background:#dfe5e8; color:#4f5b65; cursor:pointer; }
+.search-clear[hidden] { display:none!important; }
+.search-clear svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:3; stroke-linecap:round; }
+#board-view .board-search .search-clear { width:22px; height:22px; min-height:0; border-radius:50%!important; background:#dfe5e8; }
