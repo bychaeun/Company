@@ -534,3 +534,20 @@ select:not([multiple]):not(.select-box select)::-ms-expand { display:none; }
 select:not([multiple]):not(.select-box select) { background-color:#fff; }
 .samples-pending { grid-column:4; justify-self:center; padding:3px 8px; border-radius:999px; background:#eef1f3; color:#6a7780; font-size:11px; font-weight:600; white-space:nowrap; }
 .samples-item .samples-delete[hidden] { display:none!important; }
+
+/* ── 디자인 보드 검색 + 형광펜 ── */
+.board-search { display:flex; align-items:center; gap:6px; margin:12px 0 10px; padding:0 6px 0 16px; height:46px; border:1px solid var(--line); border-radius:999px; background:#fff; }
+.board-search:focus-within { border-color:#9fb6bd; }
+.board-search > svg { flex:none; width:18px; height:18px; fill:none; stroke:#7d8992; stroke-width:1.9; stroke-linecap:round; }
+.board-search input { flex:1; min-width:0; height:100%; border:0; outline:none; background:transparent; color:var(--ink); font:inherit; font-size:14px; }
+.board-search input::-webkit-search-cancel-button { cursor:pointer; }
+.board-search-count { flex:none; color:#5c6970; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+#board-view .board-search button { flex:none; width:34px; height:34px; min-height:0; padding:0; border:0; border-radius:50%!important; background:#eef1f3; color:#33454d; font-size:18px; line-height:1; cursor:pointer; }
+#board-view .board-search button:disabled { opacity:.35; cursor:default; }
+.board-search:not(.has-query) button,.board-search:not(.has-query) .board-search-count { display:none; }
+mark.board-hit { padding:0 2px; border-radius:3px; background:#ffe45c; color:inherit; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
+.board-node.is-dim { opacity:.32; filter:saturate(.6); transition:opacity .2s ease; }
+.board-node.is-match { box-shadow:0 0 0 2px #f2c94c, 0 8px 22px #0002; }
+.board-node.is-current-match { box-shadow:0 0 0 3px #e0a800, 0 10px 26px #0003; }
+.board-node.is-current-match mark.board-hit { background:#ffcf33; }
+@media(max-width:600px){ .board-search { height:44px; padding-left:14px; } }
