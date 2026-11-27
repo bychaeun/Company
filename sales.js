@@ -79,8 +79,8 @@
       ${sites.length ? `<div class="sales-chips"><span>현장</span><button type="button" data-site="" aria-pressed="${!site}">전체</button>${sites.map((v) => `<button type="button" data-site="${esc(v)}" aria-pressed="${same(v, site)}">${hl(v)}</button>`).join('')}</div>` : ''}
       <ol class="sales-feed">${posts.map((x) => {
         const due = x.nextDate ? (x.nextDate < today ? 'is-late' : x.nextDate === today ? 'is-today' : '') : '', photos = x.images || [];
-        return `<li class="sales-post ${x.pending ? 'is-pending' : ''}">
-          <header><time>${esc(dayLabel(x.date))}</time>${x.type ? `<em>${esc(x.type)}</em>` : ''}${x.pending ? '<span class="sales-pending">저장 중</span>' : `<button type="button" class="sales-post-edit" data-open="${esc(x.id)}" aria-label="이 기록 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg></button>`}</header>
+        return `<li class="sales-post ${x.pending ? 'is-pending' : ''}" data-view="${esc(x.id)}" tabindex="0" role="button" aria-label="${esc(dayLabel(x.date))} 기록 자세히 보기">
+          <header><time>${esc(dayLabel(x.date))}</time>${x.type ? `<em>${esc(x.type)}</em>` : ''}${x.pending ? '<span class="sales-pending">저장 중</span>' : `<span class="sales-post-more" aria-hidden="true">›</span>`}</header>
           ${x.contact || x.site ? `<p class="sales-post-who">${x.contact ? `<span>${hl(x.contact)}</span>` : ''}${x.site ? `<span class="sales-site">⌖ ${hl(x.site)}</span>` : ''}</p>` : ''}
           ${x.content ? `<p class="sales-post-body">${hl(x.content)}</p>` : ''}
           ${photos.length ? `<div class="sales-photos" data-count="${Math.min(photos.length, 4)}">${photos.slice(0, 4).map((u, i) => `<button type="button" data-photo="${esc(x.id)}" data-index="${i}"><img data-src="${esc(u)}" alt="${esc(company)} 사진 ${i + 1}" loading="lazy" decoding="async" referrerpolicy="no-referrer">${i === 3 && photos.length > 4 ? `<span>+${photos.length - 4}</span>` : ''}</button>`).join('')}</div>` : ''}
@@ -111,19 +111,29 @@
     finally { loading = false; if (v === version) render(); }
   }
 
-  // ── 사진 보기 ──
-  const viewer = document.createElement('dialog'); viewer.className = 'specs-dialog sales-viewer';
-  viewer.innerHTML = '<header class="registry-detail-heading"><h2 data-viewer-title></h2><div><button type="button" data-detail-close aria-label="닫기">×</button></div></header><div class="sales-viewer-photos registry-photo-gallery"></div>';
+  // ── 기록 자세히 보기(팝업): 전체 내용 · 사진 전부 · 다음 할 일, 여기서 수정 ──
+  const viewer = document.createElement('dialog'); viewer.className = 'specs-dialog sales-viewer'; viewer.setAttribute('aria-labelledby', 'sales-viewer-title');
+  viewer.innerHTML = '<header class="registry-detail-heading"><h2 id="sales-viewer-title"></h2><div><button type="button" class="registry-detail-edit" data-viewer-edit aria-label="이 기록 수정" title="수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4"/></svg></button><button type="button" data-detail-close aria-label="닫기">×</button></div></header><div class="sales-viewer-body"></div>';
   document.body.append(viewer);
+  let viewing = null;
   viewer.querySelector('[data-detail-close]').onclick = () => viewer.close();
+  viewer.querySelector('[data-viewer-edit]').onclick = () => { const x = viewing; viewer.close(); edit(x); };
   viewer.addEventListener('click', (e) => { if (e.target === viewer) viewer.close(); });
-  function openPhotos(x, index) {
-    viewer.querySelector('[data-viewer-title]').textContent = `${x.company} · ${dayLabel(x.date)}`;
-    const box = viewer.querySelector('.sales-viewer-photos');
-    box.innerHTML = (x.images || []).map((u, i) => `<figure><img data-src="${esc(u)}" alt="사진 ${i + 1}" decoding="async" referrerpolicy="no-referrer"></figure>`).join('');
-    box.querySelectorAll('img[data-src]').forEach((img) => setImage(img, img.dataset.src));
-    viewer.showModal();
-    box.children[index]?.scrollIntoView({ block: 'start' });
+  function openPost(x, index = -1) {
+    viewing = x; const today = todayKey(), photos = x.images || [];
+    const due = x.nextDate ? (x.nextDate < today ? 'is-late' : x.nextDate === today ? 'is-today' : '') : '';
+    viewer.querySelector('#sales-viewer-title').textContent = x.company;
+    viewer.querySelector('[data-viewer-edit]').hidden = !!x.pending;
+    const body = viewer.querySelector('.sales-viewer-body');
+    body.innerHTML = `
+      <p class="sales-viewer-date"><time>${esc(dayLabel(x.date))}</time>${x.type ? `<em>${esc(x.type)}</em>` : ''}</p>
+      ${x.contact || x.site ? `<dl class="sales-viewer-meta">${x.contact ? `<div><dt>담당자</dt><dd>${hl(x.contact)}</dd></div>` : ''}${x.site ? `<div><dt>현장</dt><dd>${hl(x.site)}</dd></div>` : ''}</dl>` : ''}
+      ${x.content ? `<p class="sales-viewer-content">${hl(x.content)}</p>` : ''}
+      ${photos.length ? `<div class="sales-viewer-photos registry-photo-gallery">${photos.map((u, i) => `<figure><img data-src="${esc(u)}" alt="${esc(x.company)} 사진 ${i + 1}" decoding="async" referrerpolicy="no-referrer"></figure>`).join('')}</div>` : ''}
+      ${x.next ? `<p class="sales-next ${due}">다음 · ${hl(x.next)}${x.nextDate ? ` <time>${esc(dayLabel(x.nextDate))}</time>` : ''}</p>` : ''}`;
+    body.querySelectorAll('img[data-src]').forEach((img) => setImage(img, img.dataset.src));
+    viewer.showModal(); body.scrollTop = 0;
+    if (index >= 0) body.querySelectorAll('.sales-viewer-photos figure')[index]?.scrollIntoView({ block: 'start' });
   }
 
   // ── 글 쓰기 / 수정 ──
@@ -257,10 +267,11 @@
     const pg = e.target.closest('[data-page]'); if (pg && !pg.disabled) { page = Number(pg.dataset.page); render(); directory.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const p = e.target.closest('[data-contact]'); if (p) { contact = p.dataset.contact; render(); return; }
     const s = e.target.closest('[data-site]'); if (s) { site = s.dataset.site; render(); return; }
-    const ph = e.target.closest('[data-photo]'); if (ph) { const x = items.find((i) => i.id === ph.dataset.photo); if (x) openPhotos(x, Number(ph.dataset.index)); return; }
-    const o = e.target.closest('[data-open]'); if (o) { edit(items.find((x) => x.id === o.dataset.open)); return; }
+    const ph = e.target.closest('[data-photo]'); if (ph) { const x = items.find((i) => i.id === ph.dataset.photo); if (x) openPost(x, Number(ph.dataset.index)); return; }
+    const v = e.target.closest('[data-view]'); if (v) { const x = items.find((i) => i.id === v.dataset.view); if (x) openPost(x); return; }
     if (e.target.closest('#sales-add')) edit(null);
   });
+  view.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('[data-view]')) { e.preventDefault(); e.target.click(); } });
   let timer = 0;
   $('sales-search').addEventListener('input', (e) => { clearTimeout(timer); timer = setTimeout(() => { query = e.target.value.trim(); page = 1; render(); }, 150); });
 

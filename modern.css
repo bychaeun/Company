@@ -637,8 +637,6 @@ mark.hit { padding:0 1px; margin:0 -1px; border-radius:2px; background:linear-gr
 .sales-post > header { display:flex; align-items:center; gap:8px; }
 .sales-post > header time { color:#1d2d34; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
 .sales-post > header em { font-style:normal; padding:2px 9px; border-radius:999px; background:#e6f0ee; color:#2e6458; font-size:12px; font-weight:700; }
-.sales-post-edit { margin-left:auto; display:grid; place-items:center; width:34px; height:34px; border:0; border-radius:50%; background:#f3f6f7; cursor:pointer; }
-.sales-post-edit svg { width:16px; height:16px; fill:none; stroke:#33454d; stroke-width:1.8; stroke-linejoin:round; }
 .sales-post .sales-pending { margin-left:auto; }
 .sales-post-who { display:flex; flex-wrap:wrap; gap:4px 12px; margin:0; color:#4f5b65; font-size:13px; }
 .sales-post-who .sales-site { color:#0f6f86; }
@@ -653,7 +651,6 @@ mark.hit { padding:0 1px; margin:0 -1px; border-radius:2px; background:linear-gr
 .sales-photos > button.is-broken::after { content:'사진을 열 수 없어요'; position:absolute; inset:0; display:grid; place-items:center; color:#6a7780; font-size:12px; }
 .sales-photos > button > span { position:absolute; inset:0; display:grid; place-items:center; background:#0008; color:#fff; font-size:22px; font-weight:700; }
 .sales-viewer { width:min(860px,calc(100vw - 24px)); }
-.sales-viewer-photos { display:grid; gap:10px; max-height:75dvh; overflow:auto; }
 .sales-viewer-photos figure { margin:0; }
 .sales-viewer-photos img { width:100%; border-radius:12px; display:block; }
 .sales-photo-field > p { margin:0 0 6px; color:#4f5b65; font-size:12px; font-weight:600; }
@@ -667,3 +664,21 @@ mark.hit { padding:0 1px; margin:0 -1px; border-radius:2px; background:linear-gr
   .sales-post { padding:14px; border-radius:18px; }
   .sales-company-head h2 { font-size:19px; }
 }
+
+/* 영업 기록: 카드를 누르면 팝업으로 자세히 */
+.sales-post { cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+.sales-post:hover { border-color:#b9c7cc; box-shadow:0 6px 18px #0000000d; }
+.sales-post-more { margin-left:auto; color:#9aa6ad; font-size:22px; line-height:1; }
+.sales-post .sales-post-body { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+.sales-viewer-body { display:grid; gap:14px; max-height:min(72dvh,780px); overflow:auto; overscroll-behavior:contain; padding-right:2px; }
+.sales-viewer-date { display:flex; align-items:center; gap:8px; margin:0; }
+.sales-viewer-date time { color:#1d2d34; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; }
+.sales-viewer-date em { font-style:normal; padding:2px 9px; border-radius:999px; background:#e6f0ee; color:#2e6458; font-size:12px; font-weight:700; }
+.sales-viewer-meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; margin:0; }
+.sales-viewer-meta div { padding:10px 14px; border-radius:14px; background:#f3f6f7; }
+.sales-viewer-meta dt { color:#6a7780; font-size:11px; font-weight:600; }
+.sales-viewer-meta dd { margin:2px 0 0; color:#1d2d34; font-size:14px; font-weight:600; }
+.sales-viewer-content { margin:0; color:#33454d; font-size:15px; line-height:1.7; white-space:pre-line; overflow-wrap:anywhere; }
+.sales-viewer-photos { display:grid; gap:10px; }
+.sales-viewer .sales-next { justify-self:start; }
+.sales-viewer .registry-detail-heading > div { display:flex; gap:6px; }
