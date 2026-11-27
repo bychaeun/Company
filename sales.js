@@ -261,7 +261,7 @@
   }
 
   view.addEventListener('click', (e) => {
-    const c = e.target.closest('[data-company]'); if (c) { company = c.dataset.company; contact = ''; site = ''; render(); window.scrollTo({ top: 0 }); return; }
+    const c = e.target.closest('[data-company]'); if (c) { company = c.dataset.company; contact = ''; site = ''; render(); window.ZIP_BACK?.push(() => { if (!company || view.hidden) return false; company = ''; render(); return true; }); window.scrollTo({ top: 0 }); return; }
     if (e.target.closest('[data-back]')) { company = ''; render(); return; }
     const so = e.target.closest('[data-sort]'); if (so) { sort = so.dataset.sort; page = 1; render(); return; }
     const pg = e.target.closest('[data-page]'); if (pg && !pg.disabled) { page = Number(pg.dataset.page); render(); directory.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
