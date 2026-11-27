@@ -1,4 +1,4 @@
-const CACHE_NAME = "chae-appsscript-v78";
+const CACHE_NAME = "chae-appsscript-v79";
 // Private image previews live in their own cache (managed by api.js) and survive app updates.
 const KEEP_CACHES = [CACHE_NAME, "chae-private-images-v1"];
 const APP_SHELL = [
@@ -19,6 +19,7 @@ const APP_SHELL = [
   "./samples.js",
   "./graph.js",
   "./sales.js",
+  "./highlight.js",
   "./korea-map.json",
   "./auth.js",
   "./checklist.js",

@@ -545,11 +545,7 @@ select:not([multiple]):not(.select-box select) { background-color:#fff; }
 #board-view .board-search button { flex:none; width:34px; height:34px; min-height:0; padding:0; border:0; border-radius:50%!important; background:#eef1f3; color:#33454d; font-size:18px; line-height:1; cursor:pointer; }
 #board-view .board-search button:disabled { opacity:.35; cursor:default; }
 .board-search:not(.has-query) button,.board-search:not(.has-query) .board-search-count { display:none; }
-mark.board-hit { padding:0 2px; border-radius:3px; background:#ffe45c; color:inherit; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
-.board-node.is-dim { opacity:.32; filter:saturate(.6); transition:opacity .2s ease; }
-.board-node.is-match { box-shadow:0 0 0 2px #f2c94c, 0 8px 22px #0002; }
-.board-node.is-current-match { box-shadow:0 0 0 3px #e0a800, 0 10px 26px #0003; }
-.board-node.is-current-match mark.board-hit { background:#ffcf33; }
+.board-node.is-dim { opacity:.45; transition:opacity .2s ease; }
 @media(max-width:600px){ .board-search { height:44px; padding-left:14px; } }
 
 /* ── 영업 관리 ── */
@@ -561,33 +557,10 @@ mark.board-hit { padding:0 2px; border-radius:3px; background:#ffe45c; color:inh
 .sales-search svg { flex:none; width:18px; height:18px; fill:none; stroke:#7d8992; stroke-width:1.9; stroke-linecap:round; }
 .sales-search input { flex:1; min-width:0; height:100%; border:0; outline:none; background:transparent; font:inherit; font-size:14px; color:var(--ink); }
 .sales-message { margin:0; min-height:18px; color:#4f5b65; font-size:13px; }
-.sales-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:16px; align-items:start; }
-.sales-companies { position:sticky; top:84px; display:grid; gap:4px; max-height:calc(100dvh - 120px); overflow:auto; padding:8px; border:1px solid var(--line); border-radius:18px; background:#fff; }
-.sales-companies button { display:grid; gap:2px; width:100%; padding:10px 12px; border:0; border-radius:12px; background:transparent; color:#33454d; font:inherit; text-align:left; cursor:pointer; }
-.sales-companies button:hover { background:#f3f6f7; }
-.sales-companies button[aria-pressed=true] { background:#263943; color:#fff; }
-.sales-companies b { font-size:14px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.sales-companies span { font-size:11px; opacity:.75; }
-.sales-filters { display:grid; gap:8px; }
-.sales-filters:empty { display:none; }
 .sales-chips { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .sales-chips > span { color:#6a7780; font-size:12px; font-weight:600; margin-right:2px; }
 .sales-chips button { min-height:32px; padding:0 12px; border:1px solid var(--line); border-radius:999px; background:#fff; color:#33454d; font:inherit; font-size:13px; cursor:pointer; }
 .sales-chips button[aria-pressed=true] { border-color:#0f87a3; background:#0f87a3; color:#fff; }
-.sales-timeline { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
-.sales-month { margin:10px 0 2px; color:#6a7780; font-size:12px; font-weight:700; letter-spacing:.02em; }
-.sales-month:first-child { margin-top:0; }
-.sales-entry > button { display:grid; grid-template-columns:78px minmax(0,1fr); gap:14px; width:100%; padding:14px 16px; border:1px solid var(--line); border-radius:16px; background:#fff; color:inherit; font:inherit; text-align:left; cursor:pointer; }
-.sales-entry > button:hover { border-color:#c9d4d8; }
-.sales-entry.is-pending > button { opacity:.7; }
-.sales-date { color:#263943; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; padding-top:2px; }
-.sales-body { display:grid; gap:6px; min-width:0; }
-.sales-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
-.sales-line em { font-style:normal; padding:2px 9px; border-radius:999px; background:#e6f0ee; color:#2e6458; font-size:12px; font-weight:700; }
-.sales-line b { color:#1d2d34; font-size:15px; font-weight:650; }
-.sales-line span { color:#4f5b65; font-size:13px; }
-.sales-line .sales-site { color:#0f6f86; }
-.sales-content { color:#33454d; font-size:14px; line-height:1.6; white-space:pre-line; overflow-wrap:anywhere; }
 .sales-next { justify-self:start; padding:4px 10px; border-radius:10px; background:#f3f6f7; color:#33454d; font-size:13px; }
 .sales-next time { color:#6a7780; font-variant-numeric:tabular-nums; }
 .sales-next.is-today { background:#fff6d6; }
@@ -609,15 +582,8 @@ mark.board-hit { padding:0 2px; border-radius:3px; background:#ffe45c; color:inh
 .sales-check { display:flex!important; align-items:center; gap:8px; font-size:13px!important; font-weight:500!important; color:#33454d!important; }
 .sales-check input { width:18px; height:18px; accent-color:#263943; }
 .sales-editor-message { margin:10px 0 0; min-height:18px; color:#9b514a; font-size:13px; }
-@media(max-width:900px){
-  .sales-layout { grid-template-columns:1fr; }
-  .sales-companies { position:static; max-height:none; display:flex; gap:6px; overflow-x:auto; padding:6px; border-radius:999px; scrollbar-width:none; }
-  .sales-companies::-webkit-scrollbar { display:none; }
-  .sales-companies button { flex:none; width:auto; display:flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; }
-}
 @media(max-width:600px){
   .sales-heading { align-items:center; }
-  .sales-entry > button { grid-template-columns:1fr; gap:6px; padding:12px 14px; }
   .sales-form-grid { grid-template-columns:1fr; }
 }
 #sales-view > .specs-heading { margin-bottom:6px; }
@@ -632,3 +598,72 @@ mark.board-hit { padding:0 2px; border-radius:3px; background:#ffe45c; color:inh
 .search-clear[hidden] { display:none!important; }
 .search-clear svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:3; stroke-linecap:round; }
 #board-view .board-search .search-clear { width:22px; height:22px; min-height:0; border-radius:50%!important; background:#dfe5e8; }
+
+/* 검색 형광펜: 모든 검색창 공통. 형광 노랑을 글자 아래쪽에 굵게 칠한다. */
+mark.hit { padding:0 1px; margin:0 -1px; border-radius:2px; background:linear-gradient(transparent 8%, #ffe14a 8%, #ffd400 92%, transparent 92%); color:#111; font-weight:700; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
+.board-node.is-current-match mark.hit { background:#ffb800; }
+.registry-site-card mark.hit,.knowledge-card mark.hit { color:#111; }
+
+/* 영업 관리: 업체 목록 */
+.sales-directory,.sales-company { display:grid; gap:12px; }
+.sales-directory[hidden],.sales-company[hidden] { display:none; }
+.sales-dir-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; color:#6a7780; font-size:13px; }
+.sales-sort { display:flex; gap:4px; padding:3px; border-radius:999px; background:#eef1f3; }
+.sales-sort button { min-height:30px; padding:0 12px; border:0; border-radius:999px; background:transparent; color:#4f5b65; font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+.sales-sort button[aria-pressed=true] { background:#fff; color:#1d2d34; box-shadow:0 1px 3px #0002; }
+.sales-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px; }
+.sales-card { display:grid; align-content:start; gap:5px; min-width:0; padding:14px 16px; border:1px solid var(--line); border-radius:18px; background:#fff; color:#33454d; font:inherit; text-align:left; cursor:pointer; transition:border-color .15s, transform .15s; }
+.sales-card:hover { border-color:#b9c7cc; transform:translateY(-1px); }
+.sales-card-top { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.sales-card-top b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1d2d34; font-size:16px; font-weight:700; }
+.sales-card-top > span { flex:none; padding:2px 8px; border-radius:999px; background:#263943; color:#fff; font-size:11px; font-weight:700; }
+.sales-card-meta { color:#6a7780; font-size:12px; font-variant-numeric:tabular-nums; }
+.sales-card-line { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.sales-card-next { justify-self:start; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; padding:3px 10px; border-radius:999px; background:#e6f0ee; color:#2e6458; font-size:12px; font-weight:600; }
+.sales-card-next.is-today { background:#fff1b8; color:#6b5400; }
+.sales-pager { display:flex; justify-content:center; gap:4px; }
+.sales-pager button { min-width:34px; height:34px; border:1px solid var(--line); border-radius:999px; background:#fff; color:#33454d; font:inherit; font-size:13px; cursor:pointer; }
+.sales-pager button.is-current { border-color:#263943; background:#263943; color:#fff; }
+.sales-pager button:disabled { opacity:.35; cursor:default; }
+
+/* 영업 관리: 업체 페이지(게시글) */
+.sales-company-head { display:flex; align-items:center; gap:12px; }
+.sales-company-head h2 { margin:0; color:#1d2d34; font-size:22px; }
+.sales-company-head p { margin:2px 0 0; color:#6a7780; font-size:13px; font-variant-numeric:tabular-nums; }
+.sales-back { flex:none; width:40px; height:40px; border:1px solid var(--line); border-radius:50%; background:#fff; color:#263943; font-size:24px; line-height:1; cursor:pointer; }
+.sales-feed { display:grid; gap:12px; margin:0; padding:0; list-style:none; max-width:760px; }
+.sales-post { display:grid; gap:10px; padding:16px 18px; border:1px solid var(--line); border-radius:20px; background:#fff; }
+.sales-post.is-pending { opacity:.7; }
+.sales-post > header { display:flex; align-items:center; gap:8px; }
+.sales-post > header time { color:#1d2d34; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
+.sales-post > header em { font-style:normal; padding:2px 9px; border-radius:999px; background:#e6f0ee; color:#2e6458; font-size:12px; font-weight:700; }
+.sales-post-edit { margin-left:auto; display:grid; place-items:center; width:34px; height:34px; border:0; border-radius:50%; background:#f3f6f7; cursor:pointer; }
+.sales-post-edit svg { width:16px; height:16px; fill:none; stroke:#33454d; stroke-width:1.8; stroke-linejoin:round; }
+.sales-post .sales-pending { margin-left:auto; }
+.sales-post-who { display:flex; flex-wrap:wrap; gap:4px 12px; margin:0; color:#4f5b65; font-size:13px; }
+.sales-post-who .sales-site { color:#0f6f86; }
+.sales-post-body { margin:0; color:#33454d; font-size:15px; line-height:1.65; white-space:pre-line; overflow-wrap:anywhere; }
+.sales-photos { display:grid; grid-template-columns:repeat(2,1fr); gap:4px; overflow:hidden; border-radius:14px; }
+.sales-photos[data-count="1"] { grid-template-columns:1fr; }
+.sales-photos[data-count="3"] > button:first-child { grid-row:span 2; }
+.sales-photos > button { position:relative; padding:0; border:0; background:#eef1f3; aspect-ratio:4/3; cursor:zoom-in; overflow:hidden; }
+.sales-photos[data-count="1"] > button { aspect-ratio:16/10; }
+.sales-photos[data-count="3"] > button:first-child { aspect-ratio:auto; }
+.sales-photos img { width:100%; height:100%; object-fit:cover; display:block; }
+.sales-photos > button.is-broken::after { content:'사진을 열 수 없어요'; position:absolute; inset:0; display:grid; place-items:center; color:#6a7780; font-size:12px; }
+.sales-photos > button > span { position:absolute; inset:0; display:grid; place-items:center; background:#0008; color:#fff; font-size:22px; font-weight:700; }
+.sales-viewer { width:min(860px,calc(100vw - 24px)); }
+.sales-viewer-photos { display:grid; gap:10px; max-height:75dvh; overflow:auto; }
+.sales-viewer-photos figure { margin:0; }
+.sales-viewer-photos img { width:100%; border-radius:12px; display:block; }
+.sales-photo-field > p { margin:0 0 6px; color:#4f5b65; font-size:12px; font-weight:600; }
+.sales-photo-field > p span { color:#8a959c; font-weight:500; }
+.sales-photo-preview { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.sales-photo-preview figure { position:relative; margin:0; width:84px; height:84px; border-radius:12px; overflow:hidden; background:#eef1f3; }
+.sales-photo-preview img { width:100%; height:100%; object-fit:cover; }
+.sales-photo-preview .registry-photo-empty { margin:0; color:#8a959c; font-size:12px; }
+@media(max-width:600px){
+  .sales-cards { grid-template-columns:1fr; }
+  .sales-post { padding:14px; border-radius:18px; }
+  .sales-company-head h2 { font-size:19px; }
+}

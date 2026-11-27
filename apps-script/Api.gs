@@ -56,6 +56,7 @@ function doPost(e) {
     if (action === 'salesLog') return zipJson_(zipSalesLog_());
     if (action === 'saveSalesLog') return zipJson_(zipSaveSalesLog_(body));
     if (action === 'deleteSalesLog') return zipJson_(zipDeleteSalesLog_(body.id));
+    if (action === 'salesImage') return zipJson_(zipSalesImage_(body.fileId));
     if (action === 'sampleBooks') return zipJson_(zipSampleBooks_());
     if (action === 'saveSampleBook') return zipJson_(zipSaveSampleBook_(body));
     if (action === 'deleteSampleBook') return zipJson_(zipDeleteSampleBook_(body.id));

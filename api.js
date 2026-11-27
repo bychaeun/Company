@@ -137,7 +137,7 @@
         .catch(error=>{if(error.code==='REQUEST_FAILED')thumbsSupported=false;chunk.forEach(([,waiters])=>waiters.forEach(w=>w.reject(error)));});
     }
   }
-  const imageActions=['image','registryImage','boardImage'];
+  const imageActions=['image','registryImage','boardImage','salesImage'];
   function seedImage(fileId,blob,action='image'){if(!/^[-\w]{10,200}$/.test(fileId)||!imageActions.includes(action)||!imageTypes.test(blob?.type||''))return;const key=(action==='image'?'':action+':')+'f:'+fileId;imageCache.set(key,Promise.resolve(URL.createObjectURL(blob)));storeImage(key,blob,generation);}
   async function image(fileId,options={}) {
     if(!/^[-\w]{10,200}$/.test(fileId))return '';

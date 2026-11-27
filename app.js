@@ -211,16 +211,17 @@
     el.count.textContent = records.length.toLocaleString("ko-KR");
     el.empty.hidden = records.length > 0;
     el.list.hidden = records.length === 0;
+    const mk = (v) => state.query.trim() && window.ZIP_MARK ? window.ZIP_MARK(v, state.query) : escapeHTML(v);
     el.list.innerHTML = pageRecords.map((record) => {
       const image = record.images[0];
       return `<article class="knowledge-card ${selectedNotes.has(record.noteId)?'is-selected':''} ${image ? "has-image" : ""}">
         <button class="card-button" type="button" data-id="${record.id}" aria-label="${escapeHTML(record.title)} ${selecting?'선택':'자세히 보기'}" ${selecting?`aria-pressed="${selectedNotes.has(record.noteId)}"`:''}>
           ${selectedNotes.has(record.noteId)?'<span class="note-selected-mark" aria-label="선택됨">✓</span>':''}
           <div>
-            <div class="card-category"><span>${escapeHTML(record.category)}</span>${record.subcategory ? `<span>${escapeHTML(record.subcategory)}</span>` : ""}</div>
-            <h2 class="card-title">${escapeHTML(record.title)}</h2>
-            ${record.address ? `<p class="card-address"><span aria-hidden="true">⌖</span>${escapeHTML(record.address)}</p>` : ""}
-            <p class="card-preview">${escapeHTML(record.content)}</p>
+            <div class="card-category"><span>${mk(record.category)}</span>${record.subcategory ? `<span>${mk(record.subcategory)}</span>` : ""}</div>
+            <h2 class="card-title">${mk(record.title)}</h2>
+            ${record.address ? `<p class="card-address"><span aria-hidden="true">⌖</span>${mk(record.address)}</p>` : ""}
+            <p class="card-preview">${state.query.trim()&&window.ZIP_SNIPPET?window.ZIP_SNIPPET(record.content,state.query):escapeHTML(record.content)}</p>
           </div>
           ${image ? `<img class="card-image" data-private-image="${escapeHTML(image)}" data-thumb alt="메모 참고 이미지" loading="lazy" decoding="async" />` : ""}
         </button>

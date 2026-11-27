@@ -30,7 +30,7 @@
  // 보드 검색: 찾은 글자를 형광펜(<mark>)으로 칠한다. 대소문자는 가리지 않는다.
  let boardQuery='',boardMatches=[],boardMatchAt=-1;
  const queryPattern=()=>boardQuery?new RegExp(boardQuery.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'):null;
- const hl=text=>{const re=queryPattern(),raw=String(text||'');if(!re)return esc(raw);let out='',last=0;raw.replace(re,(m,i)=>{out+=esc(raw.slice(last,i))+`<mark class="board-hit">${esc(m)}</mark>`;last=i+m.length;return m;});return out+esc(raw.slice(last));};
+ const hl=text=>{const re=queryPattern(),raw=String(text||'');if(!re)return esc(raw);let out='',last=0;raw.replace(re,(m,i)=>{out+=esc(raw.slice(last,i))+`<mark class="hit board-hit">${esc(m)}</mark>`;last=i+m.length;return m;});return out+esc(raw.slice(last));};
  const matchesQuery=n=>{const q=boardQuery.toLocaleLowerCase('ko');return !!q&&[n.title,n.content,...urlsOf(n)].some(v=>String(v||'').toLocaleLowerCase('ko').includes(q));};
  const linksHTML=(item,limit=20)=>urlsOf(item).slice(0,limit).map(u=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${hl(u)}</a>`).join('');
  const selection=document.createElement('div');selection.className='board-selection note-selection-bar';selection.hidden=true;

@@ -90,9 +90,9 @@
   }
   function filtered() {const q=$('specs-search').value.trim().toLowerCase();return items.filter(x=>!q||[x.name,x.address,x.designer,x.contact,x.builder,...x.papers.flatMap(p=>[p.number,p.area,p.spec,p.mirror])].join(' ').toLowerCase().includes(q));}
   function render() {
-    const rows=filtered();
+    const rows=filtered(),hq=$('specs-search').value.trim(),mk=v=>hq&&window.ZIP_MARK?window.ZIP_MARK(v,hq):escape(v);
     page=Math.max(1,Math.min(page,Math.ceil(rows.length/20)||1));
-    $('specs-list').innerHTML=rows.length?rows.slice((page-1)*20,page*20).map(x=>`<button type="button" data-spec-id="${escape(x.id)}"><strong><svg class="list-pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22S4 14 4 9a8 8 0 1 1 16 0c0 5-8 13-8 13Z"/><circle cx="12" cy="9" r="2.5" fill="white"/></svg> ${escape(x.name)}</strong><span>${escape(x.address)}</span><span>${escape(x.builder || '건설사 미입력')} · ${escape(x.papers.map(specLabel).join(', ')||'스펙 미입력')}</span><span>M/H ${escape(x.openMonth||'미정')} · 완공 ${escape(x.completionMonth||'미정')}</span></button>`).join(''):'<p>등록된 현장이 없거나 검색 결과가 없어요.</p>';
+    $('specs-list').innerHTML=rows.length?rows.slice((page-1)*20,page*20).map(x=>`<button type="button" data-spec-id="${escape(x.id)}"><strong><svg class="list-pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22S4 14 4 9a8 8 0 1 1 16 0c0 5-8 13-8 13Z"/><circle cx="12" cy="9" r="2.5" fill="white"/></svg> ${mk(x.name)}</strong><span>${mk(x.address)}</span><span>${mk(x.builder || '건설사 미입력')} · ${mk(x.papers.map(specLabel).join(', ')||'스펙 미입력')}</span><span>M/H ${escape(x.openMonth||'미정')} · 완공 ${escape(x.completionMonth||'미정')}</span></button>`).join(''):'<p>등록된 현장이 없거나 검색 결과가 없어요.</p>';
     const pagination=$('specs-pagination');pagination.hidden=rows.length<=20;pagination.innerHTML=`<button type="button" data-spec-page="${page-1}" ${page===1?'disabled':''}>이전</button><span>${page} / ${Math.ceil(rows.length/20)||1}</span><button type="button" data-spec-page="${page+1}" ${page*20>=rows.length?'disabled':''}>다음</button>`;
     if(!markers)return;markers.clearLayers();
     const groups=new Map();rows.forEach(x=>{if(!Number.isFinite(x.lat)||!Number.isFinite(x.lng)||x.lat<32||x.lat>39.5||x.lng<124||x.lng>132.5)return;const key=`${x.lat},${x.lng}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x);});
